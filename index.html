@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>RPG_UI_Base</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Build 14.0: Modular Architecture -->
+    <script src="state.js"></script>
+    <script src="assets.js"></script>
+    <!-- <script src="data.js"></script> -->
+    <script src="battleData.js"></script>
+    <script src="Cinematics.js"></script>
+    <script src="battle.js"></script>
+    <!-- Duel system removed in Build 15.0.0 -->
+    <script src="uiControl.js"></script>
+    <script src="scenarioEvents.js"></script>
+    <script src="exploration.js"></script>
+    <script src="inn.js"></script>
+    <script src="main.js"></script>
+</head>
+
+<body>
+    <!-- Build 11.0.0: Full-Screen Tap Overlay -->
+    <div id="tap-overlay"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; cursor:pointer;">
+    </div>
+
+    <div id="chapterHeader">Chapter 1 銀貨と宿屋 (Build 14.0.1)</div>
+    <div id="debugParams">
+        <span id="debugEncounterToggle" onclick="debugSystem.toggleEncounters()">👾</span>
+    </div>
+    <header>
+        <div class="status-top-row">
+            <div id="statusInfo" class="status-info">カイン Lv.1</div>
+            <div class="xp-bar-bg">
+                <div id="xpFill" class="xp-bar-fill"></div>
+            </div>
+        </div>
+        <div class="hp-bar-bg">
+            <div id="hpFill" class="hp-bar-fill"></div>
+            <div id="hpText" class="bar-text">100 / 100</div>
+        </div>
+        <div class="meta-row">
+            <div id="locationBar">―― 場所名 ――</div>
+            <div id="progressContainer">
+                <div class="progress-track">
+                    <div id="progressMarker"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- Build 6.1: Relocated Enemy Bar -->
+    <!-- Build 6.2: Enemy Status merged into locationBar dynamically, removing separate container -->
+    <main id="logContainer"></main>
+
+    <!-- Duel Scene removed in Build 15.0.0 -->
+
+    <footer>
+        <div id="exploreUI" class="btn-grid">
+            <button id="btnEnterInn" class="btn btn-full" onclick="innSystem.enterInn()">宿屋《琥珀亭》</button>
+            <button id="btnMoveForward" class="btn" onclick="explorationSystem.move(1)">進む</button>
+            <button id="btnMoveBack" class="btn" onclick="explorationSystem.move(-1)">戻る</button>
+            <button id="btnTalk" class="btn" onclick="explorationSystem.talk()">話す</button>
+            <button id="btnItem" class="btn" onclick="uiControl.openModal()">アイテム</button>
+        </div>
+
+        <div id="innUI" class="btn-grid" style="display:none;">
+            <button class="btn" onclick="innSystem.talk()">話す</button>
+            <button class="btn" onclick="innSystem.stay()">泊まる</button>
+            <button class="btn" onclick="innSystem.observe()">様子を見る</button>
+            <button id="btnInnDeliver" class="btn btn-accent" onclick="innSystem.deliver()">銀貨を納品</button>
+            <button class="btn btn-full" onclick="innSystem.exitInn()">外に出る</button>
+        </div>
+
+
+        <div id="choiceUI" class="btn-grid" style="display:none;">
+            <button id="btnChoiceA" class="btn btn-full">自分で取る</button>
+            <button id="btnChoiceB" class="btn btn-full" style="background:#555;">オーエンに取らせる</button>
+        </div>
+
+        <!-- Build 14.2.1: Action Buttons Container for Wagon Choices -->
+        <div id="action-buttons" style="display: none; flex-direction: column; gap: 10px; padding: 10px;"></div>
+
+        <button id="btnStartBattle" style="display:none;"></button>
+    </footer>
+
+    <div id="itemModal">
+        <div class="modal-content">
+            <div style="padding:15px; border-bottom:1px solid #333; text-align:center; font-weight:bold;">所持品</div>
+            <div id="itemList" class="item-list-container"></div>
+            <div id="itemDetailArea" class="item-detail-area">アイテムを選択してください</div>
+            <button class="btn" style="margin:10px;" onclick="uiControl.closeModal()">閉じる</button>
+        </div>
+    </div>
+
+    <div id="saveModal">
+        <div class="save-modal-content">
+            <div style="padding:15px; border-bottom:1px solid #333; text-align:center; font-weight:bold;">セーブデータ</div>
+            <div style="padding:15px;">
+                <div class="save-slot">
+                    <div class="save-slot-header">Slot 1</div>
+                    <div id="saveSlot1Info" class="save-slot-info">Empty</div>
+                    <div class="slot-actions">
+                        <button class="slot-btn save" onclick="uiControl.saveGame(1)">記録</button>
+                        <button id="btnLoad1" class="slot-btn load" onclick="uiControl.loadGame(1)">再開</button>
+                    </div>
+                </div>
+                <div class="save-slot">
+                    <div class="save-slot-header">Slot 2</div>
+                    <div id="saveSlot2Info" class="save-slot-info">Empty</div>
+                    <div class="slot-actions">
+                        <button class="slot-btn save" onclick="uiControl.saveGame(2)">記録</button>
+                        <button id="btnLoad2" class="slot-btn load" onclick="uiControl.loadGame(2)">再開</button>
+                    </div>
+                </div>
+                <div class="save-slot">
+                    <div class="save-slot-header">Slot 3</div>
+                    <div id="saveSlot3Info" class="save-slot-info">Empty</div>
+                    <div class="slot-actions">
+                        <button class="slot-btn save" onclick="uiControl.saveGame(3)">記録</button>
+                        <button id="btnLoad3" class="slot-btn load" onclick="uiControl.loadGame(3)">再開</button>
+                    </div>
+                </div>
+                <div class="save-slot">
+                    <div class="save-slot-header">Slot 4</div>
+                    <div id="saveSlot4Info" class="save-slot-info">Empty</div>
+                    <div class="slot-actions">
+                        <button class="slot-btn save" onclick="uiControl.saveGame(4)">記録</button>
+                        <button id="btnLoad4" class="slot-btn load" onclick="uiControl.loadGame(4)">再開</button>
+                    </div>
+                </div>
+                <div class="save-slot">
+                    <div class="save-slot-header">Slot 5</div>
+                    <div id="saveSlot5Info" class="save-slot-info">Empty</div>
+                    <div class="slot-actions">
+                        <button class="slot-btn save" onclick="uiControl.saveGame(5)">記録</button>
+                        <button id="btnLoad5" class="slot-btn load" onclick="uiControl.loadGame(5)">再開</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn" style="margin:10px;" onclick="uiControl.closeSaveModal()">閉じる</button>
+        </div>
+    </div>
+
+    <div id="debug-mood"></div>
+</body>
+
+</html>

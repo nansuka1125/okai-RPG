@@ -495,7 +495,7 @@ const battleSystem = {
         if (RPG.State.currentEnemy.xp) {
             RPG.State.exp += RPG.State.currentEnemy.xp;
             uiControl.addLog(`${RPG.State.currentEnemy.xp}の経験値を得た。`);
-            if (RPG.State.exp >= 100 * Math.pow(1.5, RPG.State.cainLv - 1)) {
+            if (RPG.State.exp >= 75 * Math.pow(1.5, RPG.State.cainLv - 1)) {
                 RPG.State.cainLv++;
                 RPG.State.maxHP += 10;
                 RPG.State.currentHP = RPG.State.maxHP;

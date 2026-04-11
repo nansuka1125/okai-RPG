@@ -16,7 +16,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.39 (Forest Entrance Intro)", // Build 15.2.39: Add one-time intro dialogue for the first arrival at forest entrance 0m
+    version: "15.2.40 (Lighter Early Leveling)", // Build 15.2.40: Slightly reduce early level requirements for a smoother opening pace
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）

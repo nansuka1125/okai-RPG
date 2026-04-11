@@ -67,7 +67,7 @@ const uiControl = {
         }
 
         if (xpFill) {
-            const nextLevelExp = 100 * Math.pow(1.5, RPG.State.cainLv - 1);
+            const nextLevelExp = 75 * Math.pow(1.5, RPG.State.cainLv - 1);
             const xpRatio = nextLevelExp > 0 ? Math.min(100, (RPG.State.exp / nextLevelExp) * 100) : 0;
             xpFill.style.width = `${xpRatio}%`;
         }

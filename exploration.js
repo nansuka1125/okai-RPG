@@ -101,6 +101,23 @@ const explorationSystem = {
         RPG.State.location = entranceLoc.name;
         RPG.State.mode = "base";
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.enteredForest, "marker");
+
+        if (!RPG.State.flags.forestFirstEnter) {
+            RPG.State.flags.forestFirstEnter = true;
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "カイン「森はここからか」", delay: 1500 },
+                { text: "太陽の光を浴びて木々の間からキラキラと差し込む光が場違いなほど綺麗だ。", delay: 1500 },
+                { text: "黄色味を帯びた木々は生きているはずにも関わらずどこか不気味な死の気配を漂わせている。", delay: 1500 },
+                { text: "オーエン「見て。この虫たち、樹液に絡まってベタベタになったまま死んでるんだよ。死ぬまで甘かったなんて虫のくせに幸せそう」", delay: 1500 },
+                { text: "カイン「…樹液が固まってる」", delay: 1500 },
+                { text: "オーエン「それとも、木が命の甘さを啜ってるのかもね」", delay: 1500 },
+                { text: "カイン「明らかに異常だな。行こう」", delay: 1500 }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
         this.move(0);
     },
 
@@ -137,6 +154,12 @@ const explorationSystem = {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDist;
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.moved(RPG.State.currentDistance));
+
+            // Keep forest location labels in sync with distance thresholds.
+            // Do not overwrite special area names like the Former Highway.
+            if (RPG.State.isInDungeon && RPG.State.location !== "かつての街道") {
+                RPG.State.location = uiControl.getLocData(RPG.State.currentDistance).name;
+            }
 
             if (RPG.State.isPoisoned) {
                 RPG.State.currentHP -= 2;

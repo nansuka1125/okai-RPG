@@ -16,7 +16,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.38 (Forest Entrance 0m)", // Build 15.2.38: Ensure the forest entrance 0m is represented before normal exploration begins
+    version: "15.2.39 (Forest Entrance Intro)", // Build 15.2.39: Add one-time intro dialogue for the first arrival at forest entrance 0m
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -59,6 +59,7 @@ RPG.State = {
         gotTestCoin: false,
         hasIntroFinished: false, // プロローグ完了フラグ
         hasFoundFirstCoin: false, // First coin discovery at 5m
+        forestFirstEnter: false, // Build 15.2.39: One-time first arrival dialogue at forest entrance 0m
         hasTreeEventOccurred: false, // Hungry Amber Tree event at 8m
         treeDefeated: false, // Track if tree has been defeated
         duelCoinAwarded: false, // Track duel coin reward

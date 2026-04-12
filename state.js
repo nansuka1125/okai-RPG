@@ -16,7 +16,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.40 (Lighter Early Leveling)", // Build 15.2.40: Slightly reduce early level requirements for a smoother opening pace
+    version: "15.2.41 (XP Table Rebalanced)", // Build 15.2.41: Rebalance enemy XP so later and stronger encounters reward more consistently
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）

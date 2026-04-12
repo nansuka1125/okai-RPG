@@ -338,7 +338,7 @@ RPG.Assets.ENEMIES = [
         hp: 40,
         maxHp: 40,
         atk: 6,
-        xp: 8,
+        xp: 25,
         msg: "ネズミの大群がよじ登ってくる！",
         preBattleDialogue: [
             { text: "ネズミの大群がよじ登ってくる！" }
@@ -350,11 +350,12 @@ RPG.Assets.ENEMIES = [
         hp: 30,
         maxHp: 30,
         atk: 8,
-        xp: 10,
+        xp: 30,
         msg: "目食いカラスは目玉を突いてきた！"
     },
     {
         id: "weasel", name: "魔界のイタチ", maxHp: 50, atk: 12, // Build 6.2: HP 35 -> 50
+        xp: 22,
         area: [1, 9], weight: 3,
         preemptive: 1.0, // Build 6.3: Guaranteed first strike
         drop: { id: "herb", rate: 0.2 }, // Build 8.51: Changed from silverCoin to herb
@@ -362,12 +363,13 @@ RPG.Assets.ENEMIES = [
     },
     {
         id: "sap", name: "琥珀の樹液", maxHp: 60, atk: 8,
+        xp: 18,
         area: [4, 9], weight: 5,
         msg: "樹液の触手で攻撃してきた！"
     },
     {
         id: "hungry_tree", name: "飢えた琥珀樹", maxHp: 100, atk: 18,
-        xp: 30, // Increased XP from 15
+        xp: 45,
         isBoss: true,
         area: null // Build 12.0.6: Excluded from random encounters
     },
@@ -377,7 +379,7 @@ RPG.Assets.ENEMIES = [
         maxHp: 100, // Dynamic: Atk * 12 (Build 9.1)
         atk: 15,
         area: null, // Build 12.0.6: Boss only summoned by event
-        xp: 50,
+        xp: 130,
         isBoss: true,
         drop: { id: "herb", rate: 0.2 },
         msg: "大きな体をぶつけてきた！", // Default msg (Build 9.1)

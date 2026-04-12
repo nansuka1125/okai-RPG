@@ -78,49 +78,36 @@ const uiControl = {
             header.textContent = `Chapter 1 銀貨と宿屋 (Build ${RPG.State.version})`;
         }
 
-        // --- Build 6: Enemy HP Bar Update ---
-        // --- Build 6.2: Simplified Header (Merged Location + Enemy Info) ---
-        // Separate container removed. Logic moved to locationBar below.
+        const overworldRow = document.getElementById('overworldRow');
+        const battleInfoRow = document.getElementById('battleInfoRow');
+        const currentLocationName = document.getElementById('currentLocationName');
+        const progressStartLabel = document.getElementById('progressStartLabel');
+        const progressEndLabel = document.getElementById('progressEndLabel');
+        const progressMarker = document.getElementById('progressMarker');
+        const enemyNameLabel = document.getElementById('enemyNameLabel');
+        const enemyTopHpFill = document.getElementById('enemyTopHpFill');
 
-        // ロケーション・メーター制御
-        const locBar = document.getElementById('locationBar');
-        const progressContainer = document.getElementById('progressContainer');
+        const currentLocationText = RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name;
+        const isHighway = currentLocationText === "かつての街道";
+
+        if (progressStartLabel) progressStartLabel.textContent = isHighway ? "街道入口" : "宿屋";
+        if (progressEndLabel) progressEndLabel.textContent = isHighway ? "街道奥" : "森の深層";
 
         if (RPG.State.isBattling && RPG.State.currentEnemy) {
-            locBar.innerHTML = "";
-            if (progressContainer) {
-                progressContainer.style.display = 'none';
+            if (overworldRow) overworldRow.style.display = 'none';
+            if (battleInfoRow) battleInfoRow.style.display = 'flex';
+            if (enemyNameLabel) enemyNameLabel.textContent = RPG.State.currentEnemy.name;
+            if (enemyTopHpFill) {
+                const hpPct = Math.max(0, (RPG.State.currentEnemy.hp / RPG.State.currentEnemy.maxHp) * 100);
+                enemyTopHpFill.style.width = `${hpPct}%`;
+                enemyTopHpFill.style.background = "#ff4d4d";
             }
-
-            const nameSpan = document.createElement("span");
-            nameSpan.textContent = RPG.State.currentEnemy.name;
-            locBar.appendChild(nameSpan);
-
-            const barContainer = document.createElement("div");
-            barContainer.className = "enemy-hp-container-inline hp-bar-bg";
-            barContainer.style.height = "6px"; // Slim
-            barContainer.style.background = "#330000"; // Darker background for contrast
-            barContainer.style.flex = "0 1 42%";
-            barContainer.style.maxWidth = "260px";
-
-            const barFill = document.createElement("div");
-            barFill.className = "hp-bar-fill";
-            barFill.style.background = "#ff4d4d"; // Red (Standard)
-
-            const hpPct = Math.max(0, (RPG.State.currentEnemy.hp / RPG.State.currentEnemy.maxHp) * 100);
-            barFill.style.width = `${hpPct}%`;
-
-            barContainer.appendChild(barFill);
-            locBar.appendChild(barContainer);
         } else {
-            if (progressContainer) {
-                const shouldShowMeter = RPG.State.isInDungeon && RPG.State.currentDistance > 0;
-                progressContainer.style.display = shouldShowMeter ? 'flex' : 'none';
-            }
-            locBar.textContent = RPG.State.location && RPG.State.location !== "" ? `―― ${RPG.State.location} ――` : `―― ${loc.name} ――`;
+            if (battleInfoRow) battleInfoRow.style.display = 'none';
+            if (overworldRow) overworldRow.style.display = 'block';
+            if (currentLocationName) currentLocationName.textContent = currentLocationText;
         }
 
-        const progressMarker = document.getElementById('progressMarker');
         if (progressMarker) {
             const ratio = (RPG.State.currentDistance / RPG.Assets.CONFIG.MAX_DISTANCE) * 100;
             progressMarker.style.left = `${ratio}%`;
@@ -132,18 +119,14 @@ const uiControl = {
             debugMood.textContent = `Mood: ${RPG.State.mood}`;
         }
 
-        // Build 8.23: Ensure Save button exists in location bar
-        if (locBar) {
-            let saveBtn = document.getElementById('miniSaveButton');
-            if (!saveBtn) {
-                saveBtn = document.createElement('button');
-                saveBtn.id = 'miniSaveButton';
-                saveBtn.textContent = 'Save';
-                saveBtn.onclick = () => this.openSaveModal();
-            }
-            if (!locBar.contains(saveBtn)) {
-                locBar.appendChild(saveBtn);
-            }
+        // Keep the save button available without consuming header layout space.
+        let saveBtn = document.getElementById('miniSaveButton');
+        if (!saveBtn) {
+            saveBtn = document.createElement('button');
+            saveBtn.id = 'miniSaveButton';
+            saveBtn.textContent = 'Save';
+            saveBtn.onclick = () => this.openSaveModal();
+            document.body.appendChild(saveBtn);
         }
 
         this.updateControlPanels(loc);
@@ -404,7 +387,7 @@ const uiControl = {
         try {
             const loadedState = JSON.parse(saveData);
             // Build 10.0.8: Preserve current system version
-            const currentVersion = "15.2.38 (Forest Entrance 0m)";
+            const currentVersion = RPG.State.version;
             Object.assign(RPG.State, loadedState);
             RPG.State.version = currentVersion; // Hard-force the version
             this.addLog(`Slot ${slot} からロードしました。`);

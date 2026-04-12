@@ -2,9 +2,6 @@
 // Extracted from inn.js to separate Scenario Logic from Inn Systems
 // Migrated to RPG.State Namespace
 
-// Update Version
-RPG.State.version = "15.2.38 (Forest Entrance 0m)";
-
 const scenarioEvents = {
     // 🏃‍♂️ Thief Boy Pursuit Events
     thiefBoyEvent: {

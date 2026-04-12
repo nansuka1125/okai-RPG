@@ -35,25 +35,34 @@
     <header>
         <div class="status-top-row">
             <div id="statusInfo" class="status-info">カイン Lv.1</div>
-            <div class="xp-bar-bg">
-                <div id="xpFill" class="xp-bar-fill"></div>
+            <div class="xp-meta">
+                <span class="xp-label">EXP</span>
+                <div class="xp-bar-bg">
+                    <div id="xpFill" class="xp-bar-fill"></div>
+                </div>
             </div>
         </div>
         <div class="hp-bar-bg">
             <div id="hpFill" class="hp-bar-fill"></div>
             <div id="hpText" class="bar-text">100 / 100</div>
         </div>
-        <div class="meta-row">
-            <div id="locationBar">―― 場所名 ――</div>
-            <div id="progressContainer">
-                <div class="progress-track">
-                    <div id="progressMarker"></div>
-                </div>
+        <div id="overworldRow" class="overworld-row">
+            <div class="location-scale-row">
+                <span id="progressStartLabel" class="edge-label">宿屋</span>
+                <div id="currentLocationName" class="current-location-name">琥珀の森</div>
+                <span id="progressEndLabel" class="edge-label edge-label-right">森の深層</span>
+            </div>
+            <div class="progress-track">
+                <div id="progressMarker"></div>
+            </div>
+        </div>
+        <div id="battleInfoRow" class="battle-info-row" style="display:none;">
+            <span id="enemyNameLabel" class="enemy-name-label">敵名</span>
+            <div class="enemy-top-hp-bg">
+                <div id="enemyTopHpFill" class="hp-bar-fill"></div>
             </div>
         </div>
     </header>
-    <!-- Build 6.1: Relocated Enemy Bar -->
-    <!-- Build 6.2: Enemy Status merged into locationBar dynamically, removing separate container -->
     <main id="logContainer"></main>
 
     <!-- Duel Scene removed in Build 15.0.0 -->

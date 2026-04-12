@@ -1,7 +1,6 @@
 // 🚩ーー【Build 14.1.3: Battle Data & Behaviors (Surgical Fix)】ーー
 // Standardized keys (atk, xp) while preserving structural integrity.
 // Build 14.2.3: Amber Tree Migration (Phase 1)
-RPG.State.version = "15.2.38 (Forest Entrance 0m)";
 
 window.RPG = window.RPG || {};
 RPG.Assets = RPG.Assets || {};

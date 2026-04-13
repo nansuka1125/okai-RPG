@@ -255,34 +255,47 @@ const explorationSystem = {
 
         // 5m Priority Logic
         if (dist === 5) {
-            if (!RPG.State.flags.hasFoundFirstCoin) {
+            if (!RPG.State.flags.forest5mFirstVisit) {
                 RPG.State.mode = "event";
-                uiControl.addLog(RPG.Assets.GAME_TEXT.events.firstCoinFound);
-                setTimeout(() => {
-                    uiControl.addLog(RPG.Assets.GAME_TEXT.events.firstCoinGet);
-                    RPG.State.silverCoins += 1;
-                    RPG.State.inventory.silverCoin += 1;
-                    RPG.State.flags.hasFoundFirstCoin = true;
-                    if (RPG.State.storyPhase < 1) {
-                        RPG.State.storyPhase = 1;
-                    }
-                    RPG.State.searchCounter = 0;
-                    uiControl.updateUI();
-
-                    setTimeout(() => {
-                        RPG.State.mode = "base";
-                        uiControl.updateUI();
-                    }, 800);
-                }, 800);
+                RPG.State.flags.forest5mFirstVisit = true;
+                RPG.State.dialogueQueue = [
+                    { text: "カインは森の中を銀貨を探しながら歩いた。", delay: 1500 },
+                    { text: "カイン「そんなに簡単に銀貨が落ちてるとは思えないが…」", delay: 1500 },
+                    { text: "オーエン「王国の騎士様が這いつくばって小銭拾いとはね」", delay: 1500 },
+                    { text: "カイン「おまえも手伝ってくれ」", delay: 1500 },
+                    { text: "オーエン「手伝ってるよ。間抜けな姿を見ててあげてるでしょ」", delay: 1500, color: "#a020f0" },
+                    { text: "カイン「……」", delay: 1500 }
+                ];
+                this.playDialogueLoop();
                 return;
             } else {
                 // Build 14.1.7: Check for Return Trip Event (Priority)
                 if (this.checkEvents()) return;
-
-                uiControl.addLog(RPG.Assets.GAME_TEXT.events.owenPlaceholder5m);
-                uiControl.updateUI();
-                return;
             }
+        }
+
+        // 6m Priority Logic
+        if (dist === 6 && !RPG.State.flags.forest6mFirstVisit) {
+            RPG.State.mode = "event";
+            RPG.State.flags.forest6mFirstVisit = true;
+            RPG.State.flags.hasFoundFirstCoin = true;
+            RPG.State.silverCoins += 1;
+            RPG.State.inventory.silverCoin += 1;
+            if (RPG.State.storyPhase < 1) {
+                RPG.State.storyPhase = 1;
+            }
+            RPG.State.searchCounter = 0;
+            RPG.State.dialogueQueue = [
+                { text: "カイン「…ん？これは」", delay: 1500 },
+                { text: "足元の泥が、一瞬鈍く光ったように見えた。", delay: 1500 },
+                { text: "ブーツの先で泥と落ち葉をかき分ける。汚れでわかりづらいが、それは確かに銀貨だった。", delay: 1800 },
+                { text: "🪙銀貨を手に入れた！", delay: 1500, color: "#FFD700" },
+                { text: "カイン「…本当にあった……。」", delay: 1500 },
+                { text: "オーエン「………へえ」", delay: 1500, color: "#a020f0" },
+                { text: "カイン「他にもあるかもしれない。もう少し森を歩き回ってみよう」", delay: 1800 }
+            ];
+            this.playDialogueLoop();
+            return;
         }
 
         // 10m Priority Logic
@@ -333,6 +346,21 @@ const explorationSystem = {
         }
 
         // Ambient Flavor Text
+        if (dist === 5 && !isHighway && RPG.State.flags.forest5mFirstVisit) {
+            const flavorPool = RPG.Assets.GAME_TEXT.events.owenFlavor5m || [];
+            if (flavorPool.length > 0) {
+                const entry = flavorPool[Math.floor(Math.random() * flavorPool.length)];
+                uiControl.addLog(entry.text, "ambient");
+
+                if (entry.givesHerb) {
+                    RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 1;
+                    uiControl.addLog("薬草を1つ手に入れた！");
+                    uiControl.updateUI();
+                }
+            }
+            return;
+        }
+
         if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
             setTimeout(() => {
                 uiControl.addLog(RPG.Assets.AMBIENT_TEXTS[dist], "ambient");

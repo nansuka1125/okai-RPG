@@ -10,12 +10,23 @@ const uiControl = {
 
         const entry = document.createElement('div');
         entry.className = 'log-entry';
+        const OWEN_DIALOGUE_COLOR = "#cc73ff";
+        const normalizedText = typeof text === "string" ? text.trimStart() : "";
+        const isOwenDialogue = normalizedText.startsWith("オーエン「");
+        const resolvedColor = (typeof color === "string" && color.toLowerCase() === "#a020f0")
+            ? OWEN_DIALOGUE_COLOR
+            : color;
+
         if (type === "marker") entry.classList.add('log-marker');
         if (type === "ambient") {
             entry.style.color = "#888888"; // Build 6.3.6: Gray color for ambient texts
             entry.style.fontSize = "14px"; // Build 6.3.6: Smaller font for ambient texts
         }
-        if (color) entry.style.color = color;
+        if (resolvedColor) {
+            entry.style.color = resolvedColor;
+        } else if (isOwenDialogue) {
+            entry.style.color = OWEN_DIALOGUE_COLOR;
+        }
         if (fontSize) entry.style.fontSize = fontSize;
         entry.textContent = text;
 

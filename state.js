@@ -9,14 +9,15 @@ window.RPG = window.RPG || {};
 RPG.Config = {
     MAX_DISTANCE: 10,    // 琥珀の森の最深部
     MIN_DISTANCE: 0,     // 宿屋前
-    BATTLE_RATE: 0.3     // エンカウント率（30%）
+    BATTLE_RATE: 0.3,    // エンカウント率（30%）
+    HEAL_ON_LEVEL_UP: false // Build 15.2.47: Toggle full HP recovery on level up
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.41 (XP Table Rebalanced)", // Build 15.2.41: Rebalance enemy XP so later and stronger encounters reward more consistently
+    version: "15.2.47 (Level Up Heal Toggle)", // Build 15.2.47: Make level-up full heal configurable and disable it for now
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -58,7 +59,9 @@ RPG.State = {
         silverDelivered: false,
         gotTestCoin: false,
         hasIntroFinished: false, // プロローグ完了フラグ
-        hasFoundFirstCoin: false, // First coin discovery at 5m
+        hasFoundFirstCoin: false, // First coin discovery now triggered at 6m
+        forest5mFirstVisit: false, // Build 15.2.43: One-time first visit scene at forest 5m
+        forest6mFirstVisit: false, // Build 15.2.43: One-time first coin scene at forest 6m
         forestFirstEnter: false, // Build 15.2.39: One-time first arrival dialogue at forest entrance 0m
         hasTreeEventOccurred: false, // Hungry Amber Tree event at 8m
         treeDefeated: false, // Track if tree has been defeated

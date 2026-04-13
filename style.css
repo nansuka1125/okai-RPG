@@ -314,6 +314,7 @@ main {
 .log-entry {
     font-size: 16px;
     line-height: 1.6;
+    white-space: pre-line;
 }
 
 .log-marker {

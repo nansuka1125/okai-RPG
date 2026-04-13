@@ -498,9 +498,10 @@ const battleSystem = {
             if (RPG.State.exp >= 75 * Math.pow(1.5, RPG.State.cainLv - 1)) {
                 RPG.State.cainLv++;
                 RPG.State.maxHP += 10;
-                RPG.State.currentHP = RPG.State.maxHP;
                 RPG.State.attack += 2;
-                RPG.State.currentHP = RPG.State.maxHP;
+                if (RPG.Config.HEAL_ON_LEVEL_UP) {
+                    RPG.State.currentHP = RPG.State.maxHP;
+                }
                 uiControl.addLog(`【LEVEL UP!】カインのレベルが ${RPG.State.cainLv} に上がった！`, "marker", "#ffff00");
             }
         }

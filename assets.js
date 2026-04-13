@@ -323,12 +323,23 @@ RPG.Assets.GAME_TEXT = {
 
     // Event Messages
     events: {
-        firstCoinFound: "道端に何かが光っている…",
-        firstCoinGet: "🪙銀貨を見つけた！",
-        owenPlaceholder5m: "[5m: Owen's random behavior placeholder]",
+        owenFlavor5m: [
+            { text: "オーエンは退屈そうに視線を泳がせた" },
+            { text: "オーエンは足元の土を蹴ってわざとカインにかけた" },
+            { text: "オーエンは鼻歌を歌っている" },
+            { text: "オーエンはだるそうに歩いている" },
+            { text: "オーエンは茂みに視線を投げた。何かが逃げていった" },
+            { text: "オーエンはそこら辺の草をカインの顔に投げてきた！", givesHerb: true },
+            { text: "オーエンは獲物を探している…" },
+            { text: "オーエンが足元の何かを蹴り飛ばした" },
+            { text: "オーエンはカインの足を引っ掛けた" },
+            { text: "オーエンはつま先で、落ちてる琥珀を弄んでいる" },
+            { text: "オーエンは不吉な歌を歌っている" },
+            { text: "オーエンは眠そうに目を擦った" }
+        ],
         hintAt7m: "(A sickly sweet, honey-like scent begins to drift through the air...)",
         treeEncounter: "飢えた琥珀樹がそびえ立っている。幹の中心部に、心臓のように🪙銀貨が埋め込まれている。",
-        pathAt10m: "The path opens up. You see a stalled carriage and shadows moving around it.",
+        pathAt10m: "ここが森の最奥だ。\nカイン（まだこの先に進むわけにはいかないな）",
         thiefDiscoveryHookB: [
             { text: "カイン「……あれ？」", delay: 1000 },
             { text: "カイン「銀貨が……ない」", delay: 1500 },

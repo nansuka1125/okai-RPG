@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.52 (Inn Rat Event 2)", // Build 15.2.52: Added phase 3 inn rat event with magic rat battle
+    version: "15.2.53 (Future Item Slots)", // Build 15.2.53: Added future item definitions and inventory slots
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -52,7 +52,21 @@ RPG.State = {
     },
 
     // 進行管理
-    inventory: { silverCoin: 0, herb: 0, berry: 0, charm: 0, debug_poison: 10, debug_lvl10: 1 },
+    inventory: {
+        silverCoin: 0,
+        herb: 0,
+        berry: 0,
+        charm: 0,
+        edibleHerb: 0,
+        mintFlower: 0,
+        boneMeal: 0,
+        emptyBottle: 0,
+        glowingCatRabbitFur: 0,
+        glowingBrooch: 0,
+        lightRabbitBrooch: 0,
+        debug_poison: 10,
+        debug_lvl10: 1
+    },
     silverCoins: 0, // Currency tracking
     postTreeBattles: null, // Count battles after tree defeat
     searchCounter: 0, // Battle counter for finding the tree

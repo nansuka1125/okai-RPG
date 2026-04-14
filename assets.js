@@ -7,12 +7,32 @@ RPG.Assets = {};
 RPG.Assets.CONFIG = {
     MAX_DISTANCE: 10,
     MIN_DISTANCE: 0,
-    ITEM_NAME: { silverCoin: "🪙銀貨", herb: "🌿薬草", berry: "甘い木の実", charm: "🧧お守り袋", debug_poison: "《デバッグ毒》" },
+    ITEM_NAME: {
+        silverCoin: "🪙銀貨",
+        herb: "🌿薬草",
+        berry: "甘い木の実",
+        charm: "🧧お守り袋",
+        edibleHerb: "🌱食用ハーブ",
+        mintFlower: "🪻薄荷草",
+        boneMeal: "🦴骨粉",
+        emptyBottle: "🫙空瓶",
+        glowingCatRabbitFur: "🐇光る猫うさぎの毛",
+        glowingBrooch: "💍光るブローチ",
+        lightRabbitBrooch: "💍光兎のブローチ",
+        debug_poison: "《デバッグ毒》"
+    },
     ITEM_DESC: {
         silverCoin: "宿屋に納品するための銀貨。3枚必要だ。",
         herb: "傷を癒やす野草。HPの40%を回復する。",
         berry: "魔界の植物の実。甘くて美味しい。",
         charm: "旅の無事を願うお守り袋。",
+        edibleHerb: "料理に使える種類のハーブ。",
+        mintFlower: "触れるとひんやりする青い花。",
+        boneMeal: "細かく砕けた白い粉。不思議と落ち着く。",
+        emptyBottle: "小さなガラス瓶。何かを入れられそうだ。",
+        glowingCatRabbitFur: "淡い光を浴びた魔獣の毛。様々な効能があるらしい。",
+        glowingBrooch: "小さく開く構造になっている。",
+        lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         debug_poison: "【テスト用】使うとHPが1になります。",
         debug_lvl10: "【デバッグ用】使うと一気にLv.10になります。"
     },

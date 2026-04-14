@@ -259,7 +259,7 @@ const uiControl = {
                         btnMoveBack.onclick = () => explorationSystem.move(-1);
                     }
                 }
-                if (btnTalk) btnTalk.disabled = !loc.hasTarget;
+                if (btnTalk) btnTalk.disabled = false;
             }
         }
 

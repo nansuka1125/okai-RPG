@@ -67,8 +67,8 @@ RPG.Assets.GAME_TEXT = {
         leftForest: "琥珀の森を抜け、宿屋前まで戻ってきた。",
         moved: (dist) => `${dist}m地点へ移動した。`,
         poisonDamage: "毒が身体を蝕んでいる…（HP-2）",
-        talkAtInn: "（宿屋に入って主人と話そう）",
-        talkInDungeon: "（周囲を警戒している…）",
+        talkAtInn: "カイン（特に気になるものはないな）",
+        talkInDungeon: "カイン（特に気になるものはないな）",
         noInventory: "所持品なし",
         gateGuard: "門番『通行証か納品が済むまでは通せん。』"
     },

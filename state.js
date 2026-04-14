@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.53 (Future Item Slots)", // Build 15.2.53: Added future item definitions and inventory slots
+    version: "15.2.54 (Forest Inspect Split)", // Build 15.2.54: Split phase 0 forest arrival flavor from inspect rewards
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -74,9 +74,13 @@ RPG.State = {
         silverDelivered: false,
         gotTestCoin: false,
         hasIntroFinished: false, // プロローグ完了フラグ
-        hasFoundFirstCoin: false, // First coin discovery now triggered at 6m
+        hasFoundFirstCoin: false, // First coin discovery now triggered by inspecting 6m
+        forest3mFirstVisit: false, // Build 15.2.54: One-time auto dialogue at forest 3m during phase 0
+        forest3mInspectCount: 0, // Build 15.2.54: Track one-time special inspect talk at forest 3m during phase 0
         forest5mFirstVisit: false, // Build 15.2.43: One-time first visit scene at forest 5m
+        forest5mBroochFound: false, // Build 15.2.54: One-time brooch pickup at forest 5m inspect
         forest6mFirstVisit: false, // Build 15.2.43: One-time first coin scene at forest 6m
+        forest6mCoinFound: false, // Build 15.2.54: One-time silver coin pickup at forest 6m inspect
         forestFirstEnter: false, // Build 15.2.39: One-time first arrival dialogue at forest entrance 0m
         firstInnSleep: false, // Build 15.2.50: One-time special inn sleep scene during story phase 1
         innRatEvent: false, // Build 15.2.51: One-time inn rat event on first observe during story phase 1

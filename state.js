@@ -10,14 +10,15 @@ RPG.Config = {
     MAX_DISTANCE: 10,    // 琥珀の森の最深部
     MIN_DISTANCE: 0,     // 宿屋前
     BATTLE_RATE: 0.3,    // エンカウント率（30%）
-    HEAL_ON_LEVEL_UP: false // Build 15.2.47: Toggle full HP recovery on level up
+    HEAL_ON_LEVEL_UP: false, // Build 15.2.47: Toggle full HP recovery on level up
+    LEVEL_UP_TALK_BATTLE_ONLY: true // Build 15.2.49: Reserve milestone level-up talks for battle victories only
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.47 (Level Up Heal Toggle)", // Build 15.2.47: Make level-up full heal configurable and disable it for now
+    version: "15.2.52 (Inn Rat Event 2)", // Build 15.2.52: Added phase 3 inn rat event with magic rat battle
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -63,6 +64,10 @@ RPG.State = {
         forest5mFirstVisit: false, // Build 15.2.43: One-time first visit scene at forest 5m
         forest6mFirstVisit: false, // Build 15.2.43: One-time first coin scene at forest 6m
         forestFirstEnter: false, // Build 15.2.39: One-time first arrival dialogue at forest entrance 0m
+        firstInnSleep: false, // Build 15.2.50: One-time special inn sleep scene during story phase 1
+        innRatEvent: false, // Build 15.2.51: One-time inn rat event on first observe during story phase 1
+        innRatEvent2: false, // Build 15.2.52: One-time inn rat event on first observe from story phase 3 onward
+        innRatEvent2BattleActive: false, // Build 15.2.52: Temporary routing flag for phase 3 inn rat post-battle dialogue
         hasTreeEventOccurred: false, // Hungry Amber Tree event at 8m
         treeDefeated: false, // Track if tree has been defeated
         duelCoinAwarded: false, // Track duel coin reward
@@ -73,6 +78,7 @@ RPG.State = {
         treeExitTalkDone: false, // Build 15.2.9: One-time inn-exit talk after first amber tree defeat
         treeVictoryTalkDone: false, // Build 15.2.11: One-time post-victory talk after defeating the hungry amber tree
         amberTreeFourHitSceneSeen: false, // Build 15.2.6: One-time amber tree battle dialogue gate
+        pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         metThiefBoy: false, // Flag for meeting the thief boy
         thiefDiscoveryStatus: 0, // 0=not discovered, 1=discovered
         thiefTrackActive: false, // Tracking quest active

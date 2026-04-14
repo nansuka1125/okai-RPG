@@ -160,6 +160,84 @@ innSystem = {
             return;
         }
 
+        const shouldPlayFirstInnSleep =
+            RPG.State.storyPhase === 1 &&
+            RPG.State.flags.firstInnSleep === false;
+
+        if (shouldPlayFirstInnSleep) {
+            RPG.State.mode = "event";
+            RPG.State.canStay = false;
+            RPG.State.dialogueQueue = [];
+
+            const startingHP = RPG.State.currentHP;
+            const targetHP = Math.max(startingHP, Math.floor(RPG.State.maxHP * (2 / 3)));
+            const recoveryAmount = Math.max(0, targetHP - startingHP);
+
+            RPG.State.dialogueQueue.push(
+                { text: "物置には樽と袋が積まれている。" },
+                { text: "干し草の匂いがうっすら漂っている。" },
+                { text: "カイン「…もう寝よう」" },
+                { text: "カインはオーエンの手を掴んだ。" },
+                { text: "オーエン「何で掴むの？」", color: "#a020f0" },
+                { text: "カイン「いなくなられると困るから」" },
+                { text: "オーエン「…へえ？そんなので止められると思う？」", color: "#a020f0" },
+                { text: "カイン「………正直、わからない。何も。だから、わかりたいと思う。」" },
+                { text: "オーエン「……」", color: "#a020f0" },
+                { text: "カインの寝息が聞こえてくる。" },
+                { text: "オーエン「……は？」", color: "#a020f0" },
+                { text: "オーエンは決まりが悪そうに座り直した。" },
+                { text: "オーエン「全然意味がわからない」", color: "#a020f0" },
+                {
+                    text: null,
+                    delay: 0,
+                    action: () => {
+                        const logContainer = document.getElementById('logContainer');
+                        if (logContainer) logContainer.classList.add('night-mode');
+                    }
+                },
+                {
+                    text: null,
+                    delay: 3000,
+                    action: () => {
+                        const logContainer = document.getElementById('logContainer');
+                        if (logContainer) {
+                            logContainer.innerHTML = '';
+                            logContainer.classList.remove('night-mode');
+                        }
+
+                        const hpFill = document.getElementById('hpFill');
+                        if (hpFill) hpFill.style.transition = "width 2.0s ease-out";
+
+                        RPG.State.currentHP = targetHP;
+                        RPG.State.isPoisoned = false;
+                        RPG.State.flags.firstInnSleep = true;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "朝になった！" },
+                { text: "オーエンは離れたところで丸くなって眠っている。" },
+                { text: "カイン（…なるべく早く、ここも出た方がいいな）" },
+                {
+                    text: "さあ出発だ。",
+                    action: () => {
+                        if (recoveryAmount > 0) {
+                            uiControl.addLog(`HPが ${recoveryAmount} 回復した。`);
+                        }
+
+                        setTimeout(() => {
+                            const hpFill = document.getElementById('hpFill');
+                            if (hpFill) hpFill.style.transition = "width 0.3s ease";
+                        }, 1000);
+
+                        uiControl.updateUI();
+                    }
+                }
+            );
+
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
         RPG.State.mode = "event";
         RPG.State.canStay = false;
         RPG.State.dialogueQueue = [];
@@ -448,6 +526,60 @@ innSystem = {
     // Build 6.3.6: Observe Button with Silver Coin Branching
     observe: function () {
         if (RPG.State.mode !== "base") return;
+
+        const shouldPlayInnRatEvent =
+            RPG.State.storyPhase === 1 &&
+            RPG.State.flags.innRatEvent === false;
+
+        if (shouldPlayInnRatEvent) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "ロビーの隅で、何かが動いた。" },
+                { text: "看板娘「きゃっ」" },
+                { text: "袋の影から、小さな影が飛び出す。" },
+                { text: "ネズミが現れた！" },
+                {
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.innRatEvent = true;
+                        battleSystem.startBattle('normal_rat');
+                    }
+                }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        const shouldPlayInnRatEvent2 =
+            RPG.State.storyPhase >= 3 &&
+            RPG.State.flags.innRatEvent2 === false;
+
+        if (shouldPlayInnRatEvent2) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "煙がこもっている。" },
+                { text: "店主がドアを開けた。" },
+                { text: "冷たい空気が流れ込み、ランプの火が揺れた。" },
+                { text: "次の瞬間、赤い目の大きな影が飛び込んできた！" },
+                { text: "犬ほどもある巨大なネズミが、床を滑るように走る。" },
+                { text: "娘「きゃああっ！？」" },
+                { text: "カイン「下がってろ！」" },
+                { text: "カインは素早く剣を抜いた。" },
+                { text: "魔界のネズミが現れた！" },
+                {
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.innRatEvent2 = true;
+                        RPG.State.flags.innRatEvent2BattleActive = true;
+                        battleSystem.startBattle('rat');
+                    }
+                }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
 
         const observeData = RPG.Assets.GAME_TEXT.innObserve;
         const maxDefinedPhase = Math.max(...Object.keys(observeData).map(Number));

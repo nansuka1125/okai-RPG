@@ -249,7 +249,7 @@ const explorationSystem = {
         }
 
         // Build 15.1.2: Delegated to scenarioEvents.treeEventSystem.handleEncounter()
-        if (scenarioEvents.treeEventSystem.handleEncounter()) return;
+        if (scenarioEvents.treeEventSystem.handleEncounter(step)) return;
 
         const dist = RPG.State.currentDistance;
 

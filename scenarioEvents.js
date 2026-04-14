@@ -116,9 +116,11 @@ const scenarioEvents = {
             explorationSystem.playDialogueLoop();
         },
 
-        handleEncounter: function () {
+        handleEncounter: function (step = 0) {
             // Build 15.1.3: Centralized Encounter Logic (Refined Spatial Trigger)
             const state = RPG.State;
+            const isForwardMove = step > 0;
+            const isTreeEncounterDepth = state.currentDistance >= 8 && state.currentDistance <= 10;
             
             // Build 15.1.8: Sequential Event Guard
             // Prevent spatial triggers if a Kill Count or other dialogue is still active
@@ -127,14 +129,14 @@ const scenarioEvents = {
             // --- Case A: Rematch Logic (Spatial) ---
             if (state.flags.isTreeRematch === true) {
                 // 9m: The Resolve (Cinematic Beat)
-                if (state.currentDistance === 9) {
+                if (isForwardMove && state.currentDistance === 9) {
                     uiControl.addLog("カイン「…あそこに、さっきの木の化け物がいる。俺たちで倒せるだろうか」", "", "#ffffff");
                     uiControl.addLog("オーエン「僕は手伝わないよ。アレはおまえ指名でしょ。」", "", "#a020f0");
                     return false; // Let base system continue to update UI
                 }
                 
                 // 10m: The Ambush (Instant Battle)
-                if (state.currentDistance === 10) {
+                if (isForwardMove && state.currentDistance === 10) {
                     state.mode = "event";
                     state.flags.hasTreeEventOccurred = true;
                     battleSystem.startBattle('hungry_amber_tree');
@@ -148,7 +150,13 @@ const scenarioEvents = {
             const isGuaranteed = state.searchCounter >= 5;
             const luckyChance = Math.random() < 0.3;
 
-            if (hasEnoughBattles && state.inventory.silverCoin >= 1 && !state.flags.hasTreeEventOccurred) {
+            if (
+                isForwardMove &&
+                isTreeEncounterDepth &&
+                hasEnoughBattles &&
+                state.inventory.silverCoin >= 1 &&
+                !state.flags.hasTreeEventOccurred
+            ) {
                 if (isGuaranteed || luckyChance) {
                     state.mode = "event";
                     state.flags.hasTreeEventOccurred = true;

@@ -328,6 +328,68 @@ const battleSystem = {
         explorationSystem.playDialogueLoop();
     },
 
+    isDeferredLevelUpTalkBoss: function (enemyId) {
+        return ["hungry_amber_tree", "giant_larva", "amber_husk_giant_larva"].includes(enemyId);
+    },
+
+    getLevelUpTalkDialogues: function (level) {
+        const talks = {
+            2: [
+                { text: "カイン「やった！」" },
+                { text: "オーエン「誤差でしょ」" },
+                { text: "カイン「それでも、確かな一歩だ」" }
+            ],
+            4: [
+                { text: "オーエン「技とか覚えないの？」" },
+                { text: "カイン「この程度のレベルでか？」" },
+                { text: "オーエン「はは、言えてる」" }
+            ],
+            6: [
+                { text: "カイン「必殺！ナイトレイビーム！！」" },
+                { text: "オーエン「……」" },
+                { text: "カイン「あれ」" },
+                { text: "オーエン「早く強くなってよね」" },
+                { text: "カイン（無視された）" }
+            ],
+            8: [
+                { text: "オーエン「今どのくらい強いの？」" },
+                { text: "カイン「うーん…たしか俺が10歳くらいの頃このくらいだった？」" },
+                { text: "オーエン「今何歳？」" },
+                { text: "カイン「22歳」" },
+                { text: "オーエン「あんまり変わらない」" },
+                { text: "カイン「そうかな？」" }
+            ]
+        };
+
+        return talks[level] ? talks[level].map(line => ({ ...line })) : [];
+    },
+
+    buildLevelUpTalkQueue: function (currentLevel = null) {
+        const pendingLevels = Array.isArray(RPG.State.flags.pendingLevelUpTalk)
+            ? [...RPG.State.flags.pendingLevelUpTalk]
+            : [];
+        const queue = [];
+
+        if (pendingLevels.length > 0) {
+            queue.push(
+                { text: "カイン「そういえば、ちょっと強くなった気がする」" },
+                { text: "オーエン「…そう？」" }
+            );
+
+            pendingLevels.forEach(level => {
+                queue.push(...this.getLevelUpTalkDialogues(level));
+            });
+
+            RPG.State.flags.pendingLevelUpTalk = [];
+        }
+
+        if (currentLevel !== null) {
+            queue.push(...this.getLevelUpTalkDialogues(currentLevel));
+        }
+
+        return queue;
+    },
+
     enemyTurn: function (isPreemptive = false, isPlayerSkipped = false) {
         if (!RPG.State.isBattling || !RPG.State.currentEnemy) return;
 
@@ -459,7 +521,11 @@ const battleSystem = {
             uiControl.addLog(`${RPG.State.currentEnemy.name}を倒した！`);
         }
 
-        if (RPG.State.searchCounter !== null && RPG.State.searchCounter < 5) {
+        const shouldAdvanceForestSearchCounter =
+            RPG.State.isInDungeon &&
+            RPG.State.location !== "かつての街道";
+
+        if (shouldAdvanceForestSearchCounter && RPG.State.searchCounter !== null && RPG.State.searchCounter < 5) {
             RPG.State.searchCounter++;
         }
 
@@ -492,6 +558,8 @@ const battleSystem = {
             uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`);
         }
 
+        let currentLevelUpTalkLevel = null;
+
         if (RPG.State.currentEnemy.xp) {
             RPG.State.exp += RPG.State.currentEnemy.xp;
             uiControl.addLog(`${RPG.State.currentEnemy.xp}の経験値を得た。`);
@@ -503,15 +571,55 @@ const battleSystem = {
                     RPG.State.currentHP = RPG.State.maxHP;
                 }
                 uiControl.addLog(`【LEVEL UP!】カインのレベルが ${RPG.State.cainLv} に上がった！`, "marker", "#ffff00");
+
+                if (RPG.Config.LEVEL_UP_TALK_BATTLE_ONLY && this.getLevelUpTalkDialogues(RPG.State.cainLv).length > 0) {
+                    currentLevelUpTalkLevel = RPG.State.cainLv;
+                }
             }
         }
 
+        const isBossLevelUpBattle = this.isDeferredLevelUpTalkBoss(enemyId);
+        if (currentLevelUpTalkLevel !== null && isBossLevelUpBattle) {
+            if (!Array.isArray(RPG.State.flags.pendingLevelUpTalk)) {
+                RPG.State.flags.pendingLevelUpTalk = [];
+            }
+            RPG.State.flags.pendingLevelUpTalk.push(currentLevelUpTalkLevel);
+            currentLevelUpTalkLevel = null;
+        }
+
+        const levelUpTalkQueue = isBossLevelUpBattle
+            ? []
+            : this.buildLevelUpTalkQueue(currentLevelUpTalkLevel);
+
         const count = RPG.State.defeatCounts[enemyId] ? (RPG.State.defeatCounts[enemyId].cain + RPG.State.defeatCounts[enemyId].owen) : 1;
+        const hasInnRatEvent2Aftermath =
+            enemyId === 'rat' &&
+            RPG.State.flags.innRatEvent2BattleActive === true &&
+            RPG.Assets.BATTLE_EVENTS.inn_rat_event2 &&
+            RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1];
+
+        if (!hasPostBattleEvent && hasInnRatEvent2Aftermath) {
+            const eventDialogues = [
+                ...RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1],
+                {
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.innRatEvent2BattleActive = false;
+                    }
+                }
+            ];
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
         if (!hasPostBattleEvent && RPG.Assets.BATTLE_EVENTS[enemyId] && RPG.Assets.BATTLE_EVENTS[enemyId][count]) {
             const eventDialogues = RPG.Assets.BATTLE_EVENTS[enemyId][count];
             uiControl.addLog("---");
             RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...eventDialogues];
+            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues];
             explorationSystem.playDialogueLoop();
             hasPostBattleEvent = true;
         }
@@ -528,6 +636,14 @@ const battleSystem = {
             }
         }
 
+        if (!hasPostBattleEvent && levelUpTalkQueue.length > 0) {
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [...levelUpTalkQueue];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
         // Final State Cleanup
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
@@ -542,6 +658,7 @@ const battleSystem = {
 
     finalizeStandardDefeat: function (defeatedEnemyId = null) {
         uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
+        RPG.State.flags.innRatEvent2BattleActive = false;
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
         RPG.State.isInDungeon = false;

@@ -353,6 +353,15 @@ RPG.Assets.ENEMIES = [
         msg: "目食いカラスは目玉を突いてきた！"
     },
     {
+        id: "normal_rat",
+        name: "普通のネズミ",
+        maxHp: 1,
+        atk: 1,
+        xp: 1,
+        area: null,
+        msg: "噛みついてきた！"
+    },
+    {
         id: "weasel", name: "魔界のイタチ", maxHp: 50, atk: 12, // Build 6.2: HP 35 -> 50
         xp: 22,
         area: [1, 9], weight: 3,

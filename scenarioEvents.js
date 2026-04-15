@@ -145,45 +145,9 @@ const scenarioEvents = {
                 return false;
             }
 
-            // --- Case B: Standard First Encounter (Journey-based Pity) ---
-            const hasEnoughBattles = state.searchCounter >= 3;
-            const isGuaranteed = state.searchCounter >= 5;
-            const luckyChance = Math.random() < 0.3;
-
-            if (
-                isForwardMove &&
-                isTreeEncounterDepth &&
-                hasEnoughBattles &&
-                state.inventory.silverCoin >= 1 &&
-                !state.flags.hasTreeEventOccurred
-            ) {
-                if (isGuaranteed || luckyChance) {
-                    state.mode = "event";
-                    state.flags.hasTreeEventOccurred = true;
-
-                    // Build 15.1.9: Fragmented Intro sequence (Log Scroll Parity)
-                    const te = RPG.Assets.GAME_TEXT.treeEvent;
-                    state.dialogueQueue = [
-                        { text: "【飢えた琥珀樹】", delay: 1000 },
-                        { text: "カイン「…ん？あそこ何か」", delay: 1000 },
-                        { text: "視線の先、その大樹は他の木々とは明らかに異相を呈していた。", delay: 1000 },
-                        { text: "幹のいたるところで琥珀の瘤（こぶ）がぼこぼこと隆起し、黄金色の腫瘍のように木肌を覆っている。", delay: 1200 },
-                        { text: "特に太い幹の空洞は、溢れ出した樹脂に飲み込まれた「黒い何か」で埋め尽くされていた。", delay: 1200 },
-                        { text: "その中央。どろりとした澱みの奥で、銀貨が心臓のように沈んでいる。", delay: 1200 },
-                        { text: te.owenIntro, color: "#a020f0", delay: 1500 },
-                        { 
-                            text: null,
-                            action: () => {
-                                // After the final line is clicked, SWAP standard menu for choices
-                                state.mode = "choice";
-                                this.showChoices();
-                            }
-                        }
-                    ];
-                    explorationSystem.playDialogueLoop();
-                    return true;
-                }
-            }
+            // --- Case B: Standard First Encounter ---
+            // Build 15.2.55: The first amber tree encounter is now triggered by
+            // inspecting at forest 8m instead of moving into a distance band.
             return false;
         }
     }

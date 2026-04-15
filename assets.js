@@ -901,11 +901,12 @@ RPG.Assets.EVENT_DATA = [
             // Keep this event focused on hungry_amber_tree aftermath and follow-up dialogue only.
             // Do not add another generic "飢えた琥珀樹を倒した！" line here.
             RPG.State.flags.treeDefeated = true;
+            RPG.State.flags.isTreeRematch = false;
+            RPG.State.flags.hasTreeEventOccurred = true;
             if (RPG.State.storyPhase < 2) {
                 RPG.State.storyPhase = 2;
             }
             RPG.State.postTreeBattles = 0;
-            RPG.State.silverCoins += 1; // Increment currency tracker
 
             const dialogue = [
                 { text: "―― 勝利！ ――", type: "marker", color: "#ffff00" },
@@ -915,17 +916,30 @@ RPG.Assets.EVENT_DATA = [
 
             if (!RPG.State.flags.treeVictoryTalkDone) {
                 dialogue.push(
-                    { text: "カイン「はあ……剣が…」", type: "talk" },
-                    { text: "カインの剣は樹液がこびりついているコートの裾でなんとか拭おうとするがなかなかとれないようだ。", type: "talk" },
-                    { text: "オーエン「剣の心配？…ひどい姿。ぐっちゃぐちゃ。木にへばりついてる虫みたい」", type: "talk", color: "#a020f0" },
-                    { text: "カインの髪も顔も樹液がこびりついて酷いことになっていた。", type: "talk" },
-                    { text: "カイン「これで銀貨は２枚。…あと1枚か。」", type: "talk" },
-                    { text: "もう少し森を探してみよう。", type: "talk" },
-                    { text: "オーエン「気前のいい死体を？」", type: "talk", color: "#a020f0" },
-                    { text: "カイン「銀貨を…だな。」", type: "talk" },
-                    { text: "オーエン「同じだろ」", type: "talk", color: "#a020f0" },
+                    { text: "カインは剣先で銀貨を抉り出した。", type: "talk" },
+                    { text: "カイン「悪いな、ちょっと貸してくれ。」", type: "talk" },
                     {
-                        text: "《さあ、先へ進むか、一度戻って体制を整えよう。》",
+                        text: "🪙銀貨を手に入れた！",
+                        type: "system",
+                        color: "#FFD700",
+                        action: () => {
+                            RPG.State.silverCoins += 1;
+                            RPG.State.inventory.silverCoin += 1;
+                            uiControl.updateUI();
+                        }
+                    },
+                    { text: "オーエン「僕の目玉もそうやって抉ったよね」", type: "talk", color: "#a020f0" },
+                    { text: "カイン「それは…！」", type: "talk" },
+                    { text: "オーエン｢痛かった。貸してくれとも言わなかったし」", type: "talk", color: "#a020f0" },
+                    { text: "カイン｢返すつもりがなかったから、言わなかった。奪うつもりで抉った。」", type: "talk" },
+                    { text: "オーエン｢へえ？正直だね」", type: "talk", color: "#a020f0" },
+                    { text: "カイン｢後悔するくらいなら、最初からそんなことやらないさ。俺のことを憎むなり殺すなり好きにすればいい」", type: "talk" },
+                    { text: "オーエン｢……ふうん」", type: "talk", color: "#a020f0" },
+                    { text: "カイン｢……銀貨はあと一枚か。もう少し森を探してみよう」", type: "talk" },
+                    { text: "オーエン｢気前のいい死体を？」", type: "talk", color: "#a020f0" },
+                    { text: "カイン｢銀貨を、だな」", type: "talk" },
+                    {
+                        text: "もう少しだけ森を歩いてみよう。",
                         type: "system",
                         color: "#cccccc",
                         action: () => {

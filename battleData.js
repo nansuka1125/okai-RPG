@@ -414,7 +414,6 @@ RPG.Assets.ENEMIES = [
         atk: 13, // Adjusted for survival balance
         xp: 100,
         isBoss: true,
-        drop: { id: "silverCoin", rate: 1.0 }, // Changed back to silverCoin for consistency
         onDeathEvent: "amber_tree_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
     }
 ];

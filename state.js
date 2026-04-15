@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.54 (Forest Inspect Split)", // Build 15.2.54: Split phase 0 forest arrival flavor from inspect rewards
+    version: "15.2.56 (Amber Tree Victory Cleanup)", // Build 15.2.56: Move amber tree coin gain into the victory scene and close rematch after victory
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -81,6 +81,8 @@ RPG.State = {
         forest5mBroochFound: false, // Build 15.2.54: One-time brooch pickup at forest 5m inspect
         forest6mFirstVisit: false, // Build 15.2.43: One-time first coin scene at forest 6m
         forest6mCoinFound: false, // Build 15.2.54: One-time silver coin pickup at forest 6m inspect
+        forest8mTreeHintShown: false, // Build 15.2.55: Track one-time ambient hint for the amber tree at forest 8m
+        forest8mInspectCount: 0, // Build 15.2.55: Track inspect progress toward the first amber tree encounter at forest 8m
         forestFirstEnter: false, // Build 15.2.39: One-time first arrival dialogue at forest entrance 0m
         firstInnSleep: false, // Build 15.2.50: One-time special inn sleep scene during story phase 1
         innRatEvent: false, // Build 15.2.51: One-time inn rat event on first observe during story phase 1

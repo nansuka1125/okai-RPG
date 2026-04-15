@@ -252,6 +252,21 @@ const explorationSystem = {
         if (scenarioEvents.treeEventSystem.handleEncounter(step)) return;
 
         const dist = RPG.State.currentDistance;
+        const canInspectAmberTree =
+            dist === 8 &&
+            step > 0 &&
+            RPG.State.inventory.silverCoin >= 1 &&
+            !RPG.State.flags.hasTreeEventOccurred &&
+            !RPG.State.flags.treeDefeated &&
+            !RPG.State.flags.isTreeRematch;
+
+        if (canInspectAmberTree && !RPG.State.flags.forest8mTreeHintShown) {
+            RPG.State.flags.forest8mTreeHintShown = true;
+            uiControl.addLog("少し先の木立の奥で、樹液が鈍く光っている。", "ambient");
+            uiControl.addLog("湿ったような匂いが急に濃くなった。", "ambient");
+            uiControl.updateUI();
+            return;
+        }
 
         if (RPG.State.storyPhase === 0) {
             if (dist === 3) {
@@ -437,6 +452,47 @@ const explorationSystem = {
             ];
             this.playDialogueLoop();
             return;
+        }
+
+        if (
+            dist === 8 &&
+            RPG.State.inventory.silverCoin >= 1 &&
+            !flags.hasTreeEventOccurred &&
+            !flags.treeDefeated &&
+            !flags.isTreeRematch
+        ) {
+            if (flags.forest8mInspectCount === 0) {
+                flags.forest8mInspectCount = 1;
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    { text: "カイン「…ん？ あそこ何か」", delay: 1500 },
+                    { text: "視線の先、その大樹は他の木々とは明らかに異相を呈していた。", delay: 1500 },
+                    { text: "幹のいたるところで琥珀の瘤がぼこぼこと隆起し、黄金色の腫瘍のように木肌を覆っている。", delay: 1800 },
+                    { text: "特に太い幹の空洞は、溢れ出した樹脂に飲み込まれた「黒い何か」で埋め尽くされていた。", delay: 1800 }
+                ];
+                this.playDialogueLoop();
+                return;
+            }
+
+            if (flags.forest8mInspectCount === 1) {
+                flags.forest8mInspectCount = 2;
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    { text: "よく見ると黒い何かは樹脂に飲み込まれた人間のなれの果てだった。", delay: 1800 },
+                    { text: "その中央、どろりとした塊の奥で、銀貨が心臓のように沈んでいる。", delay: 1800 },
+                    { text: "オーエン「宿代、彼が払ってくれるって。ラッキーだね」", delay: 1500, color: "#a020f0" },
+                    {
+                        text: null,
+                        action: () => {
+                            RPG.State.flags.hasTreeEventOccurred = true;
+                            RPG.State.mode = "choice";
+                            scenarioEvents.treeEventSystem.showChoices();
+                        }
+                    }
+                ];
+                this.playDialogueLoop();
+                return;
+            }
         }
 
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);

@@ -205,7 +205,7 @@ const explorationSystem = {
                     ];
                     break;
                 case 8:
-                    journeyText = "(ト書き: オーエンは、揺れる荷台の縁に危うく腰掛け、興味なさそうに森の奥を見つめている。)";
+                    journeyText = " オーエンは、揺れる荷台の縁に危うく腰掛け、興味なさそうに森の奥を見つめている。";
                     break;
                 case 9:
                     journeyText = "周囲が暗くなってきた。森の気配も不穏なものに変わっていく…。";

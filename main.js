@@ -19,6 +19,15 @@ const debugSystem = {
                 uiControl.addLog("👾エンカウント有効", "ambient");
             }
         }
+    },
+
+    spawnGlowingCatRabbit: function () {
+        if (RPG.State.isBattling) {
+            uiControl.addLog("すでに戦闘中だ。", "ambient");
+            return;
+        }
+
+        battleSystem.startBattle('glowing_cat_rabbit');
     }
 };
 
@@ -70,6 +79,9 @@ window.onload = () => {
 window.addEventListener('DOMContentLoaded', () => {
     uiControl.updateUI();
 });
+
+window.debugSystem = debugSystem;
+window.debugSpawnGlowingCatRabbit = () => debugSystem.spawnGlowingCatRabbit();
 
 /* DEBUG: KEYBOARD SKIP START */
 // Build 8.7/8.12.1: Space key for high-speed text skip (DEBUG ONLY)

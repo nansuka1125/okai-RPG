@@ -63,6 +63,18 @@ RPG.Assets.BATTLE_TEXT = {
             "わずかに回避が遅れ、頬を鋭利な刃がかすめる。一筋の血が流れた。",
             "回避したカインの背後の木々が、音もなく両断された。凄まじい斬れ味だ。"
         ]
+    },
+    glowing_cat_rabbit: {
+        intro: "✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv5】 *:･ﾟ✧*:･ﾟ✧",
+        sight: "淡い虹色の光が森の奥で跳ねた。",
+        standardAttack: "光る猫うさぎLv5は小さな火の玉を吐いた!",
+        yawn: "光る猫うさぎLv5はあくびをした！",
+        waiting: "光る猫うさぎLv5は様子を見ている…",
+        vanish: "光る猫うさぎLv5は光って消えた…",
+        escape: "光る猫うさぎLv5は逃げ出した！",
+        killImmune: "光る猫うさぎには効果がないようだ！",
+        miss: "カインの一撃は光の尾だけを切った！",
+        hit: (count) => `${count}hit!`
     }
 };
 
@@ -415,6 +427,25 @@ RPG.Assets.ENEMIES = [
         xp: 100,
         isBoss: true,
         onDeathEvent: "amber_tree_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
+    },
+    {
+        id: "glowing_cat_rabbit",
+        name: "光る猫うさぎLv5",
+        maxHp: 1,
+        atk: 5,
+        xp: 0,
+        area: null, // Build 15.2.57: Forest-only rare encounter; injected manually instead of normal weight tables
+        msg: "小さな火の玉を吐いた!",
+        isRare: true,
+        forestOnly: true,
+        rareRate: 0.05,
+        rabbitLevel: 5,
+        hitGoal: 3,
+        rewardItem: "glowingCatRabbitFur",
+        preBattleDialogue: [
+            { text: "✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv5】 *:･ﾟ✧*:･ﾟ✧", color: "#ffd166" },
+            { text: "淡い虹色の光が森の奥で跳ねた。", type: "ambient" }
+        ]
     }
 ];
 

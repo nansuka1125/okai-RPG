@@ -2,11 +2,32 @@
 // Refactored to separate Engine (battle.js) from Content (battleData.js)
 
 const battleSystem = {
+    chooseGlowingCatRabbitTemplate: function () {
+        const rabbitTemplate = RPG.Assets.ENEMIES.find(e => e.id === "glowing_cat_rabbit");
+        if (!rabbitTemplate) return null;
+
+        const isForestEncounter =
+            RPG.State.isInDungeon &&
+            RPG.State.location !== "かつての街道" &&
+            RPG.State.currentDistance > 0 &&
+            RPG.State.currentDistance < 10;
+
+        if (!isForestEncounter) return null;
+        if (RPG.State.flags.glowCatRabbitBadEndSeen) return null;
+        if (Math.random() >= rabbitTemplate.rareRate) return null;
+
+        return rabbitTemplate;
+    },
+
     startBattle: function (enemyId = null) {
         // Enemy Selection logic remains in engine as it processes data
         let template = null;
         if (enemyId) {
             template = RPG.Assets.ENEMIES.find(e => e.id === enemyId);
+        }
+
+        if (!template) {
+            template = this.chooseGlowingCatRabbitTemplate();
         }
 
         if (!template) {
@@ -52,12 +73,25 @@ const battleSystem = {
 
     beginBattle: function (template) {
         RPG.State.mode = "battle";
+        const isPhase4FirstRabbitEncounter =
+            template.id === "glowing_cat_rabbit" &&
+            RPG.State.storyPhase >= 4 &&
+            !RPG.State.flags.glowCatRabbitPhase4EncounterSeen;
+
+        if (isPhase4FirstRabbitEncounter) {
+            RPG.State.flags.glowCatRabbitPhase4EncounterSeen = true;
+        }
+
         RPG.State.isBattling = true;
         RPG.State.currentEnemy = {
             ...template,
             hp: template.maxHp,
             frozenTurns: 0,
-            cainHitCount: 0
+            cainHitCount: 0,
+            rabbitHitCount: 0,
+            rabbitEnemyTurnCount: 0,
+            rabbitExposed: false,
+            guaranteedPhase4Fur: isPhase4FirstRabbitEncounter
         };
         // Build 9.0.0: Battle State container
         RPG.State.battleState = { skippedTurns: 0 };
@@ -140,6 +174,23 @@ const battleSystem = {
 
         // 1. Owen's Intervention
         this.processOwenAction(() => {
+            if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
+                if (this.checkBattleEnd()) return;
+
+                this.runGlowingCatRabbitTurn(() => {
+                    if (this.checkBattleEnd()) return;
+
+                    this.processCainAction(() => {
+                        if (this.checkBattleEnd()) return;
+
+                        RPG.State.battleTurn++;
+                        const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+                        setTimeout(() => this.runBattleLoop(), delay);
+                    });
+                });
+                return;
+            }
+
             // 2. Cain's Turn
             if (this.checkBattleEnd()) return;
 
@@ -195,15 +246,20 @@ const battleSystem = {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
                 break;
             case "kill":
-                RPG.State.currentEnemy.hp = 0;
-                RPG.State.lastBlowBy = "Owen";
                 uiControl.addLog(
                     RPG.Assets.BATTLE_TEXT.owen.kill[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.kill.length)],
                     "",
                     "#a333c8"
                 );
-                uiControl.addLog("オーエンの魔法が敵を消滅させた！", "");
-                delay = 1500;
+                if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
+                    uiControl.addLog(RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.killImmune, "", "#ffffaa");
+                    delay = 1200;
+                } else {
+                    RPG.State.currentEnemy.hp = 0;
+                    RPG.State.lastBlowBy = "Owen";
+                    uiControl.addLog("オーエンの魔法が敵を消滅させた！", "");
+                    delay = 1500;
+                }
                 break;
             case "freeze":
                 RPG.State.currentEnemy.frozenTurns = 2;
@@ -233,6 +289,35 @@ const battleSystem = {
     },
 
     processCainAction: function (next) {
+        if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
+            const enemy = RPG.State.currentEnemy;
+            const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
+            const isFrozen = enemy.frozenTurns > 0;
+            const hitChance = (isFrozen || enemy.rabbitExposed) ? 1 : 0.18;
+
+            if (Math.random() < hitChance) {
+                enemy.rabbitHitCount = (enemy.rabbitHitCount || 0) + 1;
+                uiControl.addLog("カインの攻撃！");
+                uiControl.addLog(text.hit(enemy.rabbitHitCount), "marker", "#ffd166");
+                uiControl.updateUI();
+
+                if (enemy.rabbitHitCount >= enemy.hitGoal) {
+                    RPG.State.lastBlowBy = "Cain";
+                    this.endGlowingCatRabbitBattle(false);
+                    return;
+                }
+            } else {
+                uiControl.addLog(text.miss);
+                uiControl.updateUI();
+            }
+
+            enemy.rabbitExposed = false;
+
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(next, delay);
+            return;
+        }
+
         let damage = RPG.State.attack;
         let isCrit = Math.random() < 0.15;
         if (isCrit) {
@@ -271,6 +356,86 @@ const battleSystem = {
         }
 
         finalizeCainTurn();
+    },
+
+    runGlowingCatRabbitTurn: function (callback) {
+        const enemy = RPG.State.currentEnemy;
+        if (!enemy || enemy.id !== "glowing_cat_rabbit") {
+            callback();
+            return;
+        }
+
+        const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
+        const delay = RPG.State.debug.isSkipping ? 50 : 900;
+        enemy.rabbitEnemyTurnCount = (enemy.rabbitEnemyTurnCount || 0) + 1;
+
+        if (enemy.rabbitEnemyTurnCount >= 4) {
+            uiControl.addLog(text.escape);
+            setTimeout(() => this.endGlowingCatRabbitBattle(true), delay);
+            return;
+        }
+
+        if (enemy.rabbitEnemyTurnCount === 3) {
+            enemy.rabbitExposed = true;
+            uiControl.addLog(text.yawn);
+            setTimeout(callback, delay);
+            return;
+        }
+
+        if (enemy.frozenTurns > 0) {
+            enemy.frozenTurns--;
+            uiControl.addLog(`${enemy.name}は凍りついて動けない！`, "");
+            setTimeout(callback, delay);
+            return;
+        }
+
+        const roll = Math.random();
+        if (roll < 0.35) {
+            uiControl.addLog(text.yawn);
+            setTimeout(callback, delay);
+            return;
+        }
+
+        if (roll < 0.65) {
+            uiControl.addLog(text.waiting);
+            setTimeout(callback, delay);
+            return;
+        }
+
+        const damage = Math.max(1, enemy.atk);
+        uiControl.addLog(text.standardAttack, "enemy-action");
+        setTimeout(() => {
+            RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
+            uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
+            uiControl.updateUI();
+            setTimeout(callback, delay);
+        }, delay);
+    },
+
+    endGlowingCatRabbitBattle: function (escaped) {
+        const enemy = RPG.State.currentEnemy;
+        const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
+
+        uiControl.addSeparator();
+
+        if (!escaped) {
+            uiControl.addLog(text.vanish);
+        }
+
+        if (enemy && enemy.guaranteedPhase4Fur) {
+            RPG.State.inventory.glowingCatRabbitFur = (RPG.State.inventory.glowingCatRabbitFur || 0) + 1;
+            uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
+        }
+
+        if (!escaped) {
+            RPG.State.glowCatRabbitDefeatCount = (RPG.State.glowCatRabbitDefeatCount || 0) + 1;
+        }
+
+        RPG.State.mode = "base";
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        uiControl.updateUI();
     },
 
     playAmberTreeFourHitScene: function (callback) {
@@ -472,6 +637,11 @@ const battleSystem = {
 
         const enemyId = RPG.State.currentEnemy.id;
         if (!RPG.State.defeatCounts[enemyId]) RPG.State.defeatCounts[enemyId] = { cain: 0, owen: 0 };
+
+        if (enemyId === "glowing_cat_rabbit") {
+            this.endGlowingCatRabbitBattle(false);
+            return;
+        }
 
         uiControl.addSeparator();
 

@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.56 (Amber Tree Victory Cleanup)", // Build 15.2.56: Move amber tree coin gain into the victory scene and close rematch after victory
+    version: "15.2.59 (Glowing Rabbit Battle Rules)", // Build 15.2.59: Add the glowing cat rabbit's special battle rules
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -99,6 +99,8 @@ RPG.State = {
         treeVictoryTalkDone: false, // Build 15.2.11: One-time post-victory talk after defeating the hungry amber tree
         amberTreeFourHitSceneSeen: false, // Build 15.2.6: One-time amber tree battle dialogue gate
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
+        glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
+        glowCatRabbitPhase4EncounterSeen: false, // Build 15.2.59: Guarantee fur on the first glowing rabbit encounter after phase 4 unlock
         metThiefBoy: false, // Flag for meeting the thief boy
         thiefDiscoveryStatus: 0, // 0=not discovered, 1=discovered
         thiefTrackActive: false, // Tracking quest active
@@ -116,6 +118,7 @@ RPG.State = {
     canStay: true,
     lastBlowBy: null, // "Cain" or "Owen"
     defeatCounts: {}, // Track kills by ID
+    glowCatRabbitDefeatCount: 0, // Build 15.2.57: Track how many glowing cat rabbits have been defeated
     playerTookCoin: null, // Track choice at tree event (true/false/null)
 
     // Duel System State

@@ -65,13 +65,13 @@ RPG.Assets.BATTLE_TEXT = {
         ]
     },
     glowing_cat_rabbit: {
-        intro: "✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv5】 *:･ﾟ✧*:･ﾟ✧",
+        intro: (level) => `✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv${level}】 *:･ﾟ✧*:･ﾟ✧`,
         sight: "淡い虹色の光が森の奥で跳ねた。",
-        standardAttack: "光る猫うさぎLv5は小さな火の玉を吐いた!",
-        yawn: "光る猫うさぎLv5はあくびをした！",
-        waiting: "光る猫うさぎLv5は様子を見ている…",
-        vanish: "光る猫うさぎLv5は光って消えた…",
-        escape: "光る猫うさぎLv5は逃げ出した！",
+        standardAttack: (level) => `光る猫うさぎLv${level}は小さな火の玉を吐いた!`,
+        yawn: (level) => `光る猫うさぎLv${level}はあくびをした！`,
+        waiting: (level) => `光る猫うさぎLv${level}は様子を見ている…`,
+        vanish: (level) => `光る猫うさぎLv${level}は光って消えた…`,
+        escape: (level) => `光る猫うさぎLv${level}は逃げ出した！`,
         killImmune: "光る猫うさぎには効果がないようだ！",
         miss: "カインの一撃は光の尾だけを切った！",
         hit: (count) => `${count}hit!`
@@ -430,7 +430,7 @@ RPG.Assets.ENEMIES = [
     },
     {
         id: "glowing_cat_rabbit",
-        name: "光る猫うさぎLv5",
+        name: "光る猫うさぎ",
         maxHp: 1,
         atk: 5,
         xp: 0,
@@ -441,11 +441,7 @@ RPG.Assets.ENEMIES = [
         rareRate: 0.05,
         rabbitLevel: 5,
         hitGoal: 3,
-        rewardItem: "glowingCatRabbitFur",
-        preBattleDialogue: [
-            { text: "✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv5】 *:･ﾟ✧*:･ﾟ✧", color: "#ffd166" },
-            { text: "淡い虹色の光が森の奥で跳ねた。", type: "ambient" }
-        ]
+        rewardItem: "glowingCatRabbitFur"
     }
 ];
 

@@ -1,6 +1,22 @@
 // 🚩ーー【宿屋・拠点システム】ーー
 // Build 8.16: Extracted from main.js for better code organization
 innSystem = {
+    shouldUsePhase4FortuneRoute: function () {
+        return (
+            RPG.State.storyPhase === 4 &&
+            RPG.State.flags.phase4TheftDiscovered === true &&
+            RPG.State.flags.thiefDiscoveryStatus === 0
+        );
+    },
+
+    buildDialogueQueue: function (lines, action = null) {
+        const queue = lines.map(text => ({ text }));
+        if (action) {
+            queue.push({ text: null, action });
+        }
+        return queue;
+    },
+
     enterInn: function (showGreeting = true) {
         // Build 12.1.0: Delegated to scenarioEvents
         if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
@@ -13,6 +29,22 @@ innSystem = {
         if (showGreeting) {
             uiControl.addLog(RPG.Assets.GAME_TEXT.inn.ownerGreeting);
         }
+
+        const shouldPlayPhase4FortuneIntro =
+            this.shouldUsePhase4FortuneRoute() &&
+            RPG.State.flags.phase4FortuneIntroDone !== true;
+
+        if (shouldPlayPhase4FortuneIntro) {
+            RPG.State.flags.phase4FortuneIntroDone = true;
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.phase4FortuneIntro
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
         uiControl.updateUI();
     },
 
@@ -55,6 +87,11 @@ innSystem = {
             return;
         }
 
+        if (Cinematics.canPlayThiefDiscovery()) {
+            Cinematics.playThiefDiscovery();
+            return;
+        }
+
         // Build 12.4.3: Proactive Trigger (Inn -> Front)
         if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
 
@@ -81,6 +118,32 @@ innSystem = {
             }
             return queue;
         };
+
+        const shouldUsePhase4MatamatabiRumor =
+            this.shouldUsePhase4FortuneRoute() &&
+            RPG.State.flags.needsGlowingRabbitFur === true &&
+            RPG.State.flags.heardMatamatabiRumor !== true;
+
+        if (shouldUsePhase4MatamatabiRumor) {
+            const talkCount = RPG.State.flags.phase4MatamatabiTalkCount || 0;
+            const rumorLines = talkCount === 0
+                ? RPG.Assets.GAME_TEXT.events.phase4MatamatabiTalk1
+                : RPG.Assets.GAME_TEXT.events.phase4MatamatabiTalk2;
+
+            const rumorAction = () => {
+                RPG.State.flags.phase4MatamatabiTalkCount = talkCount + 1;
+                if (talkCount >= 1) {
+                    RPG.State.flags.heardMatamatabiRumor = true;
+                }
+                uiControl.updateUI();
+            };
+
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = buildQueue(rumorLines, rumorAction);
+            explorationSystem.playDialogueLoop();
+            return;
+        }
 
         let selectedLines = null;
         let selectedPhase = null;
@@ -526,6 +589,37 @@ innSystem = {
     // Build 6.3.6: Observe Button with Silver Coin Branching
     observe: function () {
         if (RPG.State.mode !== "base") return;
+
+        if (this.shouldUsePhase4FortuneRoute()) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+
+            if (RPG.State.flags.phase4FortuneConsultDone !== true) {
+                RPG.State.dialogueQueue = this.buildDialogueQueue(
+                    RPG.Assets.GAME_TEXT.events.phase4FortuneConsult,
+                    () => {
+                        RPG.State.flags.phase4FortuneConsultDone = true;
+                        RPG.State.flags.needsGlowingRabbitFur = true;
+                        uiControl.updateUI();
+                    }
+                );
+                explorationSystem.playDialogueLoop();
+                return;
+            }
+
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.phase4OwenConsult1,
+                () => {
+                    RPG.State.flags.phase4OwenConsultCount = Math.max(
+                        RPG.State.flags.phase4OwenConsultCount || 0,
+                        1
+                    );
+                    uiControl.updateUI();
+                }
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
 
         const shouldPlayInnRatEvent =
             RPG.State.storyPhase === 1 &&

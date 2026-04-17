@@ -194,8 +194,24 @@ const uiControl = {
         if (RPG.State.isAtInn) {
             if (innUI) innUI.style.display = 'grid';
 
+            const btnInnObserve = document.getElementById('btnInnObserve');
             const btnInnDeliver = document.getElementById('btnInnDeliver');
             const canDeliver = (RPG.State.silverCoins >= 3 && !RPG.State.flags.silverDelivered && mode === 'base');
+
+            if (btnInnObserve) {
+                let observeLabel = "様子を見る";
+                if (
+                    RPG.State.storyPhase === 4 &&
+                    RPG.State.flags.phase4TheftDiscovered &&
+                    RPG.State.flags.thiefDiscoveryStatus === 0
+                ) {
+                    observeLabel = RPG.State.flags.phase4FortuneConsultDone
+                        ? "オーエンに相談"
+                        : "占い師に相談";
+                }
+                btnInnObserve.textContent = observeLabel;
+            }
+
             if (btnInnDeliver) {
                 btnInnDeliver.style.display = canDeliver ? 'flex' : 'none';
                 if (canDeliver) {
@@ -331,16 +347,16 @@ const uiControl = {
         // Build 8.56: Enhanced debug logging for Scenario A
         console.log("DEBUG: closeModal called", {
             metThiefBoy: RPG.State.flags.metThiefBoy,
+            phase4TheftDiscovered: RPG.State.flags.phase4TheftDiscovered,
             thiefDiscoveryStatus: RPG.State.flags.thiefDiscoveryStatus,
+            hasSleptAfterThief: RPG.State.flags.hasSleptAfterThief,
+            location: RPG.State.location,
+            isAtInn: RPG.State.isAtInn,
             mode: RPG.State.mode
         });
 
         // Build 8.55: Discovery Hook A (Inventory Close)
-        if (
-            RPG.State.flags.metThiefBoy === true &&
-            RPG.State.flags.thiefDiscoveryStatus === 0 &&
-            !RPG.State.flags.giantLarvaDefeated
-        ) {
+        if (Cinematics.canPlayThiefDiscoveryFromModal()) {
             console.log("DEBUG: Final Discovery Hook Active in closeModal");
             Cinematics.playThiefDiscovery();
         }
@@ -399,7 +415,13 @@ const uiControl = {
             const loadedState = JSON.parse(saveData);
             // Build 10.0.8: Preserve current system version
             const currentVersion = RPG.State.version;
+            const defaultFlags = { ...RPG.State.flags };
+            const defaultInventory = { ...RPG.State.inventory };
+            const defaultDebug = { ...RPG.State.debug };
             Object.assign(RPG.State, loadedState);
+            RPG.State.flags = { ...defaultFlags, ...(loadedState.flags || {}) };
+            RPG.State.inventory = { ...defaultInventory, ...(loadedState.inventory || {}) };
+            RPG.State.debug = { ...defaultDebug, ...(loadedState.debug || {}) };
             RPG.State.version = currentVersion; // Hard-force the version
             this.addLog(`Slot ${slot} からロードしました。`);
             this.updateUI();

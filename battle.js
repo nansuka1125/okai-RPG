@@ -2,6 +2,44 @@
 // Refactored to separate Engine (battle.js) from Content (battleData.js)
 
 const battleSystem = {
+    getGlowingCatRabbitProfile: function () {
+        const defeatCount = RPG.State.glowCatRabbitDefeatCount || 0;
+        const profiles = [
+            { level: 5, atk: 5 },
+            { level: 10, atk: 8 },
+            { level: 15, atk: 14 },
+            { level: 20, atk: 22 },
+            { level: 88, atk: 88 }
+        ];
+
+        const profile = profiles[Math.min(defeatCount, profiles.length - 1)];
+        if (!profile) return null;
+
+        if (profile.level >= 15 && RPG.State.storyPhase < 4) {
+            return null;
+        }
+
+        return profile;
+    },
+
+    prepareGlowingCatRabbitTemplate: function (template) {
+        if (!template || template.id !== "glowing_cat_rabbit") return template;
+
+        const profile = this.getGlowingCatRabbitProfile();
+        if (!profile) return null;
+
+        return {
+            ...template,
+            name: `光る猫うさぎLv${profile.level}`,
+            atk: profile.atk,
+            rabbitLevel: profile.level,
+            preBattleDialogue: [
+                { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.intro(profile.level), color: "#ffd166" },
+                { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.sight, type: "ambient" }
+            ]
+        };
+    },
+
     chooseGlowingCatRabbitTemplate: function () {
         const rabbitTemplate = RPG.Assets.ENEMIES.find(e => e.id === "glowing_cat_rabbit");
         if (!rabbitTemplate) return null;
@@ -16,7 +54,7 @@ const battleSystem = {
         if (RPG.State.flags.glowCatRabbitBadEndSeen) return null;
         if (Math.random() >= rabbitTemplate.rareRate) return null;
 
-        return rabbitTemplate;
+        return this.prepareGlowingCatRabbitTemplate(rabbitTemplate);
     },
 
     startBattle: function (enemyId = null) {
@@ -24,6 +62,13 @@ const battleSystem = {
         let template = null;
         if (enemyId) {
             template = RPG.Assets.ENEMIES.find(e => e.id === enemyId);
+            if (template && template.id === "glowing_cat_rabbit") {
+                template = this.prepareGlowingCatRabbitTemplate(template);
+                if (!template) {
+                    uiControl.addLog("光る猫うさぎの気配はまだ現れない。");
+                    return;
+                }
+            }
         }
 
         if (!template) {
@@ -366,18 +411,19 @@ const battleSystem = {
         }
 
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
+        const rabbitLevel = enemy.rabbitLevel || 5;
         const delay = RPG.State.debug.isSkipping ? 50 : 900;
         enemy.rabbitEnemyTurnCount = (enemy.rabbitEnemyTurnCount || 0) + 1;
 
         if (enemy.rabbitEnemyTurnCount >= 4) {
-            uiControl.addLog(text.escape);
+            uiControl.addLog(text.escape(rabbitLevel));
             setTimeout(() => this.endGlowingCatRabbitBattle(true), delay);
             return;
         }
 
         if (enemy.rabbitEnemyTurnCount === 3) {
             enemy.rabbitExposed = true;
-            uiControl.addLog(text.yawn);
+            uiControl.addLog(text.yawn(rabbitLevel));
             setTimeout(callback, delay);
             return;
         }
@@ -391,19 +437,19 @@ const battleSystem = {
 
         const roll = Math.random();
         if (roll < 0.35) {
-            uiControl.addLog(text.yawn);
+            uiControl.addLog(text.yawn(rabbitLevel));
             setTimeout(callback, delay);
             return;
         }
 
         if (roll < 0.65) {
-            uiControl.addLog(text.waiting);
+            uiControl.addLog(text.waiting(rabbitLevel));
             setTimeout(callback, delay);
             return;
         }
 
         const damage = Math.max(1, enemy.atk);
-        uiControl.addLog(text.standardAttack, "enemy-action");
+        uiControl.addLog(text.standardAttack(rabbitLevel), "enemy-action");
         setTimeout(() => {
             RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
             uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
@@ -415,11 +461,13 @@ const battleSystem = {
     endGlowingCatRabbitBattle: function (escaped) {
         const enemy = RPG.State.currentEnemy;
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
+        const rabbitLevel = enemy?.rabbitLevel || 5;
+        const followupDialogue = this.getGlowingCatRabbitFollowupDialogue(rabbitLevel);
 
         uiControl.addSeparator();
 
         if (!escaped) {
-            uiControl.addLog(text.vanish);
+            uiControl.addLog(text.vanish(rabbitLevel));
         }
 
         if (enemy && enemy.guaranteedPhase4Fur) {
@@ -431,11 +479,70 @@ const battleSystem = {
             RPG.State.glowCatRabbitDefeatCount = (RPG.State.glowCatRabbitDefeatCount || 0) + 1;
         }
 
-        RPG.State.mode = "base";
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
+
+        if (followupDialogue && followupDialogue.length > 0) {
+            RPG.State.mode = "event";
+            uiControl.updateUI();
+            RPG.State.dialogueQueue = followupDialogue.map(line => ({ ...line }));
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        RPG.State.mode = "base";
         uiControl.updateUI();
+    },
+
+    getGlowingCatRabbitFollowupDialogue: function (rabbitLevel) {
+        const flags = RPG.State.flags;
+
+        if (rabbitLevel === 5 && RPG.State.storyPhase <= 3 && !flags.glowCatRabbitTalkLv5Done) {
+            flags.glowCatRabbitTalkLv5Done = true;
+            return [
+                { text: "カイン「なんだったんだあれは…」" },
+                { text: "オーエン「……」", color: "#a020f0" },
+                { text: "カイン「…どうした？」" },
+                { text: "オーエン「こんなところにいるなんて」", color: "#a020f0" },
+                { text: "カイン「知ってるのか？」" },
+                { text: "オーエン「魔界の珍しい生き物だよ」", color: "#a020f0" }
+            ];
+        }
+
+        if (rabbitLevel === 10 && !flags.glowCatRabbitTalkLv10Done) {
+            flags.glowCatRabbitTalkLv10Done = true;
+            return [
+                { text: "カイン「またいたな…」" },
+                { text: "オーエン「不吉だね」", color: "#a020f0" },
+                { text: "カイン「可愛いし、あんまり攻撃も痛くないけどな」" },
+                { text: "オーエン「子供なんじゃない？小さいもの」", color: "#a020f0" },
+                { text: "カイン「小さいか？普通の猫くらいの大きさだったが…」" }
+            ];
+        }
+
+        if (rabbitLevel === 15 && !flags.glowCatRabbitTalkLv15Done) {
+            flags.glowCatRabbitTalkLv15Done = true;
+            return [
+                { text: "オーエン「あんな珍しいものに、よく会うね」", color: "#a020f0" },
+                { text: "カイン「ラッキーなのかな？」" },
+                { text: "オーエン「好かれてるとしたら、アンラッキー」", color: "#a020f0" },
+                { text: "カイン「可愛いけどな。にゃあにゃあ言ってて」" },
+                { text: "オーエン「へえ…おまえにはそう聞こえるの」", color: "#a020f0" }
+            ];
+        }
+
+        if (rabbitLevel === 20 && !flags.glowCatRabbitTalkLv20Done) {
+            flags.glowCatRabbitTalkLv20Done = true;
+            return [
+                { text: "カイン「今のはかなり大きかったな！黒豹くらいの大きさだった」" },
+                { text: "オーエン「………」", color: "#a020f0" },
+                { text: "カイン「オーエン？」" },
+                { text: "オーエン「次、アレが出たらすぐ逃げなよ」", color: "#a020f0" }
+            ];
+        }
+
+        return null;
     },
 
     playAmberTreeFourHitScene: function (callback) {

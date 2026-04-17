@@ -268,6 +268,18 @@ const explorationSystem = {
             return;
         }
 
+        const shouldShowMatamatabiHint =
+            dist === 4 &&
+            RPG.State.flags.heardMatamatabiRumor === true &&
+            RPG.State.flags.matamatabiBranchFound !== true;
+
+        if (shouldShowMatamatabiHint) {
+            const hintLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiHint4m || [];
+            hintLines.forEach(line => uiControl.addLog(line, "ambient"));
+            uiControl.updateUI();
+            return;
+        }
+
         if (RPG.State.storyPhase === 0) {
             if (dist === 3) {
                 uiControl.addLog("カインは森の中を銀貨を探しながら歩いた", "ambient");
@@ -335,22 +347,8 @@ const explorationSystem = {
         uiControl.updateUI();
 
         // Build 8.57: Discovery Hook B
-        if (RPG.State.currentDistance === 0 &&
-            RPG.State.flags.metThiefBoy === true &&
-            RPG.State.flags.thiefDiscoveryStatus === 0 &&
-            RPG.State.flags.hasSleptAfterThief === true &&
-            !RPG.State.isAtInn) {
-
-            RPG.State.mode = "event";
-            RPG.State.flags.thiefDiscoveryStatus = 1;
-            RPG.State.flags.thiefTrackActive = true;
-            if (RPG.State.storyPhase < 4) {
-                RPG.State.storyPhase = 4;
-            }
-
-            // 台本の住所を RPG.Assets に繋ぎ変え
-            RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.thiefDiscoveryHookB;
-            this.playDialogueLoop();
+        if (Cinematics.canPlayThiefDiscovery()) {
+            Cinematics.playThiefDiscovery();
             return;
         }
 
@@ -450,6 +448,35 @@ const explorationSystem = {
                 { text: "オーエン「………へえ」", delay: 1500, color: "#a020f0" },
                 { text: "カイン「他にもあるかもしれない。もう少し森を歩き回ってみよう」", delay: 1800 }
             ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        if (
+            dist === 4 &&
+            flags.heardMatamatabiRumor === true &&
+            flags.matamatabiBranchFound !== true
+        ) {
+            flags.matamatabiBranchFound = true;
+            const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = pickupLines.map(line => {
+                if (line === "🌿マタマタビの枝 を手に入れた！") {
+                    return {
+                        text: line,
+                        delay: 1500,
+                        color: "#FFD700",
+                        action: () => {
+                            RPG.State.inventory.matamatabiBranch = (RPG.State.inventory.matamatabiBranch || 0) + 1;
+                            uiControl.updateUI();
+                        }
+                    };
+                }
+                if (line.startsWith("オーエン")) {
+                    return { text: line, delay: 1500, color: "#a020f0" };
+                }
+                return { text: line, delay: 1500 };
+            });
             this.playDialogueLoop();
             return;
         }

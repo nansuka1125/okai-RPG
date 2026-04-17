@@ -1,5 +1,33 @@
 // 🚩ーー【演出・シネマティクス管理】ーー
 const Cinematics = {
+    canPlayThiefDiscoveryFromModal: function () {
+        return (
+            RPG.State.flags.metThiefBoy === true &&
+            RPG.State.flags.phase4TheftDiscovered !== true &&
+            RPG.State.flags.thiefDiscoveryStatus === 0 &&
+            RPG.State.isAtInn === false &&
+            !RPG.State.flags.giantLarvaDefeated
+        );
+    },
+
+    canPlayThiefDiscovery: function () {
+        const isOutsideAtInnFront =
+            RPG.State.isAtInn === false &&
+            (
+                RPG.State.location === "宿屋前" ||
+                RPG.State.currentDistance === 0
+            );
+
+        return (
+            RPG.State.flags.metThiefBoy === true &&
+            RPG.State.flags.phase4TheftDiscovered !== true &&
+            RPG.State.flags.thiefDiscoveryStatus === 0 &&
+            RPG.State.flags.hasSleptAfterThief === true &&
+            isOutsideAtInnFront &&
+            !RPG.State.flags.giantLarvaDefeated
+        );
+    },
+
     // --- 戦闘演出 ---
     scaleBoss: function (sys, enemy) {
         const playerAtk = Math.max(10, RPG.State.attack);
@@ -93,24 +121,14 @@ const Cinematics = {
     // --- 探索・イベント演出 (uiControlから移植) ---
     playThiefDiscovery: function () {
         RPG.State.mode = "event";
-        RPG.State.flags.thiefDiscoveryStatus = 1;
-        RPG.State.flags.thiefTrackActive = true;
+        RPG.State.flags.phase4TheftDiscovered = true;
+        RPG.State.flags.thiefTrackActive = false;
 
-        RPG.State.dialogueQueue = [
-            { text: "カイン「……あれ？」", delay: 1000 },
-            { text: "カイン「銀貨が……ない」", delay: 1500 },
-            { text: "カイン「さっきの少年……まさか」", delay: 1500 },
-            { text: "オーエン「気づいたんだ」", delay: 1000, color: "#a020f0" },
-            { text: "カイン「おまえ、知ってたのか！？」", delay: 1000 },
-            { text: "オーエン「うん。でも教えてあげなかった」", delay: 1500, color: "#a020f0" },
-            { text: "カイン「……」", delay: 1000 },
-            {
-                text: null, delay: 0, action: () => {
-                    RPG.State.mode = "base";
-                    uiControl.updateUI();
-                }
-            }
-        ];
+        if (RPG.State.storyPhase < 4) {
+            RPG.State.storyPhase = 4;
+        }
+
+        RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.thiefDiscoveryHookB;
         explorationSystem.playDialogueLoop();
     },
 

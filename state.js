@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.59 (Glowing Rabbit Battle Rules)", // Build 15.2.59: Add the glowing cat rabbit's special battle rules
+    version: "15.2.63 (Matamatabi Rumor Hook)", // Build 15.2.63: Add the matamatabi rumor and 4m pickup route for phase 4
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -61,6 +61,7 @@ RPG.State = {
         mintFlower: 0,
         boneMeal: 0,
         emptyBottle: 0,
+        matamatabiBranch: 0,
         glowingCatRabbitFur: 0,
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
@@ -101,13 +102,25 @@ RPG.State = {
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
         glowCatRabbitPhase4EncounterSeen: false, // Build 15.2.59: Guarantee fur on the first glowing rabbit encounter after phase 4 unlock
+        glowCatRabbitTalkLv5Done: false, // Build 15.2.61: One-time normal glowing rabbit talk for the first Lv5 encounter before phase 4
+        glowCatRabbitTalkLv10Done: false, // Build 15.2.61: One-time normal glowing rabbit talk for Lv10
+        glowCatRabbitTalkLv15Done: false, // Build 15.2.61: One-time normal glowing rabbit talk for Lv15
+        glowCatRabbitTalkLv20Done: false, // Build 15.2.61: One-time normal glowing rabbit talk for Lv20
         metThiefBoy: false, // Flag for meeting the thief boy
         thiefDiscoveryStatus: 0, // 0=not discovered, 1=discovered
         thiefTrackActive: false, // Tracking quest active
         hasSleptAfterThief: false, // Track if player slept after meeting thief
         heardScream: false, // Build 14.1.4: Track if 9m scream event is finished
         giantLarvaDefeated: false, // Build 14.1.3: Robust Boss Flag
-        onWagon: false // Build 14.2.1: Track if player boarded wagon
+        onWagon: false, // Build 14.2.1: Track if player boarded wagon
+        phase4TheftDiscovered: false, // Build 15.2.62: Theft has been noticed and the phase 4 inn route should begin
+        phase4FortuneIntroDone: false, // Build 15.2.62: One-time automatic fortune-teller intro on entering the inn during phase 4
+        phase4FortuneConsultDone: false, // Build 15.2.62: Main fortune consultation that requests glowing cat rabbit fur
+        phase4OwenConsultCount: 0, // Build 15.2.62: Track early Owen consultations during the phase 4 inn route
+        needsGlowingRabbitFur: false, // Build 15.2.62: Phase 4 fur quest gate before re-enabling the 9m/10m rescue route
+        phase4MatamatabiTalkCount: 0, // Build 15.2.63: Track the two rumor talks about the matamatabi branch
+        heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
+        matamatabiBranchFound: false // Build 15.2.63: Track whether the branch has already been picked up at 4m
     },
 
     // 一時フラグ

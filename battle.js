@@ -40,6 +40,46 @@ const battleSystem = {
         };
     },
 
+    markPlayerTookDamage: function (damage = 0) {
+        if (damage <= 0) return;
+        if (!RPG.State.battleState) {
+            RPG.State.battleState = {};
+        }
+        RPG.State.battleState.playerTookDamage = true;
+    },
+
+    shouldActivateMatamatabiAfterBattle: function () {
+        return (
+            (RPG.State.inventory.matamatabiBranch || 0) > 0 &&
+            RPG.State.flags.matamatabiActive !== true &&
+            RPG.State.battleState &&
+            RPG.State.battleState.playerTookDamage === true
+        );
+    },
+
+    buildMatamatabiActivationQueue: function () {
+        if (!this.shouldActivateMatamatabiAfterBattle()) return [];
+
+        const lines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiActivate || [];
+        return lines.map(line => {
+            if (line.startsWith("オーエン")) {
+                return { text: line, color: "#a020f0" };
+            }
+            if (line === "マタマタビの枝は活性化した。") {
+                return {
+                    text: line,
+                    color: "#9acd32",
+                    action: () => {
+                        RPG.State.flags.matamatabiActive = true;
+                        RPG.State.matamatabiStepsRemaining = 10;
+                        uiControl.updateUI();
+                    }
+                };
+            }
+            return { text: line };
+        });
+    },
+
     chooseGlowingCatRabbitTemplate: function () {
         const rabbitTemplate = RPG.Assets.ENEMIES.find(e => e.id === "glowing_cat_rabbit");
         if (!rabbitTemplate) return null;
@@ -57,6 +97,25 @@ const battleSystem = {
         return this.prepareGlowingCatRabbitTemplate(rabbitTemplate);
     },
 
+    chooseMatamatabiEncounterTemplate: function () {
+        const isForestEncounter =
+            RPG.State.flags.matamatabiActive === true &&
+            RPG.State.isInDungeon &&
+            RPG.State.location !== "かつての街道" &&
+            RPG.State.currentDistance > 0 &&
+            RPG.State.currentDistance < 10;
+
+        if (!isForestEncounter) return null;
+
+        if (Math.random() < 0.15) {
+            const rabbitTemplate = RPG.Assets.ENEMIES.find(e => e.id === "glowing_cat_rabbit");
+            if (!rabbitTemplate || RPG.State.flags.glowCatRabbitBadEndSeen) return null;
+            return this.prepareGlowingCatRabbitTemplate(rabbitTemplate);
+        }
+
+        return RPG.Assets.ENEMIES.find(e => e.id === "weasel") || null;
+    },
+
     startBattle: function (enemyId = null) {
         // Enemy Selection logic remains in engine as it processes data
         let template = null;
@@ -69,6 +128,10 @@ const battleSystem = {
                     return;
                 }
             }
+        }
+
+        if (!template) {
+            template = this.chooseMatamatabiEncounterTemplate();
         }
 
         if (!template) {
@@ -139,7 +202,7 @@ const battleSystem = {
             guaranteedPhase4Fur: isPhase4FirstRabbitEncounter
         };
         // Build 9.0.0: Battle State container
-        RPG.State.battleState = { skippedTurns: 0 };
+        RPG.State.battleState = { skippedTurns: 0, playerTookDamage: false };
         RPG.State.lastBlowBy = null;
         RPG.State.battleTurn = 1;
         RPG.State.hasOwenIntervened = false;
@@ -150,16 +213,8 @@ const battleSystem = {
 
         uiControl.updateUI();
 
-        // Check Pre-emptive
-        if (RPG.State.currentEnemy.id === "weasel") {
-            const delay = RPG.State.debug.isSkipping ? 50 : 800;
-            setTimeout(() => {
-                this.enemyTurn(true);
-            }, delay);
-            return;
-        }
-
-        if (RPG.State.currentEnemy.preemptive && Math.random() < RPG.State.currentEnemy.preemptive) {
+        // Keep pre-emptive handling for boss-style encounters only.
+        if (RPG.State.currentEnemy.isBoss === true && RPG.State.currentEnemy.preemptive && Math.random() < RPG.State.currentEnemy.preemptive) {
             const delay = RPG.State.debug.isSkipping ? 50 : 800;
             setTimeout(() => {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.intro.preemptive(RPG.State.currentEnemy.name));
@@ -236,6 +291,33 @@ const battleSystem = {
                 return;
             }
 
+            const isJourneyEnemy = RPG.State.currentEnemy && RPG.State.currentEnemy.isBoss !== true;
+            if (isJourneyEnemy) {
+                if (this.checkBattleEnd()) return;
+
+                const runCainAfterEnemy = () => {
+                    if (this.checkBattleEnd()) return;
+
+                    this.processCainAction(() => {
+                        if (this.checkBattleEnd()) return;
+
+                        RPG.State.battleTurn++;
+                        const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+                        setTimeout(() => this.runBattleLoop(), delay);
+                    });
+                };
+
+                if (RPG.State.currentEnemy.frozenTurns > 0) {
+                    RPG.State.currentEnemy.frozenTurns--;
+                    uiControl.addLog(`${RPG.State.currentEnemy.name}は凍りついて動けない！`, "");
+                    const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+                    setTimeout(runCainAfterEnemy, delay);
+                } else {
+                    this.runJourneyEnemyTurn(runCainAfterEnemy);
+                }
+                return;
+            }
+
             // 2. Cain's Turn
             if (this.checkBattleEnd()) return;
 
@@ -291,11 +373,15 @@ const battleSystem = {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
                 break;
             case "kill":
-                uiControl.addLog(
-                    RPG.Assets.BATTLE_TEXT.owen.kill[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.kill.length)],
-                    "",
-                    "#a333c8"
-                );
+                if (RPG.State.flags.matamatabiActive === true && (!RPG.State.currentEnemy || RPG.State.currentEnemy.id !== "glowing_cat_rabbit")) {
+                    uiControl.addLog("オーエンは一瞬で敵を吹き飛ばした！", "", "#a333c8");
+                } else {
+                    uiControl.addLog(
+                        RPG.Assets.BATTLE_TEXT.owen.kill[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.kill.length)],
+                        "",
+                        "#a333c8"
+                    );
+                }
                 if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
                     uiControl.addLog(RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.killImmune, "", "#ffffaa");
                     delay = 1200;
@@ -403,6 +489,61 @@ const battleSystem = {
         finalizeCainTurn();
     },
 
+    runJourneyEnemyTurn: function (onComplete) {
+        if (!RPG.State.isBattling || !RPG.State.currentEnemy) return;
+
+        if (Math.random() < 0.1) {
+            uiControl.addLog("カインは攻撃を剣で受け流した！");
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(onComplete, delay);
+            return;
+        }
+
+        let dmg = RPG.State.currentEnemy.atk;
+        const newHP = RPG.State.currentHP - dmg;
+
+        if (newHP <= 0 && !RPG.State.hasOwenSavedLife) {
+            RPG.State.hasOwenSavedLife = true;
+            this.markPlayerTookDamage(dmg);
+            uiControl.addLog(`${RPG.State.currentEnemy.name}が${RPG.State.currentEnemy.msg || "攻撃してきた！"}`);
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
+            RPG.State.currentHP = 1;
+            uiControl.updateUI();
+            const delay = RPG.State.debug.isSkipping ? 50 : 1500;
+            setTimeout(() => this.endBattle(false, true), delay);
+            return;
+        }
+
+        RPG.State.currentHP = Math.max(1, newHP);
+        this.markPlayerTookDamage(dmg);
+
+        let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
+        if (RPG.State.currentEnemy.id === "weasel") {
+            msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
+        }
+
+        uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`);
+
+        if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
+            if (Math.random() < 0.2) {
+                RPG.State.isPoisoned = true;
+                uiControl.addLog("攻撃に毒が含まれていた！ (毒状態)", "", "#ff4d4d");
+            }
+        }
+
+        uiControl.updateUI();
+
+        if (RPG.State.currentHP === 1) {
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(() => this.resolveDefeat(), delay);
+            return;
+        }
+
+        const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+        setTimeout(onComplete, delay);
+    },
+
     runGlowingCatRabbitTurn: function (callback) {
         const enemy = RPG.State.currentEnemy;
         if (!enemy || enemy.id !== "glowing_cat_rabbit") {
@@ -452,17 +593,71 @@ const battleSystem = {
         uiControl.addLog(text.standardAttack(rabbitLevel), "enemy-action");
         setTimeout(() => {
             RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
+            this.markPlayerTookDamage(damage);
             uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
             uiControl.updateUI();
             setTimeout(callback, delay);
         }, delay);
     },
 
+    shouldAwardGlowingCatRabbitFur: function (enemy, escaped) {
+        if (!enemy || enemy.id !== "glowing_cat_rabbit") return false;
+        if (!escaped) return true;
+
+        const furChance = RPG.State.flags.matamatabiActive === true ? 0.5 : 0.1;
+        return Math.random() < furChance;
+    },
+
+    buildGlowingCatRabbitFurQueue: function () {
+        const lines = RPG.Assets.GAME_TEXT.events.phase4GlowingRabbitFurObtained || [];
+        return lines.map(line => {
+            if (line.startsWith("オーエン「") || line.startsWith("オーエン｢")) {
+                return { text: line, color: "#a020f0" };
+            }
+
+            if (line === "ダメージ+2") {
+                return {
+                    text: line,
+                    color: "#ff4d4d",
+                    action: () => {
+                        RPG.State.currentHP = Math.max(1, RPG.State.currentHP - 2);
+                        uiControl.addLog("カインは2のダメージを受けた！", "damage");
+                        uiControl.updateUI();
+                    }
+                };
+            }
+
+            if (line === "オーエンが全て舐めとったため、枝は不活性化した。") {
+                return {
+                    text: line,
+                    color: "#9acd32",
+                    action: () => {
+                        RPG.State.inventory.matamatabiBranch = 0;
+                        RPG.State.flags.matamatabiActive = false;
+                        RPG.State.matamatabiStepsRemaining = 0;
+                        uiControl.updateUI();
+                    }
+                };
+            }
+
+            return { text: line };
+        });
+    },
+
     endGlowingCatRabbitBattle: function (escaped) {
         const enemy = RPG.State.currentEnemy;
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
         const rabbitLevel = enemy?.rabbitLevel || 5;
+        const hadBranch = (RPG.State.inventory.matamatabiBranch || 0) > 0;
+        const furAwarded = this.shouldAwardGlowingCatRabbitFur(enemy, escaped);
         const followupDialogue = this.getGlowingCatRabbitFollowupDialogue(rabbitLevel);
+        const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
+        const noFurDialogue = (
+            RPG.State.flags.needsGlowingRabbitFur === true &&
+            !furAwarded
+        )
+            ? (RPG.Assets.GAME_TEXT.events.phase4GlowingRabbitNoFur || []).map(line => ({ text: line }))
+            : [];
 
         uiControl.addSeparator();
 
@@ -470,9 +665,11 @@ const battleSystem = {
             uiControl.addLog(text.vanish(rabbitLevel));
         }
 
-        if (enemy && enemy.guaranteedPhase4Fur) {
+        if (furAwarded) {
             RPG.State.inventory.glowingCatRabbitFur = (RPG.State.inventory.glowingCatRabbitFur || 0) + 1;
-            uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
+            if (!hadBranch) {
+                uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
+            }
         }
 
         if (!escaped) {
@@ -483,10 +680,26 @@ const battleSystem = {
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
 
-        if (followupDialogue && followupDialogue.length > 0) {
+        const shouldPlayFurScene = furAwarded && hadBranch;
+        const furDialogueQueue = shouldPlayFurScene ? this.buildGlowingCatRabbitFurQueue() : [];
+
+        if (
+            shouldPlayFurScene ||
+            noFurDialogue.length > 0 ||
+            (followupDialogue && followupDialogue.length > 0) ||
+            matamatabiActivationQueue.length > 0
+        ) {
             RPG.State.mode = "event";
             uiControl.updateUI();
-            RPG.State.dialogueQueue = followupDialogue.map(line => ({ ...line }));
+            RPG.State.dialogueQueue = [
+                ...(shouldPlayFurScene
+                    ? furDialogueQueue
+                    : [
+                        ...noFurDialogue,
+                        ...(followupDialogue ? followupDialogue.map(line => ({ ...line })) : []),
+                        ...matamatabiActivationQueue
+                    ])
+            ];
             explorationSystem.playDialogueLoop();
             return;
         }
@@ -687,6 +900,7 @@ const battleSystem = {
         // Death Save
         if (newHP <= 0 && !RPG.State.hasOwenSavedLife) {
             RPG.State.hasOwenSavedLife = true;
+            this.markPlayerTookDamage(dmg);
             uiControl.addLog(`${RPG.State.currentEnemy.name}が${RPG.State.currentEnemy.msg || "攻撃してきた！"}`);
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
@@ -698,6 +912,7 @@ const battleSystem = {
         }
 
         RPG.State.currentHP = Math.max(1, newHP);
+        this.markPlayerTookDamage(dmg);
 
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
         // Build 6.3.2: Weasel Logic (Specific case kept inline for simplicity as it's minor)
@@ -759,19 +974,38 @@ const battleSystem = {
             return;
         }
 
+        const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
+        let hasPostBattleEvent = false;
+
         if (isDeathSave) {
             uiControl.addLog("戦闘から離脱した。");
+            if (matamatabiActivationQueue.length > 0) {
+                hasPostBattleEvent = true;
+            }
         } else if (!playerWin) {
             RPG.State.defeatCounts[enemyId].owen++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
+            if (matamatabiActivationQueue.length > 0) {
+                hasPostBattleEvent = true;
+            }
         } else {
             this.executeStandardVictory(enemyId);
+            return;
         }
 
-        RPG.State.mode = "base";
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
+
+        if (hasPostBattleEvent) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [...matamatabiActivationQueue];
+            uiControl.updateUI();
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        RPG.State.mode = "base";
         uiControl.updateUI();
     },
 
@@ -808,6 +1042,7 @@ const battleSystem = {
 
         // --- Battle Event & Clean-up Sync ---
         let hasPostBattleEvent = false;
+        const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
 
         if (RPG.State.flags.treeDefeated && RPG.State.postTreeBattles !== "DONE") {
             if (RPG.State.postTreeBattles === null) RPG.State.postTreeBattles = 0;
@@ -887,7 +1122,7 @@ const battleSystem = {
             ];
             uiControl.addLog("---");
             RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues];
+            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues, ...matamatabiActivationQueue];
             explorationSystem.playDialogueLoop();
             hasPostBattleEvent = true;
         }
@@ -896,7 +1131,7 @@ const battleSystem = {
             const eventDialogues = RPG.Assets.BATTLE_EVENTS[enemyId][count];
             uiControl.addLog("---");
             RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues];
+            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues, ...matamatabiActivationQueue];
             explorationSystem.playDialogueLoop();
             hasPostBattleEvent = true;
         }
@@ -916,7 +1151,15 @@ const battleSystem = {
         if (!hasPostBattleEvent && levelUpTalkQueue.length > 0) {
             uiControl.addLog("---");
             RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...levelUpTalkQueue];
+            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...matamatabiActivationQueue];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
+        if (!hasPostBattleEvent && matamatabiActivationQueue.length > 0) {
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [...matamatabiActivationQueue];
             explorationSystem.playDialogueLoop();
             hasPostBattleEvent = true;
         }

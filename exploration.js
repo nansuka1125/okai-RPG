@@ -161,6 +161,23 @@ const explorationSystem = {
                 RPG.State.location = uiControl.getLocData(RPG.State.currentDistance).name;
             }
 
+            if (
+                RPG.State.flags.matamatabiActive === true &&
+                RPG.State.isInDungeon &&
+                RPG.State.location !== "かつての街道"
+            ) {
+                RPG.State.matamatabiStepsRemaining = Math.max(0, (RPG.State.matamatabiStepsRemaining || 0) - 1);
+                if (RPG.State.matamatabiStepsRemaining <= 0) {
+                    RPG.State.flags.matamatabiActive = false;
+                    RPG.State.matamatabiStepsRemaining = 0;
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildMatamatabiFadeQueue();
+                    uiControl.updateUI();
+                    this.playDialogueLoop();
+                    return;
+                }
+            }
+
             if (RPG.State.isPoisoned) {
                 RPG.State.currentHP -= 2;
                 uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.poisonDamage, "", "#ff4d4d");
@@ -352,8 +369,21 @@ const explorationSystem = {
             return;
         }
 
+        const isMatamatabiFlavorActive =
+            RPG.State.flags.matamatabiActive === true &&
+            !isHighway &&
+            RPG.State.isInDungeon &&
+            dist > 0 &&
+            dist < 10;
+
         // Ambient Flavor Text
-        if (dist === 5 && !isHighway && RPG.State.storyPhase >= 1) {
+        if (isMatamatabiFlavorActive) {
+            const flavorPool = RPG.Assets.GAME_TEXT.events.phase4MatamatabiFlavor || [];
+            if (flavorPool.length > 0 && Math.random() < 0.4) {
+                const line = flavorPool[Math.floor(Math.random() * flavorPool.length)];
+                uiControl.addLog(line, "ambient");
+            }
+        } else if (dist === 5 && !isHighway && RPG.State.storyPhase >= 1) {
             const flavorPool = RPG.Assets.GAME_TEXT.events.owenFlavor5m || [];
             if (flavorPool.length > 0) {
                 const entry = flavorPool[Math.floor(Math.random() * flavorPool.length)];
@@ -366,9 +396,7 @@ const explorationSystem = {
                 }
             }
             return;
-        }
-
-        if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
+        } else if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
             setTimeout(() => {
                 uiControl.addLog(RPG.Assets.AMBIENT_TEXTS[dist], "ambient");
             }, 300);
@@ -468,6 +496,7 @@ const explorationSystem = {
                         color: "#FFD700",
                         action: () => {
                             RPG.State.inventory.matamatabiBranch = (RPG.State.inventory.matamatabiBranch || 0) + 1;
+                            RPG.State.matamatabiUseCount = 0;
                             uiControl.updateUI();
                         }
                     };
@@ -525,6 +554,51 @@ const explorationSystem = {
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
     },
 
+    buildMatamatabiFadeQueue: function () {
+        const lines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiFade || [];
+        return lines.map(line => {
+            if (line.startsWith("オーエン")) {
+                return { text: line, color: "#a020f0" };
+            }
+            if (line.startsWith("※")) {
+                return { text: line, color: "#9acd32" };
+            }
+            return { text: line };
+        });
+    },
+
+    buildMatamatabiManualUseQueue: function () {
+        const useCount = RPG.State.matamatabiUseCount || 0;
+        let sourceLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiReuseLoop || [];
+
+        if (useCount === 0) {
+            sourceLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiReuse1 || sourceLines;
+        } else if (useCount === 1) {
+            sourceLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiReuse2 || sourceLines;
+        } else if (useCount === 2) {
+            sourceLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiReuse3 || sourceLines;
+        }
+
+        return sourceLines.map(line => {
+            if (line.startsWith("オーエン")) {
+                return { text: line, color: "#a020f0" };
+            }
+            if (line === "🌿マタマタビの枝は活性化した") {
+                return {
+                    text: line,
+                    color: "#9acd32",
+                    action: () => {
+                        RPG.State.flags.matamatabiActive = true;
+                        RPG.State.matamatabiStepsRemaining = 10;
+                        RPG.State.matamatabiUseCount = (RPG.State.matamatabiUseCount || 0) + 1;
+                        uiControl.updateUI();
+                    }
+                };
+            }
+            return { text: line };
+        });
+    },
+
     getItemUseDialogue: function (itemId) {
         if (itemId === 'herb') {
             if (RPG.State.herbUseCount === 1) {
@@ -561,6 +635,10 @@ const explorationSystem = {
             ];
         }
 
+        if (itemId === 'matamatabiBranch') {
+            return this.buildMatamatabiManualUseQueue();
+        }
+
         return null;
     },
 
@@ -568,6 +646,7 @@ const explorationSystem = {
         if (!RPG.State.inventory[itemId] || RPG.State.inventory[itemId] <= 0) return;
 
         let success = false;
+        let consumeItem = true;
         switch (itemId) {
             case 'herb':
                 if (RPG.State.currentHP >= RPG.State.maxHP && !RPG.State.isPoisoned) {
@@ -600,6 +679,15 @@ const explorationSystem = {
                 uiControl.addLog("💊《レベルアップ薬》を煽った！力がみなぎる……（Lv.10になった）");
                 success = true;
                 break;
+            case 'matamatabiBranch':
+                if (RPG.State.flags.matamatabiActive === true) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded, "", "#9acd32");
+                    uiControl.closeModal();
+                    return;
+                }
+                success = true;
+                consumeItem = false;
+                break;
             default:
                 uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);
                 break;
@@ -607,7 +695,9 @@ const explorationSystem = {
 
         if (success) {
             const itemDialogue = this.getItemUseDialogue(itemId);
-            RPG.State.inventory[itemId]--;
+            if (consumeItem) {
+                RPG.State.inventory[itemId]--;
+            }
             uiControl.updateUI();
             uiControl.closeModal();
 

@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.63 (Matamatabi Rumor Hook)", // Build 15.2.63: Add the matamatabi rumor and 4m pickup route for phase 4
+    version: "15.2.67 (Matamatabi Reuse)", // Build 15.2.67: Add matamatabi fade dialogue, UI state, and reusable branch activation from items
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -31,6 +31,7 @@ RPG.State = {
     storyPhase: 0,         // Build 14.2.0: Story progression tracking (0-9+)
     highwayBattleCount: {}, // Build 14.2.2: Track fixed encounters on highway
     herbUseCount: 0,       // Build 15.2.25: Track herb use dialogue milestones
+    matamatabiUseCount: 0, // Build 15.2.67: Track sequential manual-use dialogue for the matamatabi branch
     observeIndex: 0,       // Build 15.2.29: Next phase candidate for inn observe dialogue
     observePhaseReached: {}, // Build 15.2.29: Track highest inn observe entry read per phase
     talkIndex: 0,          // Build 15.2.30: Next shared loop line for inn talk
@@ -120,7 +121,8 @@ RPG.State = {
         needsGlowingRabbitFur: false, // Build 15.2.62: Phase 4 fur quest gate before re-enabling the 9m/10m rescue route
         phase4MatamatabiTalkCount: 0, // Build 15.2.63: Track the two rumor talks about the matamatabi branch
         heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
-        matamatabiBranchFound: false // Build 15.2.63: Track whether the branch has already been picked up at 4m
+        matamatabiBranchFound: false, // Build 15.2.63: Track whether the branch has already been picked up at 4m
+        matamatabiActive: false // Build 15.2.64: Party-wide phase 4 state enabled after taking damage while carrying the branch
     },
 
     // 一時フラグ
@@ -133,6 +135,7 @@ RPG.State = {
     defeatCounts: {}, // Track kills by ID
     glowCatRabbitDefeatCount: 0, // Build 15.2.57: Track how many glowing cat rabbits have been defeated
     playerTookCoin: null, // Track choice at tree event (true/false/null)
+    matamatabiStepsRemaining: 0, // Build 15.2.64: Remaining forest steps before the activated branch effect fades
 
     // Duel System State
     // Duel system removed in Build 15.0.0

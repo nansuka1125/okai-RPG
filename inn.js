@@ -273,6 +273,8 @@ innSystem = {
 
                         RPG.State.currentHP = targetHP;
                         RPG.State.isPoisoned = false;
+                        RPG.State.flags.matamatabiActive = false;
+                        RPG.State.matamatabiStepsRemaining = 0;
                         RPG.State.flags.firstInnSleep = true;
                         uiControl.updateUI();
                     }
@@ -355,6 +357,8 @@ innSystem = {
                 RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + recoveryAmount);
                 RPG.State.mood = Math.max(0, Math.min(100, RPG.State.mood + (morningResult.mood || 0)));
                 RPG.State.isPoisoned = false;
+                RPG.State.flags.matamatabiActive = false;
+                RPG.State.matamatabiStepsRemaining = 0;
                 uiControl.updateUI();
             }
         });
@@ -593,6 +597,28 @@ innSystem = {
         if (this.shouldUsePhase4FortuneRoute()) {
             uiControl.addSeparator();
             RPG.State.mode = "event";
+
+            const canDeliverGlowingRabbitFur =
+                RPG.State.flags.needsGlowingRabbitFur === true &&
+                (RPG.State.inventory.glowingCatRabbitFur || 0) > 0;
+
+            if (canDeliverGlowingRabbitFur) {
+                RPG.State.dialogueQueue = this.buildDialogueQueue(
+                    RPG.Assets.GAME_TEXT.events.phase4FortuneDelivery,
+                    () => {
+                        RPG.State.inventory.glowingCatRabbitFur = Math.max(
+                            0,
+                            (RPG.State.inventory.glowingCatRabbitFur || 0) - 1
+                        );
+                        RPG.State.flags.needsGlowingRabbitFur = false;
+                        RPG.State.flags.thiefDiscoveryStatus = 1;
+                        RPG.State.flags.thiefTrackActive = false;
+                        uiControl.updateUI();
+                    }
+                );
+                explorationSystem.playDialogueLoop();
+                return;
+            }
 
             if (RPG.State.flags.phase4FortuneConsultDone !== true) {
                 RPG.State.dialogueQueue = this.buildDialogueQueue(

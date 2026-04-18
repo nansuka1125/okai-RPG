@@ -108,6 +108,7 @@ RPG.Assets.BATTLE_AI = {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.digesting, "damage", "#ff4d4d");
                 const digestDmg = 5;
                 RPG.State.currentHP -= digestDmg;
+                sys.markPlayerTookDamage(digestDmg);
                 uiControl.updateUI();
                 uiControl.addLog(`カインは${digestDmg}のダメージを受けた！`, "damage");
 
@@ -167,6 +168,7 @@ RPG.Assets.BATTLE_AI = {
             setTimeout(() => {
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 RPG.State.currentHP -= damage;
+                sys.markPlayerTookDamage(damage);
                 uiControl.updateUI();
 
                 if (sys.checkBattleEnd()) return;
@@ -199,6 +201,7 @@ RPG.Assets.BATTLE_AI = {
                 setTimeout(() => {
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     RPG.State.currentHP -= damage;
+                    sys.markPlayerTookDamage(damage);
                     uiControl.updateUI();
                     if (sys.checkBattleEnd()) return;
                     RPG.State.battleTurn++;
@@ -212,6 +215,7 @@ RPG.Assets.BATTLE_AI = {
                 setTimeout(() => {
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     RPG.State.currentHP -= damage;
+                    sys.markPlayerTookDamage(damage);
                     uiControl.updateUI();
                     if (sys.checkBattleEnd()) return;
                     RPG.State.battleTurn++;
@@ -280,6 +284,7 @@ RPG.Assets.BATTLE_AI = {
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.standardAttack, "enemy-action");
             setTimeout(() => {
                 RPG.State.currentHP -= damage;
+                sys.markPlayerTookDamage(damage);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
 
                 if (enemy.hp <= maxHp * 0.6 && Math.random() < 0.35) {
@@ -302,6 +307,9 @@ RPG.Assets.OWEN_BEHAVIOR = {
     shouldIntervene: function (battleTurn) {
         if (RPG.State.hasOwenIntervened) return false;
 
+        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true;
+        if (isMatamatabiActive) return true;
+
         // Build 14.2.5: Targeted Supporter - Bypass mood check for Emergency (Herb)
         const isEmergency = (RPG.State.currentHP < (RPG.State.maxHP * 0.25) || RPG.State.isPoisoned) && (RPG.State.inventory.herb > 0);
         if (isEmergency) return true;
@@ -323,6 +331,8 @@ RPG.Assets.OWEN_BEHAVIOR = {
         const isLowHP = RPG.State.currentHP < (RPG.State.maxHP * 0.4);
 
         const isBossEnemy = RPG.State.currentEnemy && RPG.State.currentEnemy.isBoss === true;
+        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true;
+        if (!isBossEnemy && isMatamatabiActive && Math.random() < 0.8) return "kill";
         if (!isBossEnemy && (isFirstTurn || isLowHP) && Math.random() < 0.15) return "kill";
         if (Math.random() < 0.20) return "freeze";
 
@@ -438,7 +448,7 @@ RPG.Assets.ENEMIES = [
         msg: "小さな火の玉を吐いた!",
         isRare: true,
         forestOnly: true,
-        rareRate: 0.05,
+        rareRate: 0.01,
         rabbitLevel: 5,
         hitGoal: 3,
         rewardItem: "glowingCatRabbitFur"

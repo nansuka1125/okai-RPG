@@ -66,12 +66,17 @@ const uiControl = {
         const hpText = document.getElementById('hpText');
         const xpFill = document.getElementById('xpFill');
 
-        const poisonTag = RPG.State.isPoisoned ? ' 【毒】' : '';
-        if (statusInfo) statusInfo.textContent = `カイン Lv.${RPG.State.cainLv}${poisonTag}`;
+        const statusTags = [];
+        if (RPG.State.isPoisoned) statusTags.push("毒");
+        if (RPG.State.flags.matamatabiActive === true) statusTags.push("マタマタビ");
+        const statusSuffix = statusTags.length > 0 ? ` 【${statusTags.join(" / ")}】` : "";
+        if (statusInfo) statusInfo.textContent = `カイン Lv.${RPG.State.cainLv}${statusSuffix}`;
 
         if (hpFill) {
             hpFill.style.width = `${(RPG.State.currentHP / RPG.State.maxHP) * 100}%`;
-            hpFill.style.background = RPG.State.isPoisoned ? '#a333c8' : '#ff4d4d';
+            hpFill.style.background = RPG.State.isPoisoned
+                ? '#a333c8'
+                : (RPG.State.flags.matamatabiActive === true ? '#9acd32' : '#ff4d4d');
         }
         if (hpText) {
             hpText.textContent = `${RPG.State.currentHP} / ${RPG.State.maxHP}`;
@@ -205,9 +210,16 @@ const uiControl = {
                     RPG.State.flags.phase4TheftDiscovered &&
                     RPG.State.flags.thiefDiscoveryStatus === 0
                 ) {
-                    observeLabel = RPG.State.flags.phase4FortuneConsultDone
-                        ? "オーエンに相談"
-                        : "占い師に相談";
+                    if (
+                        RPG.State.flags.needsGlowingRabbitFur === true &&
+                        (RPG.State.inventory.glowingCatRabbitFur || 0) > 0
+                    ) {
+                        observeLabel = "納品する";
+                    } else {
+                        observeLabel = RPG.State.flags.phase4FortuneConsultDone
+                            ? "オーエンに相談"
+                            : "占い師に相談";
+                    }
                 }
                 btnInnObserve.textContent = observeLabel;
             }
@@ -332,7 +344,7 @@ const uiControl = {
 
         // アイテム使用ボタンの表示判定
         // 将来的にはtype判定などが望ましいが、今はswitchか個別判定
-        if (key === 'herb' || key === 'debug_poison' || key === 'debug_lvl10') {
+        if (key === 'herb' || key === 'debug_poison' || key === 'debug_lvl10' || key === 'matamatabiBranch') {
             html += `<br><button class="btn" style="height:35px;margin:10px auto 0;width:120px;" onclick="explorationSystem.useItem('${key}')">${RPG.Assets.GAME_TEXT.buttons.useItem}</button>`;
         }
 

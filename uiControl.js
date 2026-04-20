@@ -465,7 +465,8 @@ const uiControl = {
         RPG.State.mode = "event";
         RPG.State.isWaitingForInput = false;
 
-        this.showNextDialogueLine();
+        // Use the shared queue-based dialogue loop so the first line is not replayed on tap.
+        explorationSystem.playDialogueLoop();
     },
 
     showNextDialogueLine: function () {

@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.67 (Matamatabi Reuse)", // Build 15.2.67: Add matamatabi fade dialogue, UI state, and reusable branch activation from items
+    version: "15.2.69 (Dialogue Replay Fix)", // Build 15.2.69: Route legacy dialogue sequences through the shared queue loop
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -122,7 +122,8 @@ RPG.State = {
         phase4MatamatabiTalkCount: 0, // Build 15.2.63: Track the two rumor talks about the matamatabi branch
         heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
         matamatabiBranchFound: false, // Build 15.2.63: Track whether the branch has already been picked up at 4m
-        matamatabiActive: false // Build 15.2.64: Party-wide phase 4 state enabled after taking damage while carrying the branch
+        matamatabiActive: false, // Build 15.2.64: Party-wide phase 4 state enabled after taking damage while carrying the branch
+        wagonReadyForDeparture: false // Build 15.2.68: Allow the moved departure-night scene only after the wagon preparation quest is complete
     },
 
     // 一時フラグ

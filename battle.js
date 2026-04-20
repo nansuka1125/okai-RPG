@@ -366,7 +366,8 @@ const battleSystem = {
         switch (action) {
             case "herb":
                 RPG.State.inventory.herb--;
-                RPG.State.currentHP = RPG.State.maxHP;
+                const healAmount = Math.floor(RPG.State.maxHP * 0.4);
+                RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
                 if (RPG.State.isPoisoned) {
                     RPG.State.isPoisoned = false;
                 }

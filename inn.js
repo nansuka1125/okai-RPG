@@ -208,8 +208,8 @@ innSystem = {
     stay: function () {
         if (RPG.State.mode !== "base") return;
 
-        // Build 14.2.0: Chapter 1 Finale Trigger
-        if (RPG.State.storyPhase === 6) {
+        // Build 15.2.68: Departure-night scene is now delayed until wagon prep is complete.
+        if (RPG.State.storyPhase === 6 && RPG.State.flags.wagonReadyForDeparture === true) {
             Cinematics.playChapter1FinaleNight();
             return;
         }

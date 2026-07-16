@@ -335,6 +335,20 @@ main {
     display: none !important;
 }
 
+/* Keep existing history intact while a special scene starts from a clean log view. */
+#logContainer.scene-focus .scene-history {
+    display: none;
+}
+
+#logContainer .scene-history {
+    transition: opacity 0.55s ease-out, transform 0.55s ease-out;
+}
+
+#logContainer.scene-fading .scene-history {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
 footer {
     flex: 0 0 auto;
     background: var(--ui-bg);
@@ -439,9 +453,6 @@ footer {
     border: 1px solid #ccc;
     border-radius: 4px;
 }
-
-/* Duel system styles removed in Build 15.0.0 */
-
 
 /* Inline styles from HTML that should be in CSS */
 #debugParams {

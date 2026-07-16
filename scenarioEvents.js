@@ -152,5 +152,3 @@ const scenarioEvents = {
         }
     }
 };
-
-console.log("DEBUG: scenarioEvents.js Build Check:", RPG.State.version);

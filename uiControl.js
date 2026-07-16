@@ -2,8 +2,8 @@
 // Build 8.13: Extracted from main.js for better code organization
 const uiControl = {
     // --- addLog: ログの出力 ---
-    addLog: function (text, type = "", color = null, fontSize = null) {
-        if (!text) return; // Build 8.44: Prevent empty divs from creating black gaps
+    addLog: function (text, type = "", color = null, fontSize = null, allowEmpty = false, colorSource = text) {
+        if (!text && !allowEmpty) return; // Build 8.44: Prevent empty divs from creating black gaps
 
         const container = document.getElementById('logContainer');
         if (!container) return;
@@ -11,8 +11,8 @@ const uiControl = {
         const entry = document.createElement('div');
         entry.className = 'log-entry';
         const OWEN_DIALOGUE_COLOR = "#cc73ff";
-        const normalizedText = typeof text === "string" ? text.trimStart() : "";
-        const isOwenDialogue = normalizedText.startsWith("オーエン「");
+        const normalizedText = typeof colorSource === "string" ? colorSource.trimStart() : "";
+        const isOwenDialogue = /^オーエン[「｢]/.test(normalizedText);
         const resolvedColor = (typeof color === "string" && color.toLowerCase() === "#a020f0")
             ? OWEN_DIALOGUE_COLOR
             : color;
@@ -31,6 +31,34 @@ const uiControl = {
         entry.textContent = text;
 
         container.appendChild(entry);
+        container.scrollTop = container.scrollHeight;
+        return entry;
+    },
+
+    beginSceneLogFocus: function () {
+        const container = document.getElementById('logContainer');
+        if (!container) return;
+
+        if (container.sceneFocusTimer) clearTimeout(container.sceneFocusTimer);
+        Array.from(container.children).forEach(entry => entry.classList.add('scene-history'));
+        container.classList.add('scene-fading');
+
+        // Fade only the previous log, then hide it without deleting it so the title can begin at the top.
+        container.sceneFocusTimer = setTimeout(() => {
+            container.classList.remove('scene-fading');
+            container.classList.add('scene-focus');
+            container.scrollTop = 0;
+        }, 550);
+    },
+
+    endSceneLogFocus: function () {
+        const container = document.getElementById('logContainer');
+        if (!container) return;
+
+        if (container.sceneFocusTimer) clearTimeout(container.sceneFocusTimer);
+        container.classList.remove('scene-fading');
+        container.classList.remove('scene-focus');
+        Array.from(container.children).forEach(entry => entry.classList.remove('scene-history'));
         container.scrollTop = container.scrollHeight;
     },
 
@@ -69,6 +97,9 @@ const uiControl = {
         const statusTags = [];
         if (RPG.State.isPoisoned) statusTags.push("毒");
         if (RPG.State.flags.matamatabiActive === true) statusTags.push("マタマタビ");
+        if ((RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0) {
+            statusTags.push(`夜の薬 ${RPG.State.nightMedicineEvasionBattlesRemaining}戦`);
+        }
         const statusSuffix = statusTags.length > 0 ? ` 【${statusTags.join(" / ")}】` : "";
         if (statusInfo) statusInfo.textContent = `カイン Lv.${RPG.State.cainLv}${statusSuffix}`;
 
@@ -105,9 +136,10 @@ const uiControl = {
 
         const currentLocationText = RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name;
         const isHighway = currentLocationText === "かつての街道";
+        const isHerbGarden = RPG.State.explorationArea === "herbGarden";
 
-        if (progressStartLabel) progressStartLabel.textContent = isHighway ? "街道入口" : "宿屋";
-        if (progressEndLabel) progressEndLabel.textContent = isHighway ? "街道奥" : "森の深層";
+        if (progressStartLabel) progressStartLabel.textContent = isHerbGarden ? "薬草園入口" : (isHighway ? "街道入口" : "宿屋");
+        if (progressEndLabel) progressEndLabel.textContent = isHerbGarden ? "薬草園の最奥" : (isHighway ? "街道奥" : "森の深層");
 
         if (RPG.State.isBattling && RPG.State.currentEnemy) {
             if (overworldRow) overworldRow.style.display = 'none';
@@ -125,7 +157,10 @@ const uiControl = {
         }
 
         if (progressMarker) {
-            const ratio = (RPG.State.currentDistance / RPG.Assets.CONFIG.MAX_DISTANCE) * 100;
+            const maxDistance = isHerbGarden
+                ? RPG.Assets.CONFIG.HERB_GARDEN_MAX_DISTANCE
+                : RPG.Assets.CONFIG.MAX_DISTANCE;
+            const ratio = (RPG.State.currentDistance / maxDistance) * 100;
             progressMarker.style.left = `${ratio}%`;
         }
 
@@ -155,6 +190,7 @@ const uiControl = {
         const choiceUI = document.getElementById('choiceUI');
         const actionButtons = document.getElementById('action-buttons');
         const allButtons = document.querySelectorAll('button');
+        const isHerbGarden = RPG.State.explorationArea === "herbGarden";
 
         // Build 15.2.2: Strict Exclusivity Protocol (Battle menu visible)
         // Hide all control panels by default - only one shall be shown below
@@ -200,28 +236,77 @@ const uiControl = {
             if (innUI) innUI.style.display = 'grid';
 
             const btnInnObserve = document.getElementById('btnInnObserve');
+            const btnInnTalk = document.getElementById('btnInnTalk');
             const btnInnDeliver = document.getElementById('btnInnDeliver');
             const canDeliver = (RPG.State.silverCoins >= 3 && !RPG.State.flags.silverDelivered && mode === 'base');
 
             if (btnInnObserve) {
                 let observeLabel = "様子を見る";
                 if (
-                    RPG.State.storyPhase === 4 &&
-                    RPG.State.flags.phase4TheftDiscovered &&
-                    RPG.State.flags.thiefDiscoveryStatus === 0
+                    typeof innSystem !== "undefined" &&
+                    innSystem.shouldUsePhase4FortuneRoute()
                 ) {
-                    if (
+                    const fortuneFollowupsComplete =
+                        RPG.State.flags.phase4FortuneFollowupCount >= 2;
+                    const canDeliverGlowingRabbitFur =
                         RPG.State.flags.needsGlowingRabbitFur === true &&
-                        (RPG.State.inventory.glowingCatRabbitFur || 0) > 0
-                    ) {
+                        (RPG.State.inventory.glowingCatRabbitFur || 0) > 0;
+                    if (canDeliverGlowingRabbitFur) {
                         observeLabel = "納品する";
                     } else {
-                        observeLabel = RPG.State.flags.phase4FortuneConsultDone
-                            ? "オーエンに相談"
-                            : "占い師に相談";
+                        if (RPG.State.flags.phase4FortuneConsultDone !== true) {
+                            observeLabel = "占い師に相談";
+                        } else if ((RPG.State.flags.phase4OwenConsultCount || 0) < 2) {
+                            observeLabel = "オーエンに相談";
+                        } else {
+                            observeLabel = "占い師と話す";
+                        }
+                    }
+
+                    if (fortuneFollowupsComplete && !canDeliverGlowingRabbitFur) {
+                        btnInnObserve.disabled = true;
+                        btnInnObserve.style.opacity = "0.25";
+                        btnInnObserve.style.pointerEvents = "none";
+                    }
+                } else if (RPG.State.storyPhase === 6) {
+                    if (RPG.State.flags.herbGardenFortuneConsultUnlocked === true) {
+                        if (RPG.State.flags.herbGardenBroochGranted !== true) {
+                            observeLabel = "占い師に相談";
+                        } else if (
+                            typeof innSystem !== "undefined" &&
+                            innSystem.needsPhase6ScentPouchMaterialBriefing()
+                        ) {
+                            observeLabel = "香草袋について聞く";
+                        } else if (
+                            typeof innSystem !== "undefined" &&
+                            innSystem.shouldUsePhase6HerbGardenBroochReturn()
+                        ) {
+                            observeLabel = "ブローチを返す";
+                        } else if (
+                            typeof innSystem !== "undefined" &&
+                            innSystem.shouldUsePhase6HerbGardenMaterialHint()
+                        ) {
+                            observeLabel = "占い師と話す";
+                        }
+                    }
+
+                    // The visiting blacksmith yields to all active herb-garden progression actions.
+                    if (
+                        observeLabel === "様子を見る" &&
+                        typeof innSystem !== "undefined" &&
+                        innSystem.canTalkToPhase6Blacksmith()
+                    ) {
+                        observeLabel = "鍛冶屋に話しかける";
                     }
                 }
                 btnInnObserve.textContent = observeLabel;
+            }
+
+            if (btnInnTalk) {
+                const talkLabel = typeof innSystem !== "undefined"
+                    ? innSystem.getInnTalkCommandLabel()
+                    : "話す";
+                btnInnTalk.textContent = talkLabel;
             }
 
             if (btnInnDeliver) {
@@ -235,11 +320,51 @@ const uiControl = {
 
             const btnEnterInn = document.getElementById('btnEnterInn');
             const btnMoveForward = document.getElementById('btnMoveForward');
+            const btnEnterHerbGarden = document.getElementById('btnEnterHerbGarden');
             const btnMoveBack = document.getElementById('btnMoveBack');
             const btnTalk = document.getElementById('btnTalk');
+            const isPhase6WagonSpot =
+                RPG.State.explorationArea !== "herbGarden" &&
+                RPG.State.storyPhase === 6 &&
+                RPG.State.flags.wagonInfoHeard === true &&
+                RPG.State.currentDistance === 5 &&
+                RPG.State.location !== "かつての街道" &&
+                RPG.State.flags.wagonHorseEncouraged !== true;
+            const isPhase6WagonDriverSpot =
+                RPG.State.explorationArea !== "herbGarden" &&
+                RPG.State.storyPhase === 6 &&
+                RPG.State.flags.wagonInfoHeard === true &&
+                RPG.State.currentDistance === 5 &&
+                RPG.State.location !== "かつての街道";
+            const hasUnfoundForestBrooch =
+                RPG.State.explorationArea !== "herbGarden" &&
+                RPG.State.currentDistance === 5 &&
+                RPG.State.location !== "かつての街道" &&
+                RPG.State.flags.forest5mBroochFound !== true;
+            const isPhase6WagonDriverPending =
+                isPhase6WagonDriverSpot &&
+                RPG.State.flags.scentPouchCrafted !== true &&
+                (
+                    RPG.State.flags.wagonHorseEncouraged !== true ||
+                    (RPG.State.inventory.mintFlower || 0) <= 0 ||
+                    (RPG.State.inventory.boneMeal || 0) <= 0 ||
+                    RPG.State.flags.herbGardenBroochReturned !== true
+                );
+            const isAmberTreeSecondInspect =
+                RPG.State.explorationArea !== "herbGarden" &&
+                RPG.State.currentDistance === 8 &&
+                RPG.State.inventory.silverCoin >= 1 &&
+                RPG.State.flags.forest8mInspectCount === 1 &&
+                !RPG.State.flags.hasTreeEventOccurred &&
+                !RPG.State.flags.treeDefeated &&
+                !RPG.State.flags.isTreeRematch;
 
             if (!RPG.State.isInDungeon) {
                 if (btnEnterInn) btnEnterInn.style.display = 'flex';
+                if (btnEnterHerbGarden) {
+                    btnEnterHerbGarden.style.display = 'flex';
+                    btnEnterHerbGarden.onclick = () => explorationSystem.enterHerbGarden();
+                }
                 if (btnMoveForward) {
                     btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.enterForest;
                     btnMoveForward.onclick = () => explorationSystem.enterDungeon();
@@ -247,6 +372,7 @@ const uiControl = {
                 if (btnMoveBack) btnMoveBack.style.display = 'none';
             } else {
                 if (btnEnterInn) btnEnterInn.style.display = 'none';
+                if (btnEnterHerbGarden) btnEnterHerbGarden.style.display = 'none';
                 if (btnMoveForward) {
                     btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.moveForward;
                     btnMoveForward.onclick = () => explorationSystem.move(1);
@@ -256,7 +382,11 @@ const uiControl = {
                         btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.moveForward;
                         btnMoveForward.style.backgroundColor = "#8b0000";
                         btnMoveForward.style.fontWeight = "bold";
-                    } else if (RPG.State.location === "かつての街道" && RPG.State.currentDistance === 9) {
+                    } else if (
+                        RPG.State.location === "かつての街道" &&
+                        RPG.State.currentDistance === 9 &&
+                        mode === "base"
+                    ) {
                         btnMoveForward.textContent = "【BOSS戦】";
                         btnMoveForward.style.backgroundColor = "#8b0000";
                         btnMoveForward.style.fontWeight = "bold";
@@ -273,7 +403,10 @@ const uiControl = {
                         // Standard Reset
                         btnMoveForward.style.backgroundColor = "";
                         btnMoveForward.style.fontWeight = "";
-                        if (RPG.State.currentDistance >= RPG.Assets.CONFIG.MAX_DISTANCE && RPG.State.storyPhase !== 8) {
+                        const maxDistance = isHerbGarden
+                            ? explorationSystem.getHerbGardenMaxDistance()
+                            : RPG.Assets.CONFIG.MAX_DISTANCE;
+                        if (RPG.State.currentDistance >= maxDistance && RPG.State.storyPhase !== 8) {
                             btnMoveForward.disabled = true;
                             btnMoveForward.style.opacity = "0.5";
                         }
@@ -281,13 +414,39 @@ const uiControl = {
                 }
                 if (btnMoveBack) {
                     if (RPG.State.flags.onWagon) {
-                        btnMoveBack.style.display = 'none';
+                        btnMoveBack.style.display = 'flex';
+                        btnMoveBack.disabled = true;
+                        btnMoveBack.style.opacity = "0.25";
+                        btnMoveBack.style.pointerEvents = "none";
+                        btnMoveBack.onclick = null;
                     } else {
                         btnMoveBack.style.display = 'flex';
                         btnMoveBack.onclick = () => explorationSystem.move(-1);
                     }
                 }
-                if (btnTalk) btnTalk.disabled = false;
+                if (btnTalk) {
+                    btnTalk.disabled = false;
+                    btnTalk.textContent = "調べる";
+                    btnTalk.onclick = () => explorationSystem.talk();
+
+                    if (hasUnfoundForestBrooch && isPhase6WagonDriverSpot) {
+                        btnTalk.textContent = "光るものを調べる";
+                    } else if (isPhase6WagonSpot) {
+                        const talkStep = RPG.State.flags.wagonDriverTalkStep || 0;
+                        btnTalk.textContent = talkStep <= 0
+                            ? "御者と話す"
+                            : (talkStep === 1 ? "もっと話す" : "馬をはげます");
+                    } else if (isPhase6WagonDriverPending) {
+                        btnTalk.textContent = "御者と話す";
+                    } else if (isPhase6WagonDriverSpot) {
+                        btnTalk.textContent = (
+                            RPG.State.flags.scentPouchCrafted === true &&
+                            RPG.State.flags.wagonReadyForDeparture !== true
+                        ) ? "香草袋を試す" : "御者と話す";
+                    } else if (isAmberTreeSecondInspect) {
+                        btnTalk.textContent = "さらに調べる";
+                    }
+                }
             }
         }
 
@@ -306,9 +465,12 @@ const uiControl = {
     },
 
     getLocData: function (dist) {
-        const keys = Object.keys(RPG.Assets.LOCATIONS).map(Number).sort((a, b) => b - a);
+        const locations = RPG.State.explorationArea === "herbGarden"
+            ? RPG.Assets.HERB_GARDEN_LOCATIONS
+            : RPG.Assets.LOCATIONS;
+        const keys = Object.keys(locations).map(Number).sort((a, b) => b - a);
         const key = keys.find(k => dist >= k);
-        return RPG.Assets.LOCATIONS[key] || RPG.Assets.LOCATIONS[0];
+        return locations[key] || locations[0];
     },
 
     openModal: function () {
@@ -344,7 +506,31 @@ const uiControl = {
 
         // アイテム使用ボタンの表示判定
         // 将来的にはtype判定などが望ましいが、今はswitchか個別判定
-        if (key === 'herb' || key === 'debug_poison' || key === 'debug_lvl10' || key === 'matamatabiBranch') {
+        const canUseEmptyBottle =
+            key === 'emptyBottle' &&
+            typeof explorationSystem !== 'undefined' &&
+            explorationSystem.canCollectHerbGardenBoneMeal();
+        const canUseScentPouch =
+            key === 'scentPouch' &&
+            typeof explorationSystem !== 'undefined' &&
+            (
+                explorationSystem.canUseScentPouchAtWagon() ||
+                explorationSystem.canUseScentPouchOnHighway()
+            );
+        if (
+            key === 'herb' ||
+            key === 'highHerb' ||
+            key === 'antidoteHerb' ||
+            key === 'debug_poison' ||
+            key === 'debug_lvl10' ||
+            key === 'matamatabiBranch' ||
+            key === 'lightBook' ||
+            key === 'purpleMacaron' ||
+            key === 'glowingBunnyEars' ||
+            key === 'nightMedicine' ||
+            canUseEmptyBottle ||
+            canUseScentPouch
+        ) {
             html += `<br><button class="btn" style="height:35px;margin:10px auto 0;width:120px;" onclick="explorationSystem.useItem('${key}')">${RPG.Assets.GAME_TEXT.buttons.useItem}</button>`;
         }
 
@@ -355,21 +541,8 @@ const uiControl = {
         const modal = document.getElementById('itemModal');
         if (modal) modal.style.display = 'none';
 
-
-        // Build 8.56: Enhanced debug logging for Scenario A
-        console.log("DEBUG: closeModal called", {
-            metThiefBoy: RPG.State.flags.metThiefBoy,
-            phase4TheftDiscovered: RPG.State.flags.phase4TheftDiscovered,
-            thiefDiscoveryStatus: RPG.State.flags.thiefDiscoveryStatus,
-            hasSleptAfterThief: RPG.State.flags.hasSleptAfterThief,
-            location: RPG.State.location,
-            isAtInn: RPG.State.isAtInn,
-            mode: RPG.State.mode
-        });
-
         // Build 8.55: Discovery Hook A (Inventory Close)
         if (Cinematics.canPlayThiefDiscoveryFromModal()) {
-            console.log("DEBUG: Final Discovery Hook Active in closeModal");
             Cinematics.playThiefDiscovery();
         }
     },
@@ -425,15 +598,51 @@ const uiControl = {
         }
         try {
             const loadedState = JSON.parse(saveData);
+            if (!loadedState || typeof loadedState !== "object" || Array.isArray(loadedState)) {
+                throw new Error("Invalid save data");
+            }
+
             // Build 10.0.8: Preserve current system version
             const currentVersion = RPG.State.version;
-            const defaultFlags = { ...RPG.State.flags };
-            const defaultInventory = { ...RPG.State.inventory };
-            const defaultDebug = { ...RPG.State.debug };
-            Object.assign(RPG.State, loadedState);
-            RPG.State.flags = { ...defaultFlags, ...(loadedState.flags || {}) };
-            RPG.State.inventory = { ...defaultInventory, ...(loadedState.inventory || {}) };
-            RPG.State.debug = { ...defaultDebug, ...(loadedState.debug || {}) };
+            const defaultState = JSON.parse(JSON.stringify(RPG.DefaultState));
+            const mergedState = {
+                ...defaultState,
+                ...loadedState,
+                flags: { ...defaultState.flags, ...(loadedState.flags || {}) },
+                inventory: { ...defaultState.inventory, ...(loadedState.inventory || {}) },
+                debug: { ...defaultState.debug, ...(loadedState.debug || {}) }
+            };
+
+            // Retired keys may still exist in older saves; do not reintroduce
+            // confirmed-unreferenced state into the live runtime object.
+            ["gotTestCoin", "forest8mTreeHintShown", "duelCoinAwarded"].forEach(flag => {
+                delete mergedState.flags[flag];
+            });
+            delete mergedState.talkIndex;
+            delete mergedState.battleStatus;
+
+            // Preserve the shared RPG.State object identity while removing values
+            // that belong only to the previously active save slot.
+            Object.keys(RPG.State).forEach(key => delete RPG.State[key]);
+            Object.assign(RPG.State, mergedState);
+
+            // Older builds could record the same one-time event twice because
+            // both the event action and the event manager appended its ID.
+            RPG.State.completedEvents = Array.isArray(RPG.State.completedEvents)
+                ? [...new Set(RPG.State.completedEvents)]
+                : [];
+
+            // Older saves can store coins in only one of these legacy fields.
+            if (RPG.State.flags.silverDelivered === true) {
+                RPG.State.silverCoins = 0;
+                RPG.State.inventory.silverCoin = 0;
+            } else {
+                const savedCurrency = Number(RPG.State.silverCoins) || 0;
+                const savedInventoryCoins = Number(RPG.State.inventory.silverCoin) || 0;
+                const syncedCoins = Math.max(savedCurrency, savedInventoryCoins);
+                RPG.State.silverCoins = syncedCoins;
+                RPG.State.inventory.silverCoin = syncedCoins;
+            }
             RPG.State.version = currentVersion; // Hard-force the version
             this.addLog(`Slot ${slot} からロードしました。`);
             this.updateUI();
@@ -454,6 +663,18 @@ const uiControl = {
             body.style.transform = "none";
             body.style.transition = "";
         }, 150);
+    },
+
+    // A restrained wobble for brief disorientation scenes without a light flash.
+    screenDizzy: function () {
+        const body = document.body;
+        body.style.transition = "transform 0.12s ease-in-out";
+        body.style.transform = "translate(2px, -1px) rotate(0.15deg)";
+        setTimeout(() => body.style.transform = "translate(-2px, 1px) rotate(-0.15deg)", 120);
+        setTimeout(() => {
+            body.style.transform = "none";
+            body.style.transition = "";
+        }, 250);
     },
 
     // Build 11.0.0: Tap-to-Advance Dialogue System
@@ -557,7 +778,7 @@ const uiControl = {
     },
 
     // Build 11.0.0: Flash full-screen (for visual effects during dialogue)
-    flashFullScreen: function (color = "#ff0000", duration = 500) {
+    flashFullScreen: function (color = "#ff0000", duration = 500, opacity = 0.7) {
         const flash = document.createElement('div');
         flash.style.cssText = `
             position: fixed;
@@ -566,7 +787,7 @@ const uiControl = {
             width: 100%;
             height: 100%;
             background: ${color};
-            opacity: 0.7;
+            opacity: ${opacity};
             z-index: 9997;
             pointer-events: none;
         `;
@@ -577,6 +798,27 @@ const uiControl = {
             flash.style.opacity = '0';
             setTimeout(() => flash.remove(), 500);
         }, duration);
+    },
+
+    // Slow full-screen fade for irreversible scene changes such as a bad end.
+    fadeFullScreen: function (color = "#000000", duration = 2000) {
+        const fade = document.createElement('div');
+        fade.style.cssText = `
+            position: fixed;
+            inset: 0;
+            background: ${color};
+            opacity: 0;
+            transition: opacity ${duration}ms ease-in;
+            z-index: 9998;
+            pointer-events: none;
+        `;
+        document.body.appendChild(fade);
+
+        requestAnimationFrame(() => {
+            fade.style.opacity = '1';
+        });
+
+        return fade;
     },
 
     // Build 14.2.1: Wagon Choice System
@@ -650,8 +892,18 @@ const uiControl = {
             container.style.display = 'none';
         }
 
-        RPG.State.mode = "base";
-        this.updateUI();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "御者「早くしてくれよ」" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    this.updateUI();
+                }
+            }
+        ];
+        explorationSystem.playDialogueLoop();
     }
 };
 

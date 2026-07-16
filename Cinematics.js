@@ -31,13 +31,6 @@ const Cinematics = {
     // --- 戦闘演出 ---
     scaleBoss: function (sys, enemy) {
         const playerAtk = Math.max(10, RPG.State.attack);
-        if (enemy.id === 'hungry_tree') {
-            uiControl.addSeparator();
-            enemy.maxHp = playerAtk * 5;
-            enemy.hp = enemy.maxHp;
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.intro.tree, "event");
-            return false;
-        }
         if (enemy.id === 'giant_larva') {
             uiControl.addSeparator();
             enemy.maxHp = playerAtk * 12;
@@ -63,7 +56,9 @@ const Cinematics = {
             setTimeout(() => { sys.runBattleLoop(); }, 1500);
             return true;
         }
-        uiControl.addLog(RPG.Assets.BATTLE_TEXT.intro.default(enemy.name));
+        if (!enemy.skipDefaultIntro) {
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.intro.default(enemy.name));
+        }
         return false;
     },
 
@@ -161,14 +156,14 @@ const Cinematics = {
             RPG.State.currentEnemy = null;
             RPG.State.currentHP = RPG.State.maxHP; // Full Restore
             RPG.State.isPoisoned = false;
+            RPG.State.poisonDamageRemaining = 0;
             RPG.State.mode = "base";
             RPG.State.isInDungeon = false;
+            RPG.State.explorationArea = null;
+            RPG.State.isAtInn = false;
             RPG.State.currentDistance = 0; // Inn Front
-
-            // Build 14.1.6: Retroactive fix for re-triggering logic
-            if (RPG.State.completedEvents.includes("thief_rescue_10m_battle")) {
-                RPG.State.completedEvents = RPG.State.completedEvents.filter(e => e !== "thief_rescue_10m_battle");
-            }
+            RPG.State.location = "宿屋前";
+            RPG.State.battleState = null;
 
             uiControl.updateUI();
             uiControl.addLog("……。"); // Silent realization
@@ -213,66 +208,79 @@ const Cinematics = {
     playChapter1FinaleNight: function () {
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [
-            { text: "", delay: 1500, action: null },
+            { text: null, action: () => uiControl.beginSceneLogFocus() },
+            { text: null, delay: 650 },
             {
-                text: "【〜琥珀亭馬小屋の裏〜】",
-                delay: 1500,
+                text: "【馬小屋の裏にて】",
+                type: "marker",
+                color: "#f1e6c8",
+                fontSize: "20px",
+                autoAdvance: true,
+                delay: 1700
+            },
+            { text: "夜。宿屋の外、月明かりの下。" },
+            { text: "馬小屋の裏で、カインが剣の手入れをしている。" },
+            { text: "そのそばでは、オーエンがつまらなそうに丸太へ座っていた。" },
+            { text: "オーエン「……せっかく綺麗なベッドなのに、まだ馬小屋が恋しいわけ？」", color: "#cc73ff" },
+            { text: "カイン「オーエン。……もう眠いのか？」" },
+            { text: "オーエン「は？ なんでそうなるの？」", color: "#cc73ff" },
+            { text: "カイン「俺が部屋に戻らないと、おまえも寝られないのかと思ってさ」" },
+            { text: "オーエン「……おまえを殺せば離れられるかもよ。試してみる？」", color: "#cc73ff" },
+            { text: "オーエンは目を細め、カインが剣を磨く手元を眺めている。" },
+            { text: "カイン（……けど、オーエンは試さない気がする）" },
+            { text: "（それを口にして、本当に試されたら厄介だから言わないが）" },
+            { text: "宿屋の煙突からは、もう煙が上がっていない。" },
+            { text: "満ちた月が、辺りを明るく照らしている。" },
+            { text: "カイン「……明日は、荷馬車でここを出る」" },
+            { text: "オーエン「へえ。どこに行くの？」", color: "#cc73ff" },
+            { text: "カイン「考え中だ」" },
+            { text: "オーエンは足を組み直し、口角を上げた。" },
+            { text: "オーエン「もう、おまえに帰る場所はないもんね」", color: "#cc73ff" },
+            { text: "「王国はおまえに押しつけたんだ。面倒なことの後始末も」", color: "#cc73ff" },
+            { text: "月明かりが、オーエンの左右で色の違う目を照らしている。" },
+            { text: "カインはその顔を見た。" },
+            { text: "自分の片目と、同じ色がそこにある。" },
+            { text: "カイン「おまえも……」" },
+            { text: "オーエン「……？」", color: "#cc73ff" },
+            { text: "カインはそこで口ごもった。" },
+            { text: "オーエン「何」", color: "#cc73ff" },
+            { text: "カイン「……いや」" },
+            { text: "オーエン「分かった。王国の悪口を言いたかったんでしょう」", color: "#cc73ff" },
+            { text: "「いいよ。誰も聞いてない。思う存分、悪口言いなよ」", color: "#cc73ff" },
+            { text: "カイン「……悪口じゃない」" },
+            { text: "「ただ、おまえにも帰りたい場所があるのかなと思っただけだ」" },
+            { text: "オーエン「ないよ」", color: "#cc73ff" },
+            { text: "カイン「……ない？」" },
+            { text: "オーエン「僕は僕がいる場所が居場所だよ。他に何があるの」", color: "#cc73ff" },
+            { text: "カイン（そういうものなのか……？）" },
+            { text: "オーエン「いいから、早く部屋に戻ってよ」", color: "#cc73ff" },
+            { text: "カイン「やっぱり、眠いんじゃないか」" },
+            {
+                text: null,
                 action: () => {
                     const logContainer = document.getElementById('logContainer');
                     if (logContainer) logContainer.classList.add('night-mode');
                 }
             },
             {
-                text: "",
+                text: null,
                 delay: 3000,
                 action: () => {
-                    const logContainer = document.getElementById('logContainer');
-                    if (logContainer) {
-                        logContainer.innerHTML = '';
-                        logContainer.classList.remove('night-mode');
-                    }
-                }
-            },
-            { text: "カイン「(宿屋の外、月明かりの下。馬小屋の横でカインが剣の手入れをしている。)」", delay: 2000 },
-            { text: "オーエン「…せっかく綺麗なベッドなのに馬小屋が恋しいわけ？」", delay: 1500, color: "#a020f0" },
-            { text: "カイン「オーエン。寝てて構わないのに。ああ、そうか、あんまり離れられないのか？俺から」", delay: 2000 },
-            { text: "オーエン「…おまえを殺せば離れられるかもよ。そろそろ試そうかな」", delay: 2000, color: "#a020f0" },
-            { text: "カイン「(冗談なのか本気なのか、わからないな)」", delay: 1500 },
-            { text: "(ト書き: オーエンは不愉快そうに目を細めてカインの剣の手入れを眺めている。)", delay: 2000, color: "#888888" },
-            { text: "カイン「…明日の朝にはここを出る。行き先は、まだ考え中だ」", delay: 2000 },
-            { text: "オーエン「もうおまえに帰る場所はないもんね。王国はおまえに押し付けたんだ、面倒なことの後始末も」", delay: 2500, color: "#a020f0" },
-            { text: "(ト書き: カインはピカピカになった剣を鞘に収めて立ち上がった。)", delay: 2000, color: "#888888" },
-            { text: "カイン「そうでもないさ」", delay: 1500 },
-            { text: "オーエン「………つまんないやつ」", delay: 1500, color: "#a020f0" },
-            {
-                text: null,
-                delay: 1000,
-                action: () => {
-                    // Start blackout
-                    const logContainer = document.getElementById('logContainer');
-                    if (logContainer) logContainer.classList.add('night-mode');
-                }
-            },
-            {
-                text: "(2人はふかふかのベッドでたっぷり眠った！)",
-                delay: 3000
-            },
-            {
-                text: null,
-                delay: 2000,
-                action: () => {
-                    // Recovery
                     RPG.State.currentHP = RPG.State.maxHP;
+                    if (typeof innSystem !== "undefined") {
+                        innSystem.refreshHerbGardenHarvestsAfterStay();
+                    }
                     RPG.State.isPoisoned = false;
+                    RPG.State.poisonDamageRemaining = 0;
+                    RPG.State.flags.matamatabiActive = false;
+                    RPG.State.matamatabiStepsRemaining = 0;
 
-                    // Animate HP bar
                     const hpFill = document.getElementById('hpFill');
                     if (hpFill) {
                         hpFill.style.transition = "width 2.0s ease-out";
                     }
                     uiControl.updateUI();
 
-                    // Reset transition after animation
                     setTimeout(() => {
                         const hpFill = document.getElementById('hpFill');
                         if (hpFill) hpFill.style.transition = "width 0.3s ease";
@@ -281,24 +289,34 @@ const Cinematics = {
             },
             {
                 text: null,
-                delay: 1000,
                 action: () => {
-                    // End blackout
                     const logContainer = document.getElementById('logContainer');
                     if (logContainer) logContainer.classList.remove('night-mode');
                 }
             },
-            { text: "カイン「（店主に挨拶してから行こう）」", delay: 1500 },
+            { text: "朝になった！" },
+            { text: "カインは綺麗な水で顔を洗い、身支度をした。" },
+            { text: "カイン（……次の目的地がないと、いまいち気が引き締まらないな）" },
+            { text: "さあ出発だ！", type: "marker", color: "#f1e6c8" },
             {
                 text: null,
-                delay: 0,
                 action: () => {
+                    RPG.State.flags.phase7DepartureNightSeen = true;
+                    RPG.State.flags.phase7DepartureMorningTalkPending = true;
                     RPG.State.storyPhase = 7;
+                    uiControl.endSceneLogFocus();
                     RPG.State.mode = "base";
                     uiControl.updateUI();
                 }
             }
         ];
+
+        RPG.State.dialogueQueue.forEach(line => {
+            if (line.text && line.type !== "marker") {
+                line.typewriter = true;
+                line.typeSpeed = 22;
+            }
+        });
 
         explorationSystem.playDialogueLoop();
     }

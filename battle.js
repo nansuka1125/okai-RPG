@@ -3,6 +3,7 @@
 
 const battleSystem = {
     getGlowingCatRabbitProfile: function () {
+        // Rabbit levels are a hidden reward for actual victories, before or after the fur quest.
         const defeatCount = RPG.State.glowCatRabbitDefeatCount || 0;
         const profiles = [
             { level: 5, atk: 5 },
@@ -27,16 +28,36 @@ const battleSystem = {
 
         const profile = this.getGlowingCatRabbitProfile();
         if (!profile) return null;
+        const isLv88 = profile.level === 88;
+        const isLv88Repeat = isLv88 && RPG.State.flags.glowCatRabbitLv88EscapeTalkDone === true;
+        const lv88Prelude = RPG.Assets.GAME_TEXT.events.glowingRabbitLv88Prelude || [];
+        const lv88AfterIntro = RPG.Assets.GAME_TEXT.events.glowingRabbitLv88AfterIntro || [];
+        const lv88RepeatPrelude = RPG.Assets.GAME_TEXT.events.glowingRabbitLv88RepeatPrelude || [];
 
         return {
             ...template,
             name: `光る猫うさぎLv${profile.level}`,
             atk: profile.atk,
             rabbitLevel: profile.level,
-            preBattleDialogue: [
-                { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.intro(profile.level), color: "#ffd166" },
-                { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.sight, type: "ambient" }
-            ]
+            isBoss: isLv88,
+            maxHp: isLv88 ? 9999 : template.maxHp,
+            skipDefaultIntro: isLv88,
+            lv88Repeat: isLv88Repeat,
+            preBattleDialogue: isLv88
+                ? [
+                    ...(isLv88Repeat ? lv88RepeatPrelude : lv88Prelude).map(text => ({ text, typewriter: true, typeSpeed: 24 })),
+                    {
+                        text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.bossIntro(profile.level),
+                        color: "#ffd166",
+                        typewriter: true,
+                        typeSpeed: 24
+                    },
+                    ...(!isLv88Repeat ? lv88AfterIntro : []).map(text => ({ text, typewriter: true, typeSpeed: 24 }))
+                ]
+                : [
+                    { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.intro(profile.level), color: "#ffd166" },
+                    { text: RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.sight, type: "ambient" }
+                ]
         };
     },
 
@@ -46,6 +67,56 @@ const battleSystem = {
             RPG.State.battleState = {};
         }
         RPG.State.battleState.playerTookDamage = true;
+    },
+
+    inflictPoison: function () {
+        if (RPG.State.isPoisoned) return false;
+
+        RPG.State.isPoisoned = true;
+        RPG.State.poisonDamageRemaining = Math.max(1, Math.floor(RPG.State.maxHP / 3));
+        uiControl.addLog("攻撃に毒が含まれていた！ (毒状態)", "", "#ff4d4d");
+        uiControl.updateUI();
+        return true;
+    },
+
+    curePoison: function () {
+        RPG.State.isPoisoned = false;
+        RPG.State.poisonDamageRemaining = 0;
+    },
+
+    hasNightMedicineEvasion: function () {
+        return RPG.State.battleState?.nightMedicineEvasionActive === true;
+    },
+
+    tryNightMedicineDodge: function () {
+        if (!this.hasNightMedicineEvasion() || Math.random() >= 0.5) return false;
+
+        uiControl.addLog("カインは薬の余韻に導かれるように攻撃を避けた！", "", "#f1e6c8");
+        return true;
+    },
+
+    applyPoisonTick: function () {
+        if (!RPG.State.isPoisoned) return false;
+
+        if (!Number.isFinite(RPG.State.poisonDamageRemaining) || RPG.State.poisonDamageRemaining <= 0) {
+            RPG.State.poisonDamageRemaining = Math.max(1, Math.floor(RPG.State.maxHP / 3));
+        }
+
+        const tickDamage = Math.min(
+            Math.max(1, Math.floor(RPG.State.maxHP / 15)),
+            RPG.State.poisonDamageRemaining
+        );
+        RPG.State.currentHP = Math.max(1, RPG.State.currentHP - tickDamage);
+        RPG.State.poisonDamageRemaining -= tickDamage;
+        uiControl.addLog(`毒が身体を蝕む…（HP -${tickDamage}）`, "", "#ff4d4d");
+
+        if (RPG.State.poisonDamageRemaining <= 0) {
+            this.curePoison();
+            uiControl.addLog("毒が抜けてきた。", "", "#a333c8");
+        }
+
+        uiControl.updateUI();
+        return RPG.State.currentHP <= 1;
     },
 
     shouldActivateMatamatabiAfterBattle: function () {
@@ -71,6 +142,7 @@ const battleSystem = {
                     color: "#9acd32",
                     action: () => {
                         RPG.State.flags.matamatabiActive = true;
+                        RPG.State.flags.matamatabiNightPending = true;
                         RPG.State.matamatabiStepsRemaining = 10;
                         uiControl.updateUI();
                     }
@@ -198,11 +270,20 @@ const battleSystem = {
             cainHitCount: 0,
             rabbitHitCount: 0,
             rabbitEnemyTurnCount: 0,
-            rabbitExposed: false,
-            guaranteedPhase4Fur: isPhase4FirstRabbitEncounter
+            rabbitExposed: false
         };
         // Build 9.0.0: Battle State container
-        RPG.State.battleState = { skippedTurns: 0, playerTookDamage: false };
+        const usesNightMedicineEvasion =
+            (RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0 &&
+            !(template.id === "glowing_cat_rabbit" && template.rabbitLevel === 88);
+        RPG.State.battleState = {
+            skippedTurns: 0,
+            playerTookDamage: false,
+            nightMedicineEvasionActive: usesNightMedicineEvasion
+        };
+        if (usesNightMedicineEvasion) {
+            RPG.State.nightMedicineEvasionBattlesRemaining--;
+        }
         RPG.State.lastBlowBy = null;
         RPG.State.battleTurn = 1;
         RPG.State.hasOwenIntervened = false;
@@ -229,14 +310,17 @@ const battleSystem = {
     runBattleLoop: function () {
         if (!RPG.State.isBattling || !RPG.State.currentEnemy) return;
 
+        if (
+            RPG.State.currentEnemy.id === "glowing_cat_rabbit" &&
+            RPG.State.currentEnemy.rabbitLevel === 88
+        ) {
+            this.runGlowingCatRabbitLv88Turn();
+            return;
+        }
+
         // Build 8.0: Poison Check
-        if (RPG.State.isPoisoned) {
-            const poisonDmg = 2;
-            RPG.State.currentHP -= poisonDmg;
-            if (RPG.State.currentHP <= 1) RPG.State.currentHP = 1;
-            uiControl.addLog(`毒が蝕む… （HP -${poisonDmg}）`, "", "#ff4d4d");
-            uiControl.updateUI();
-            if (RPG.State.currentHP === 1 && this.checkBattleEnd()) return;
+        if (this.applyPoisonTick()) {
+            if (this.checkBattleEnd()) return;
         }
 
         if (RPG.State.battleState && RPG.State.battleState.stunTurns > 0) {
@@ -366,11 +450,8 @@ const battleSystem = {
         switch (action) {
             case "herb":
                 RPG.State.inventory.herb--;
-                const healAmount = Math.floor(RPG.State.maxHP * 0.4);
+                const healAmount = Math.floor(RPG.State.maxHP * 0.3);
                 RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
-                if (RPG.State.isPoisoned) {
-                    RPG.State.isPoisoned = false;
-                }
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
                 break;
             case "kill":
@@ -493,8 +574,25 @@ const battleSystem = {
     runJourneyEnemyTurn: function (onComplete) {
         if (!RPG.State.isBattling || !RPG.State.currentEnemy) return;
 
-        if (Math.random() < 0.1) {
-            uiControl.addLog("カインは攻撃を剣で受け流した！");
+        if (
+            RPG.State.currentEnemy.ambientAttackChance &&
+            Math.random() < RPG.State.currentEnemy.ambientAttackChance
+        ) {
+            uiControl.addLog(RPG.State.currentEnemy.ambientAttackLog, "enemy-action");
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(onComplete, delay);
+            return;
+        }
+
+        const dodgeChance = this.hasNightMedicineEvasion() ? 0.5 : 0.1;
+        if (Math.random() < dodgeChance) {
+            uiControl.addLog(
+                this.hasNightMedicineEvasion()
+                    ? "カインは薬の余韻に導かれるように攻撃を避けた！"
+                    : "カインは攻撃を剣で受け流した！",
+                "",
+                this.hasNightMedicineEvasion() ? "#f1e6c8" : null
+            );
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(onComplete, delay);
             return;
@@ -527,9 +625,8 @@ const battleSystem = {
         uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`);
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
-            if (Math.random() < 0.2) {
-                RPG.State.isPoisoned = true;
-                uiControl.addLog("攻撃に毒が含まれていた！ (毒状態)", "", "#ff4d4d");
+            if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
+                this.inflictPoison();
             }
         }
 
@@ -593,6 +690,10 @@ const battleSystem = {
         const damage = Math.max(1, enemy.atk);
         uiControl.addLog(text.standardAttack(rabbitLevel), "enemy-action");
         setTimeout(() => {
+            if (this.tryNightMedicineDodge()) {
+                setTimeout(callback, delay);
+                return;
+            }
             RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
             this.markPlayerTookDamage(damage);
             uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
@@ -601,12 +702,202 @@ const battleSystem = {
         }, delay);
     },
 
-    shouldAwardGlowingCatRabbitFur: function (enemy, escaped) {
-        if (!enemy || enemy.id !== "glowing_cat_rabbit") return false;
-        if (!escaped) return true;
+    runGlowingCatRabbitLv88Turn: function () {
+        const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
 
-        const furChance = RPG.State.flags.matamatabiActive === true ? 0.5 : 0.1;
-        return Math.random() < furChance;
+        if (RPG.State.currentEnemy.lv88Repeat === true) {
+            this.resolveGlowingCatRabbitLv88BadEnd();
+            return;
+        }
+
+        const roll = Math.random();
+
+        if (roll < 1 / 3) {
+            uiControl.addLog(text.yawn(88));
+            uiControl.addLog("オーエン「逃げろ！」");
+            uiControl.addLog("カイン「…ッ！」");
+            setTimeout(() => this.showGlowingCatRabbitLv88Choices(), RPG.State.debug.isSkipping ? 50 : 900);
+            return;
+        }
+
+        if (roll < 2 / 3) {
+            uiControl.addLog("光る猫うさぎLv88は咆哮をあげた！", "enemy-action");
+            uiControl.addLog("カイン「…っな、」");
+            uiControl.addLog("オーエン「…くっ」");
+            uiControl.addLog("空が震える。ズン、と、地面が地震のように揺れた。");
+            uiControl.addLog("カインは足がすくんで動けない！", "damage");
+            uiControl.addLog("オーエンはカインを引っ張って逃げ出した！");
+            setTimeout(() => this.finishGlowingCatRabbitLv88Escape(), RPG.State.debug.isSkipping ? 50 : 1400);
+            return;
+        }
+
+        this.resolveGlowingCatRabbitLv88BadEnd();
+    },
+
+    showGlowingCatRabbitLv88Choices: function () {
+        const container = document.getElementById("action-buttons");
+        const choiceUI = document.getElementById("choiceUI");
+        if (!container) return;
+
+        container.innerHTML = "";
+        container.style.display = "flex";
+        if (choiceUI) choiceUI.style.display = "none";
+
+        const escapeButton = document.createElement("button");
+        escapeButton.className = "btn btn-full";
+        escapeButton.textContent = "逃げる！";
+        escapeButton.onclick = () => this.finishGlowingCatRabbitLv88Escape();
+
+        const challengeButton = document.createElement("button");
+        challengeButton.className = "btn btn-full";
+        challengeButton.textContent = "挑む！";
+        challengeButton.onclick = () => this.resolveGlowingCatRabbitLv88BadEnd();
+
+        container.appendChild(escapeButton);
+        container.appendChild(challengeButton);
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+    },
+
+    clearGlowingCatRabbitLv88Choices: function () {
+        const container = document.getElementById("action-buttons");
+        if (!container) return;
+        container.innerHTML = "";
+        container.style.display = "none";
+    },
+
+    finishGlowingCatRabbitLv88Escape: function () {
+        this.clearGlowingCatRabbitLv88Choices();
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        RPG.State.isInDungeon = true;
+        RPG.State.currentDistance = 0;
+        RPG.State.location = uiControl.getLocData(0).name;
+        RPG.State.mode = "event";
+
+        const shouldPlayAftermath = !RPG.State.flags.glowCatRabbitLv88EscapeTalkDone;
+        if (!shouldPlayAftermath) {
+            RPG.State.mode = "base";
+            uiControl.updateUI();
+            return;
+        }
+
+        RPG.State.flags.glowCatRabbitLv88EscapeTalkDone = true;
+        const lines = RPG.Assets.GAME_TEXT.events.glowingRabbitLv88Escape || [];
+        RPG.State.dialogueQueue = [
+            { text: null, action: () => uiControl.beginSceneLogFocus() },
+            { text: null, delay: 650 },
+            ...lines.map(text => ({ text, typewriter: true, typeSpeed: 24 })),
+            {
+                text: null,
+                action: () => {
+                    uiControl.endSceneLogFocus();
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        uiControl.updateUI();
+        explorationSystem.playDialogueLoop();
+    },
+
+    resolveGlowingCatRabbitLv88BadEnd: function () {
+        this.clearGlowingCatRabbitLv88Choices();
+        RPG.State.currentHP = Math.max(0, RPG.State.currentHP - 888);
+        uiControl.screenShake();
+        uiControl.flashFullScreen("#8b0000", 900);
+        uiControl.addLog("光る猫うさぎLv88は業火を吹いた！", "enemy-action");
+        uiControl.addLog("カイン「うわあぁ！」");
+        uiControl.addLog("オーエン「…ちっ」");
+        uiControl.addLog("カインは888のダメージを受けた！", "damage");
+        uiControl.updateUI();
+
+        const openingLines = (RPG.Assets.GAME_TEXT.events.glowingRabbitLv88BadEnd || []).slice(0, 2);
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: null, delay: RPG.State.debug.isSkipping ? 50 : 1200 },
+            ...openingLines.map(text => ({
+                text,
+                color: "#ff4d4d",
+                typewriter: true,
+                typeSpeed: 30
+            })),
+            { text: null, action: () => this.showGlowingCatRabbitLv88BadEnd() }
+        ];
+        explorationSystem.playDialogueLoop();
+    },
+
+    showGlowingCatRabbitLv88BadEnd: function () {
+        RPG.State.flags.glowCatRabbitBadEndSeen = true;
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        RPG.State.mode = "event";
+        RPG.State.location = "？？？";
+
+        const lines = (RPG.Assets.GAME_TEXT.events.glowingRabbitLv88BadEnd || []).slice(2);
+        const fadeDuration = RPG.State.debug.isSkipping ? 50 : 2400;
+        const blackout = uiControl.fadeFullScreen("#000000", fadeDuration);
+        RPG.State.dialogueQueue = [
+            {
+                text: null,
+                delay: fadeDuration
+            },
+            {
+                text: null,
+                action: () => {
+                    const logContainer = document.getElementById("logContainer");
+                    if (logContainer) {
+                        logContainer.innerHTML = "";
+                    }
+                    blackout.remove();
+                }
+            },
+            ...lines.map((text, index) => ({
+                text,
+                typewriter: true,
+                typeSpeed: 24,
+                type: index === lines.length - 1 ? "marker" : ""
+            })),
+            {
+                text: null,
+                action: () => {
+                    const container = document.getElementById("action-buttons");
+                    if (!container) return;
+                    container.innerHTML = "";
+                    container.style.display = "flex";
+
+                    const button = document.createElement("button");
+                    button.className = "btn btn-full btn-accent";
+                    button.textContent = "タイトルへ戻る";
+                    button.onclick = () => location.reload();
+                    container.appendChild(button);
+                }
+            }
+        ];
+        uiControl.updateUI();
+    },
+
+    shouldAwardGlowingCatRabbitFur: function (enemy) {
+        if (!enemy || enemy.id !== "glowing_cat_rabbit") return false;
+        const canReceiveQuestFur =
+            RPG.State.flags.needsGlowingRabbitFur === true &&
+            (RPG.State.inventory.glowingCatRabbitFur || 0) === 0;
+
+        return canReceiveQuestFur && Math.random() < 0.2;
+    },
+
+    getGlowingCatRabbitVictoryReward: function (rabbitLevel) {
+        const rewards = {
+            5: { itemId: "lightBook", flag: "glowCatRabbitRewardLv5Received" },
+            10: { itemId: "purpleMacaron", flag: "glowCatRabbitRewardLv10Received" },
+            15: { itemId: "glowingBunnyEars", flag: "glowCatRabbitRewardLv15Received" },
+            20: { itemId: "nightMedicine", flag: "glowCatRabbitRewardLv20Received" }
+        };
+        const reward = rewards[rabbitLevel];
+        if (!reward || RPG.State.flags[reward.flag] === true) return null;
+        return reward;
     },
 
     buildGlowingCatRabbitFurQueue: function () {
@@ -645,16 +936,49 @@ const battleSystem = {
         });
     },
 
+    advanceHerbGardenHarvestCooldowns: function () {
+        const flags = RPG.State.flags;
+        const cooldowns = [
+            {
+                remainingKey: "herbGardenHerb2BattlesRemaining",
+                availableKey: "herbGardenHerb2Available"
+            },
+            {
+                remainingKey: "herbGardenHighHerbBattlesRemaining",
+                availableKey: "herbGardenHighHerbAvailable"
+            },
+            {
+                remainingKey: "herbGardenAntidoteHerbBattlesRemaining",
+                availableKey: "herbGardenAntidoteHerbAvailable"
+            }
+        ];
+
+        cooldowns.forEach(({ remainingKey, availableKey }) => {
+            const remaining = flags[remainingKey] || 0;
+            if (remaining <= 0) return;
+
+            flags[remainingKey] = remaining - 1;
+            if (flags[remainingKey] <= 0) {
+                flags[remainingKey] = 0;
+                flags[availableKey] = true;
+            }
+        });
+    },
+
     endGlowingCatRabbitBattle: function (escaped) {
+        this.advanceHerbGardenHarvestCooldowns();
+
         const enemy = RPG.State.currentEnemy;
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
         const rabbitLevel = enemy?.rabbitLevel || 5;
         const hadBranch = (RPG.State.inventory.matamatabiBranch || 0) > 0;
-        const furAwarded = this.shouldAwardGlowingCatRabbitFur(enemy, escaped);
+        const furAwarded = this.shouldAwardGlowingCatRabbitFur(enemy);
+        const victoryReward = escaped ? null : this.getGlowingCatRabbitVictoryReward(rabbitLevel);
         const followupDialogue = this.getGlowingCatRabbitFollowupDialogue(rabbitLevel);
         const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
         const noFurDialogue = (
             RPG.State.flags.needsGlowingRabbitFur === true &&
+            (RPG.State.inventory.glowingCatRabbitFur || 0) === 0 &&
             !furAwarded
         )
             ? (RPG.Assets.GAME_TEXT.events.phase4GlowingRabbitNoFur || []).map(line => ({ text: line }))
@@ -667,10 +991,22 @@ const battleSystem = {
         }
 
         if (furAwarded) {
+            uiControl.addLog(
+                escaped ? text.furDropOnEscape(rabbitLevel) : text.furDropOnDefeat(rabbitLevel),
+                "",
+                "#ffd166"
+            );
             RPG.State.inventory.glowingCatRabbitFur = (RPG.State.inventory.glowingCatRabbitFur || 0) + 1;
             if (!hadBranch) {
                 uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
             }
+        }
+
+        if (victoryReward) {
+            RPG.State.inventory[victoryReward.itemId] = (RPG.State.inventory[victoryReward.itemId] || 0) + 1;
+            RPG.State.flags[victoryReward.flag] = true;
+            uiControl.addLog("✨光る猫うさぎは、きらめく何かを落とした！", "marker", "#ffd166");
+            uiControl.addLog(`《${RPG.Assets.CONFIG.ITEM_NAME[victoryReward.itemId]}を手に入れた！》`, "marker", "#ffd166");
         }
 
         if (!escaped) {
@@ -888,8 +1224,15 @@ const battleSystem = {
         }
 
         // Standard Enemy Logic (Others)
-        if (!isPreemptive && Math.random() < 0.1) {
-            uiControl.addLog("カインは攻撃を剣で受け流した！");
+        const dodgeChance = this.hasNightMedicineEvasion() ? 0.5 : 0.1;
+        if (!isPreemptive && Math.random() < dodgeChance) {
+            uiControl.addLog(
+                this.hasNightMedicineEvasion()
+                    ? "カインは薬の余韻に導かれるように攻撃を避けた！"
+                    : "カインは攻撃を剣で受け流した！",
+                "",
+                this.hasNightMedicineEvasion() ? "#f1e6c8" : null
+            );
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(() => this.runBattleLoop(), delay);
             return;
@@ -924,9 +1267,8 @@ const battleSystem = {
         uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`);
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
-            if (Math.random() < 0.2) {
-                RPG.State.isPoisoned = true;
-                uiControl.addLog("攻撃に毒が含まれていた！ (毒状態)", "", "#ff4d4d");
+            if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
+                this.inflictPoison();
             }
         }
 
@@ -965,6 +1307,8 @@ const battleSystem = {
             this.endGlowingCatRabbitBattle(false);
             return;
         }
+
+        this.advanceHerbGardenHarvestCooldowns();
 
         uiControl.addSeparator();
 
@@ -1062,13 +1406,38 @@ const battleSystem = {
         }
 
         if (RPG.State.currentEnemy.gold > 0) {
-            RPG.State.inventory.silverCoin += RPG.State.currentEnemy.gold;
-            uiControl.addLog(`銀貨を${RPG.State.currentEnemy.gold}枚手に入れた。`);
+            const silverReward = RPG.State.currentEnemy.gold;
+            RPG.State.inventory.silverCoin = (RPG.State.inventory.silverCoin || 0) + silverReward;
+            RPG.State.silverCoins = (RPG.State.silverCoins || 0) + silverReward;
+            uiControl.addLog(`銀貨を${silverReward}枚手に入れた。`);
         }
         if (RPG.State.currentEnemy.drop && Math.random() < RPG.State.currentEnemy.drop.rate) {
             const itemId = RPG.State.currentEnemy.drop.id;
             RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
             uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`);
+        }
+        if (Array.isArray(RPG.State.currentEnemy.drops) && RPG.State.currentEnemy.drops.length > 0) {
+            const drops = RPG.State.currentEnemy.drops;
+            const totalWeight = drops.reduce((sum, drop) => sum + drop.weight, 0);
+            let roll = Math.random() * totalWeight;
+            let selectedDrop = drops[0];
+
+            for (const drop of drops) {
+                roll -= drop.weight;
+                if (roll < 0) {
+                    selectedDrop = drop;
+                    break;
+                }
+            }
+
+            RPG.State.inventory[selectedDrop.id] = (RPG.State.inventory[selectedDrop.id] || 0) + 1;
+            uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[selectedDrop.id]}を手に入れた！`);
+        }
+
+        if (enemyId === "carnivorous_vine") {
+            RPG.State.flags.carnivorousVineDefeated = true;
+            RPG.State.flags.carnivorousVineRegrown = false;
+            RPG.State.flags.carnivorousVineStayCount = 0;
         }
 
         let currentLevelUpTalkLevel = null;
@@ -1184,7 +1553,6 @@ const battleSystem = {
         RPG.State.currentEnemy = null;
         RPG.State.isInDungeon = false;
         RPG.State.currentDistance = 0;
-        RPG.State.battleStatus = {};
         RPG.State.mood = Math.max(0, RPG.State.mood - 20);
 
         innSystem.showDefeatSequence(defeatedEnemyId);

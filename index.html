@@ -10,11 +10,9 @@
     <!-- Build 14.0: Modular Architecture -->
     <script src="state.js"></script>
     <script src="assets.js"></script>
-    <!-- <script src="data.js"></script> -->
     <script src="battleData.js"></script>
     <script src="Cinematics.js"></script>
     <script src="battle.js"></script>
-    <!-- Duel system removed in Build 15.0.0 -->
     <script src="uiControl.js"></script>
     <script src="scenarioEvents.js"></script>
     <script src="exploration.js"></script>
@@ -65,12 +63,11 @@
     </header>
     <main id="logContainer"></main>
 
-    <!-- Duel Scene removed in Build 15.0.0 -->
-
     <footer>
         <div id="exploreUI" class="btn-grid">
             <button id="btnEnterInn" class="btn btn-full" onclick="innSystem.enterInn()">宿屋《琥珀亭》</button>
             <button id="btnMoveForward" class="btn" onclick="explorationSystem.move(1)">進む</button>
+            <button id="btnEnterHerbGarden" class="btn" onclick="explorationSystem.enterHerbGarden()">薬草園</button>
             <button id="btnMoveBack" class="btn" onclick="explorationSystem.move(-1)">戻る</button>
             <button id="btnTalk" class="btn" onclick="explorationSystem.talk()">調べる</button>
             <button id="btnItem" class="btn" onclick="uiControl.openModal()">アイテム</button>

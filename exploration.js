@@ -1,6 +1,644 @@
 // 🚩ーー【移動・探索システム】ーー
 // Build 14.1: Namespaces updated to RPG.State and RPG.Assets
 const explorationSystem = {
+    isInHerbGarden: function () {
+        return RPG.State.explorationArea === "herbGarden";
+    },
+
+    getHerbGardenMaxDistance: function () {
+        return (RPG.State.inventory.lightRabbitBrooch || 0) > 0
+            ? RPG.Assets.CONFIG.HERB_GARDEN_MAX_DISTANCE
+            : 3;
+    },
+
+    getHerbGardenAmbientText: function (distance) {
+        const flags = RPG.State.flags;
+
+        if (distance === 1) {
+            return flags.herbGardenHerb1Available !== false
+                ? RPG.Assets.HERB_GARDEN_AMBIENT_TEXTS[1]
+                : "柔らかい土には、獣に踏み荒らされた跡が残っている。";
+        }
+
+        if (distance === 2) {
+            return flags.herbGardenHerb2Available !== false
+                ? RPG.Assets.HERB_GARDEN_AMBIENT_TEXTS[2]
+                : "大きな木が倒れている。";
+        }
+
+        if (distance === 4) {
+            return flags.herbGardenHighHerbAvailable !== false
+                ? "レンガの隙間から、みずみずしい葉が生えている。"
+                : "足元のレンガが崩れている。";
+        }
+
+        if (distance === 6) {
+            return flags.herbGardenAntidoteHerbAvailable !== false
+                ? "石柱の陰に、黄色い花をつけた薬草が生えている。"
+                : "石柱の陰には、葉を摘み取った跡が残っている。";
+        }
+
+        if (distance === 7) {
+            if (flags.herbGardenMintCollected !== true) {
+                return "枯れ草の中に、薄紫の花が混じっている。";
+            }
+            if (flags.herbGardenEdibleHerbCollected !== true) {
+                return "枯れた植物の隙間に見覚えのある葉が生えている。";
+            }
+            return "石で囲まれた小さな花壇がある。";
+        }
+
+        return RPG.Assets.HERB_GARDEN_AMBIENT_TEXTS[distance] || null;
+    },
+
+    playHerbGardenBroochPassage: function (distance) {
+        const flags = RPG.State.flags;
+        if ((RPG.State.inventory.lightRabbitBrooch || 0) <= 0) return false;
+
+        if (distance === 2 && !flags.herbGardenBrooch2mPassageSeen) {
+            flags.herbGardenBrooch2mPassageSeen = true;
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "頭の重さはあるが、足取りは乱れない。" },
+                { text: "カインはまっすぐ前を見て歩いていた。" },
+                { text: "オーエン｢今日は手、繋がないの？」" },
+                { text: "カイン｢戦えるようにしておきたい」" }
+            ];
+            this.playDialogueLoop();
+            return true;
+        }
+
+        if (distance === 3 && !flags.herbGardenBrooch3mPassageSeen) {
+            flags.herbGardenBrooch3mPassageSeen = true;
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                {
+                    text: "光兎のブローチが光っている。",
+                    type: "marker",
+                    color: "#f1e6c8",
+                    action: () => uiControl.flashFullScreen("#fff1a8", 220, 0.22)
+                },
+                { text: "カイン（ちゃんと道が見えてる。進めそうだ）" },
+                { text: "オーエン｢……」" },
+                { text: "霞んでいた視界は晴れて、足元の骨までよく見える。" }
+            ];
+            this.playDialogueLoop();
+            return true;
+        }
+
+        return false;
+    },
+
+    canCollectHerbGardenBoneMeal: function () {
+        return (
+            this.isInHerbGarden() &&
+            RPG.State.currentDistance === 3 &&
+            (RPG.State.inventory.lightRabbitBrooch || 0) > 0 &&
+            RPG.State.flags.herbGardenBoneMealInspected === true &&
+            RPG.State.flags.herbGardenBoneMealCollected !== true
+        );
+    },
+
+    tryHerbGardenEncounter: function (distance) {
+        if (RPG.State.flags.isDebugEncountersOff) return false;
+        if (distance === 3 || distance <= 0) return false;
+        if (Math.random() >= RPG.Assets.CONFIG.BATTLE_RATE) return false;
+
+        if (RPG.State.storyPhase >= 6 && distance <= 2) {
+            battleSystem.startBattle(Math.random() < 0.35 ? "skull_bee" : "rat");
+            return true;
+        }
+
+        if (distance <= 2) {
+            battleSystem.startBattle("rat");
+            return true;
+        }
+
+        if (RPG.State.storyPhase >= 6 && Math.random() < 0.25) {
+            battleSystem.startBattle("skull_bee");
+            return true;
+        }
+
+        // Match the forest's existing rat/weasel weight ratio (10:3) after 4m.
+        const enemyId = Math.random() < (10 / 13) ? "rat" : "weasel";
+        battleSystem.startBattle(enemyId);
+        return true;
+    },
+
+    tryHerbGardenVineEncounter: function (distance) {
+        const flags = RPG.State.flags;
+        if (RPG.State.storyPhase < 6) return false;
+
+        if (distance === 5 && flags.carnivorousVineDefeated !== true) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6CarnivorousVineIntro),
+                { text: null, action: () => battleSystem.startBattle("carnivorous_vine") }
+            ];
+            this.playDialogueLoop();
+            return true;
+        }
+
+        if (
+            distance >= 4 &&
+            distance <= 6 &&
+            flags.carnivorousVineRegrown === true &&
+            Math.random() < 0.08
+        ) {
+            battleSystem.startBattle("carnivorous_vine");
+            return true;
+        }
+
+        return false;
+    },
+
+    enterHerbGarden: function () {
+        if (RPG.State.mode !== "base" || RPG.State.isAtInn) return;
+
+        if (
+            RPG.State.storyPhase === 6 &&
+            RPG.State.flags.herbGardenFortuneFollowupDone === true &&
+            RPG.State.flags.herbGardenBoneMealCollected !== true &&
+            (RPG.State.inventory.emptyBottle || 0) <= 0
+        ) {
+            RPG.Assets.GAME_TEXT.events.phase6HerbGardenNoBottle
+                .forEach(line => uiControl.addLog(line));
+            uiControl.updateUI();
+            return;
+        }
+
+        RPG.State.isInDungeon = true;
+        RPG.State.explorationArea = "herbGarden";
+        RPG.State.currentDistance = 0;
+        RPG.State.location = uiControl.getLocData(0).name;
+        uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.enteredHerbGarden, "marker");
+
+        if (!RPG.State.flags.herbGardenFirstEnterDone) {
+            RPG.State.flags.herbGardenFirstEnterDone = true;
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "森の奥に、ぽっかりと開けた場所があった。" },
+                { text: "朽ちかけた柵と「琥珀亭薬草園」の看板が、かつて人に使われていた場所だと示している。" },
+                { text: "鮮やかな花々の間を、大きな蜂が飛び回っていた。" },
+                { text: "カイン「なんか甘い匂いがするな」" },
+                { text: "オーエン「へえ、そう感じるんだ？」" },
+                { text: "カイン「花の匂いじゃないのか？」" },
+                { text: "オーエン「花の匂いだよ。嫌な匂い」" }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        uiControl.addLog("風もないのに花が揺れている。", "ambient");
+        uiControl.addLog("（やけに鮮やかだな…目がチカチカする）", "ambient");
+        uiControl.updateUI();
+    },
+
+    canPlayHerbGardenKiss: function () {
+        return (
+            RPG.State.currentDistance === 7 &&
+            RPG.State.flags.herbGardenKissEventDone !== true &&
+            (RPG.State.inventory.mintFlower || 0) > 0
+        );
+    },
+
+    playHerbGardenKiss: function () {
+        const flags = RPG.State.flags;
+        flags.herbGardenKissEventDone = true;
+        RPG.State.mode = "event";
+
+        const kissLines = RPG.Assets.GAME_TEXT.events.phase6HerbGardenKiss || [];
+        RPG.State.dialogueQueue = [
+            { text: "カインは来た道へ戻ろうとして、足を止めた。" },
+            { text: "カイン（風が気持ちいい…少し休んでいくか）" },
+            { text: null, action: () => uiControl.beginSceneLogFocus() },
+            { text: null, delay: 650 },
+            ...kissLines.map((text, index) => ({
+                text,
+                typewriter: true,
+                typeSpeed: index < 6 ? 30 : 24,
+                action: text === "避けきれず、唇が掠める" ? () => uiControl.screenShake() : null
+            })),
+            {
+                text: null,
+                action: () => {
+                    uiControl.endSceneLogFocus();
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    canPlayHerbGardenReturnHandhold: function () {
+        const flags = RPG.State.flags;
+        return (
+            RPG.State.currentDistance === 3 &&
+            flags.herbGardenKissEventDone === true &&
+            flags.herbGardenReturnHandholdDone !== true &&
+            (RPG.State.inventory.mintFlower || 0) > 0
+        );
+    },
+
+    finishHerbGardenReturnHandhold: function () {
+        RPG.State.mode = "base";
+        uiControl.updateUI();
+    },
+
+    handleHerbGardenReturnFromThreeMeters: function () {
+        if (!this.canPlayHerbGardenReturnHandhold()) return false;
+
+        if ((RPG.State.inventory.boneMeal || 0) <= 0) {
+            uiControl.addLog("カイン（骨粉はこのあたりにあるはずだ）");
+            uiControl.updateUI();
+            return true;
+        }
+
+        RPG.State.flags.herbGardenReturnHandholdDone = true;
+        RPG.State.flags.herbGardenReturnHandholdActive = true;
+        RPG.State.mode = "event";
+        const lines = RPG.Assets.GAME_TEXT.events.phase6HerbGardenReturnHandhold || [];
+        RPG.State.dialogueQueue = [
+            {
+                text: null,
+                action: () => uiControl.screenDizzy()
+            },
+            ...lines.map(text => ({ text })),
+            {
+                text: null,
+                action: () => uiControl.updateUI()
+            },
+            { text: null, action: () => this.finishHerbGardenReturnHandhold() }
+        ];
+        this.playDialogueLoop();
+        return true;
+    },
+
+    moveHerbGarden: function (step) {
+        if (RPG.State.currentDistance === 0 && step === -1) {
+            RPG.State.isInDungeon = false;
+            RPG.State.explorationArea = null;
+            RPG.State.location = "宿屋前";
+
+            if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
+
+            uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.leftHerbGarden, "marker");
+            uiControl.updateUI();
+            return;
+        }
+
+        if (step === -1 && this.canPlayHerbGardenKiss()) {
+            this.playHerbGardenKiss();
+            return;
+        }
+
+        if (step === -1 && this.handleHerbGardenReturnFromThreeMeters()) {
+            return;
+        }
+
+        const nextDistance = RPG.State.currentDistance + step;
+        if (nextDistance < 0 || nextDistance > this.getHerbGardenMaxDistance()) return;
+
+        if (step !== 0) {
+            RPG.State.currentDistance = nextDistance;
+            RPG.State.location = uiControl.getLocData(nextDistance).name;
+            uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.moved(nextDistance));
+
+            if (RPG.State.isPoisoned && battleSystem.applyPoisonTick()) {
+                battleSystem.resolveDefeat();
+                return;
+            }
+
+            const ambientText = this.getHerbGardenAmbientText(nextDistance);
+            if (ambientText) {
+                uiControl.addLog(ambientText, "ambient");
+            }
+            if (
+                nextDistance === 3 &&
+                (RPG.State.inventory.lightRabbitBrooch || 0) > 0 &&
+                RPG.State.flags.herbGardenBoneMealCollected !== true
+            ) {
+                uiControl.addLog("足元に白いものが散らばっている。", "ambient");
+            }
+            if (
+                nextDistance === 7 &&
+                RPG.State.flags.herbGardenMintCollected === true &&
+                RPG.State.flags.herbGardenEdibleHerbCollected === true
+            ) {
+                uiControl.addLog("他の場所より丁寧に整えられている。", "ambient");
+            }
+
+            if (this.playHerbGardenBroochPassage(nextDistance)) return;
+
+            if (nextDistance === 3 && (RPG.State.inventory.lightRabbitBrooch || 0) === 0) {
+                if (RPG.State.storyPhase >= 6 && RPG.State.flags.scentPouchQuestStarted === true) {
+                    this.playPhase6HerbGardenBlock();
+                } else {
+                    this.playHerbGardenBlockedEvent();
+                }
+                return;
+            }
+
+            if (
+                nextDistance === 0 &&
+                RPG.State.flags.herbGardenReturnHandholdActive === true
+            ) {
+                RPG.State.flags.herbGardenReturnHandholdActive = false;
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6HerbGardenReturnEntrance),
+                    { text: null, action: () => this.finishHerbGardenReturnHandhold() }
+                ];
+                this.playDialogueLoop();
+                return;
+            }
+
+            if (RPG.State.flags.herbGardenReturnHandholdActive !== true) {
+                if (this.tryHerbGardenVineEncounter(nextDistance)) return;
+                if (this.tryHerbGardenEncounter(nextDistance)) return;
+            }
+        }
+
+        uiControl.updateUI();
+    },
+
+    returnFromHerbGardenBlock: function () {
+        RPG.State.currentDistance = 2;
+        RPG.State.location = uiControl.getLocData(2).name;
+        RPG.State.mode = "base";
+        uiControl.updateUI();
+    },
+
+    showHerbGardenBlockedChoices: function (allowReturn) {
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+
+        const btnChoiceA = document.getElementById("btnChoiceA");
+        const btnChoiceB = document.getElementById("btnChoiceB");
+
+        if (btnChoiceA) {
+            btnChoiceA.style.display = allowReturn ? "flex" : "none";
+            if (allowReturn) {
+                btnChoiceA.textContent = "引き返す";
+                btnChoiceA.style.background = "";
+                btnChoiceA.onclick = () => {
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = [
+                        { text: "カインは来た道を戻った。" },
+                        { text: "カイン（二日酔いのような具合悪さだ）" },
+                        { text: null, action: () => this.returnFromHerbGardenBlock() }
+                    ];
+                    this.playDialogueLoop();
+                };
+            }
+        }
+
+        if (btnChoiceB) {
+            btnChoiceB.textContent = "無理やり進む";
+            btnChoiceB.style.background = "";
+            btnChoiceB.onclick = () => {
+                RPG.State.mode = "event";
+                RPG.State.flags.herbGardenForceAdvanceTried = true;
+                RPG.State.dialogueQueue = [
+                    { text: "カインは足に力をいれ、無理やり前へと踏み出した。足の下でパキパキと骨が砕ける。" },
+                    { text: "（………！！！）" },
+                    { text: "胃がひっくり返り、カインはその場に膝をついた。" },
+                    { text: "カイン「……っ、う……」" },
+                    { text: "オーエン「あーあ…」" },
+                    { text: "これ以上は進めそうにない。" },
+                    { text: null, action: () => this.returnFromHerbGardenBlock() }
+                ];
+                this.playDialogueLoop();
+            };
+        }
+    },
+
+    playHerbGardenBlockedEvent: function () {
+        const flags = RPG.State.flags;
+        RPG.State.mode = "event";
+
+        if (flags.herbGardenBlockedExperienced) {
+            if (!flags.herbGardenForceAdvanceTried) {
+                this.showHerbGardenBlockedChoices(false);
+                return;
+            }
+
+            RPG.State.dialogueQueue = [
+                { text: "カイン（…これ以上は無理だ。引き返そう）" },
+                { text: null, action: () => this.returnFromHerbGardenBlock() }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        flags.herbGardenBlockedExperienced = true;
+        RPG.State.dialogueQueue = [
+            { text: "カイン「目が回りそうだ…」" },
+            { text: "足元がおぼつかない。" },
+            { text: "カイン「…あれ？」" },
+            { text: "オーエン｢もう回ってるよ」" },
+            { text: "カインは膝をついた。" },
+            { text: "じゃり…" },
+            { text: "地面は無数の骨で覆われている。" },
+            { text: "カイン｢なんだ、これ」" },
+            { text: "オーエン｢今のおまえの仲間。ここで動けなくなったやつら」" },
+            { text: null, action: () => this.showHerbGardenBlockedChoices(true) }
+        ];
+        this.playDialogueLoop();
+    },
+
+    showPhase6HerbGardenChoices: function () {
+        const flags = RPG.State.flags;
+        const choices = [];
+
+        if (!flags.herbGardenBreathAttempted) {
+            choices.push({
+                label: "息を止めて進む",
+                action: () => this.choosePhase6HerbGardenBreath()
+            });
+        }
+        if (!flags.herbGardenHandholdAttempted) {
+            choices.push({
+                label: "オーエンと手を繋ぐ",
+                action: () => this.choosePhase6HerbGardenHandhold()
+            });
+        }
+
+        if (choices.length === 0) {
+            RPG.State.mode = "base";
+            uiControl.addLog("カイン（いい作戦が思いつかない。誰かに相談しよう）");
+            uiControl.updateUI();
+            return;
+        }
+
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+
+        const buttons = [
+            document.getElementById("btnChoiceA"),
+            document.getElementById("btnChoiceB")
+        ];
+
+        buttons.forEach((button, index) => {
+            if (!button) return;
+            const choice = choices[index];
+            button.style.display = choice ? "flex" : "none";
+            if (!choice) return;
+
+            button.textContent = choice.label;
+            button.style.background = "";
+            button.onclick = choice.action;
+        });
+    },
+
+    choosePhase6HerbGardenBreath: function () {
+        RPG.State.flags.herbGardenBreathAttempted = true;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6HerbGardenBreathAttempt),
+            { text: null, action: () => this.returnFromHerbGardenBlock() }
+        ];
+        this.playDialogueLoop();
+    },
+
+    finishPhase6HerbGardenHandhold: function () {
+        const state = RPG.State;
+        state.currentHP = state.maxHP;
+        state.isPoisoned = false;
+        state.isInDungeon = false;
+        state.explorationArea = null;
+        state.isAtInn = true;
+        state.currentDistance = 0;
+        state.location = "宿屋《琥珀亭》";
+        state.flags.herbGardenFortuneConsultUnlocked = true;
+
+        const logContainer = document.getElementById("logContainer");
+        if (logContainer) logContainer.classList.remove("night-mode");
+        uiControl.updateUI();
+    },
+
+    choosePhase6HerbGardenHandhold: function () {
+        RPG.State.flags.herbGardenHandholdAttempted = true;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6HerbGardenHandholdAttempt),
+            { text: null, action: () => uiControl.beginSceneLogFocus() },
+            { text: null, delay: 650 },
+            {
+                text: null,
+                action: () => {
+                    const logContainer = document.getElementById("logContainer");
+                    if (logContainer) logContainer.classList.add("night-mode");
+                }
+            },
+            { text: null, delay: 1800 },
+            { text: null, action: () => this.finishPhase6HerbGardenHandhold() },
+            ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6HerbGardenHandholdMorning),
+            {
+                text: null,
+                action: () => {
+                    uiControl.endSceneLogFocus();
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    playPhase6HerbGardenBlock: function () {
+        const flags = RPG.State.flags;
+        RPG.State.mode = "event";
+
+        const lines = flags.herbGardenBlockedExperienced
+            ? RPG.Assets.GAME_TEXT.events.phase6HerbGardenRepeatBlock
+            : RPG.Assets.GAME_TEXT.events.phase6HerbGardenFirstBlock;
+        flags.herbGardenBlockedExperienced = true;
+
+        RPG.State.dialogueQueue = [
+            ...this.buildDialogueQueue(lines),
+            { text: null, action: () => this.showPhase6HerbGardenChoices() }
+        ];
+        this.playDialogueLoop();
+    },
+
+    isPhase6WagonDriverSpot: function () {
+        return (
+            RPG.State.explorationArea !== "herbGarden" &&
+            RPG.State.storyPhase === 6 &&
+            RPG.State.flags.wagonInfoHeard === true &&
+            RPG.State.currentDistance === 5 &&
+            RPG.State.location !== "かつての街道"
+        );
+    },
+
+    isPhase6WagonSpot: function () {
+        return (
+            this.isPhase6WagonDriverSpot() &&
+            RPG.State.flags.wagonHorseEncouraged !== true
+        );
+    },
+
+    canUseScentPouchAtWagon: function () {
+        const flags = RPG.State.flags;
+        return (
+            this.isPhase6WagonDriverSpot() &&
+            flags.wagonHorseEncouraged === true &&
+            flags.scentPouchCrafted === true &&
+            flags.wagonReadyForDeparture !== true
+        );
+    },
+
+    needsHighwayScentPouchHandoff: function () {
+        const state = RPG.State;
+        return (
+            state.storyPhase === 9 &&
+            state.location === "かつての街道" &&
+            state.currentDistance === 1 &&
+            state.flags.scentPouchCrafted === true &&
+            state.flags.scentPouchHandedToDriver !== true &&
+            (state.inventory.scentPouch || 0) > 0
+        );
+    },
+
+    canUseScentPouchOnHighway: function () {
+        return this.needsHighwayScentPouchHandoff();
+    },
+
+    buildDialogueQueue: function (lines, action = null) {
+        const queue = (lines || []).map(line => ({ text: line }));
+        if (action) {
+            queue.push({ text: null, action });
+        }
+        return queue;
+    },
+
+    typewriteLogEntry: function (entry, text, characterDelay, onComplete) {
+        const characters = Array.from(text);
+        let index = 0;
+
+        const writeNextCharacter = () => {
+            const character = characters[index];
+            entry.textContent += character;
+            index += 1;
+
+            const container = entry.parentElement;
+            if (container) container.scrollTop = container.scrollHeight;
+
+            if (index >= characters.length) {
+                onComplete();
+                return;
+            }
+
+            // Sentence endings receive a small natural pause without delaying every line.
+            const punctuationPause = /[、。！？…]/.test(character) ? 90 : 0;
+            setTimeout(writeNextCharacter, characterDelay + punctuationPause);
+        };
+
+        writeNextCharacter();
+    },
+
     // --- checkEvents: イベントマネージャー ---
     checkEvents: function () {
         for (const ev of RPG.Assets.EVENT_DATA) {
@@ -66,8 +704,11 @@ const explorationSystem = {
             uiControl.clearLog();
         }
 
+        let typewriterEntry = null;
         if (nextLine.text) {
-            uiControl.addLog(nextLine.text, "", nextLine.color);
+            typewriterEntry = nextLine.typewriter
+                ? uiControl.addLog("", nextLine.type || "", nextLine.color, nextLine.fontSize, true, nextLine.text)
+                : uiControl.addLog(nextLine.text, nextLine.type || "", nextLine.color, nextLine.fontSize);
         }
         uiControl.updateUI();
 
@@ -79,9 +720,35 @@ const explorationSystem = {
         // 次の行へ
         /* Build 13.0.0: Tap-to-Advance Logic */
         if (nextLine.text) {
-            RPG.State.isWaitingForInput = true;
-            uiControl.showFloatingArrow();
-            uiControl.enableTapOverlay();
+            const tapDelay = nextLine.tapDelay || 0;
+            const enableTapAdvance = () => {
+                RPG.State.isWaitingForInput = true;
+                uiControl.showFloatingArrow();
+                uiControl.enableTapOverlay();
+            };
+
+            const finishText = () => {
+                if (nextLine.autoAdvance) {
+                    setTimeout(() => {
+                        this.playDialogueLoop();
+                    }, nextLine.delay || 0);
+                } else if (tapDelay > 0 && !nextLine.typewriter) {
+                    setTimeout(enableTapAdvance, tapDelay);
+                } else {
+                    enableTapAdvance();
+                }
+            };
+
+            if (nextLine.typewriter && typewriterEntry) {
+                this.typewriteLogEntry(
+                    typewriterEntry,
+                    nextLine.text,
+                    nextLine.typeSpeed || 22,
+                    finishText
+                );
+            } else {
+                finishText();
+            }
         } else {
             const delay = nextLine.delay || 0;
             if (delay > 0) {
@@ -97,6 +764,7 @@ const explorationSystem = {
     enterDungeon: function () {
         const entranceLoc = uiControl.getLocData(0);
         RPG.State.isInDungeon = true;
+        RPG.State.explorationArea = "forest";
         RPG.State.currentDistance = 0;
         RPG.State.location = entranceLoc.name;
         RPG.State.mode = "base";
@@ -125,9 +793,15 @@ const explorationSystem = {
         if (RPG.State.mode !== "base" || RPG.State.isAtInn) return;
         if (RPG.State.location === "宿屋内部") return;
 
+        if (this.isInHerbGarden()) {
+            this.moveHerbGarden(step);
+            return;
+        }
+
         // 0m地点からの脱出 (Return to Inn Front)
         if (RPG.State.isInDungeon && RPG.State.currentDistance === 0 && step === -1) {
             RPG.State.isInDungeon = false;
+            RPG.State.explorationArea = null;
             RPG.State.location = "宿屋前";
 
             if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
@@ -149,6 +823,14 @@ const explorationSystem = {
         }
 
         if (nextDist < RPG.Assets.CONFIG.MIN_DISTANCE || nextDist > RPG.Assets.CONFIG.MAX_DISTANCE) return;
+
+        // The driver needs the scent pouch before Cain is drawn into the highway's opening fights.
+        if (step > 0 && this.needsHighwayScentPouchHandoff()) {
+            uiControl.screenShake();
+            uiControl.addLog("カイン（馬を落ち着かせないと！）");
+            uiControl.updateUI();
+            return;
+        }
 
         if (step !== 0) {
             RPG.State.canStay = true;
@@ -179,10 +861,7 @@ const explorationSystem = {
             }
 
             if (RPG.State.isPoisoned) {
-                RPG.State.currentHP -= 2;
-                uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.poisonDamage, "", "#ff4d4d");
-                if (RPG.State.currentHP <= 1) {
-                    RPG.State.currentHP = 1;
+                if (battleSystem.applyPoisonTick()) {
                     battleSystem.resolveDefeat();
                     return;
                 }
@@ -277,10 +956,8 @@ const explorationSystem = {
             !RPG.State.flags.treeDefeated &&
             !RPG.State.flags.isTreeRematch;
 
-        if (canInspectAmberTree && !RPG.State.flags.forest8mTreeHintShown) {
-            RPG.State.flags.forest8mTreeHintShown = true;
+        if (canInspectAmberTree) {
             uiControl.addLog("少し先の木立の奥で、樹液が鈍く光っている。", "ambient");
-            uiControl.addLog("湿ったような匂いが急に濃くなった。", "ambient");
             uiControl.updateUI();
             return;
         }
@@ -293,6 +970,23 @@ const explorationSystem = {
         if (shouldShowMatamatabiHint) {
             const hintLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiHint4m || [];
             hintLines.forEach(line => uiControl.addLog(line, "ambient"));
+            uiControl.updateUI();
+            return;
+        }
+
+        if (dist === 5 && !RPG.State.flags.forest5mBroochFound) {
+            uiControl.addLog("きらり。", "ambient");
+            uiControl.addLog("何かが一瞬、木漏れ日を反射して光ったように見えた。", "ambient");
+        }
+
+        if (dist === 6 && !RPG.State.flags.forest6mCoinFound) {
+            uiControl.addLog("きらり。", "ambient");
+            uiControl.addLog("足元の泥が、一瞬鈍く光ったように見えた。", "ambient");
+        }
+
+        if (this.isPhase6WagonSpot()) {
+            const flavorLines = RPG.Assets.GAME_TEXT.events.phase6Wagon5mFlavor || [];
+            flavorLines.forEach(line => uiControl.addLog(line, "ambient"));
             uiControl.updateUI();
             return;
         }
@@ -314,13 +1008,11 @@ const explorationSystem = {
 
             if (dist === 5) {
                 RPG.State.flags.forest5mFirstVisit = true;
-                uiControl.addLog("何かが一瞬木漏れ日を反射したように見えた。", "ambient");
                 uiControl.updateUI();
                 return;
             }
 
             if (dist === 6) {
-                uiControl.addLog("足元の泥が、一瞬鈍く光ったように見えた。", "ambient");
                 if (!RPG.State.flags.forest6mFirstVisit) {
                     RPG.State.flags.forest6mFirstVisit = true;
                     RPG.State.mode = "event";
@@ -411,28 +1103,119 @@ const explorationSystem = {
         }
     },
 
+    inspectHerbGarden: function () {
+        const flags = RPG.State.flags;
+        const distance = RPG.State.currentDistance;
+
+        if (distance === 1 && flags.herbGardenHerb1Available !== false) {
+            flags.herbGardenHerb1Available = false;
+            RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 1;
+            uiControl.addLog("🌿薬草を手に入れた！", "", "#9fdb77");
+            uiControl.updateUI();
+            return;
+        }
+
+        if (distance === 2) {
+            if (flags.herbGardenHerb2Available !== false) {
+                flags.herbGardenHerb2Available = false;
+                flags.herbGardenHerb2BattlesRemaining = 3;
+                RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 2;
+                uiControl.addLog("🌿薬草を2つ手に入れた！", "", "#9fdb77");
+                uiControl.addLog("カイン（…ちょっと頭が痛い）");
+            } else {
+                uiControl.addLog("倒木の下には何も残っていない。", "ambient");
+            }
+            uiControl.updateUI();
+            return;
+        }
+
+        if (
+            distance === 3 &&
+            (RPG.State.inventory.lightRabbitBrooch || 0) > 0 &&
+            flags.herbGardenBoneMealCollected !== true
+        ) {
+            flags.herbGardenBoneMealInspected = true;
+            uiControl.addLog("砕けた小さな骨のようだ。", "ambient");
+            uiControl.addLog("（瓶に入れよう）");
+            uiControl.updateUI();
+            return;
+        }
+
+        if (distance === 4) {
+            if (flags.herbGardenHighHerbAvailable !== false) {
+                flags.herbGardenHighHerbAvailable = false;
+                flags.herbGardenHighHerbBattlesRemaining = 5;
+                RPG.State.inventory.highHerb = (RPG.State.inventory.highHerb || 0) + 1;
+                uiControl.addLog("🌿上薬草を手に入れた！", "", "#9fdb77");
+            } else {
+                uiControl.addLog("レンガの隙間には何も残っていない。", "ambient");
+            }
+            uiControl.updateUI();
+            return;
+        }
+
+        if (distance === 6) {
+            if (flags.herbGardenAntidoteHerbAvailable !== false) {
+                flags.herbGardenAntidoteHerbAvailable = false;
+                flags.herbGardenAntidoteHerbBattlesRemaining = 5;
+                RPG.State.inventory.antidoteHerb = (RPG.State.inventory.antidoteHerb || 0) + 1;
+                uiControl.addLog("🌼毒消し草を手に入れた！", "", "#f0d75b");
+            } else {
+                uiControl.addLog("石柱の陰には何も残っていない。", "ambient");
+            }
+            uiControl.updateUI();
+            return;
+        }
+
+        if (distance === 7) {
+            if (flags.herbGardenMintCollected !== true) {
+                flags.herbGardenMintCollected = true;
+                RPG.State.inventory.mintFlower = (RPG.State.inventory.mintFlower || 0) + 1;
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    { text: "触れるとひんやりと冷たい。", type: "ambient" },
+                    { text: "カイン「スースーした香りがする。これかな？」" },
+                    { text: "🪻薄荷草を手に入れた！", color: "#b7a7e8" }
+                ];
+                this.playDialogueLoop();
+                return;
+            }
+
+            if (flags.herbGardenEdibleHerbCollected !== true) {
+                flags.herbGardenEdibleHerbCollected = true;
+                RPG.State.inventory.edibleHerb = (RPG.State.inventory.edibleHerb || 0) + 1;
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    { text: "カイン「肉料理に入ってるのを見たことがあるな。土産に持って帰るか」" },
+                    { text: "🌱食用ハーブを手に入れた！", color: "#9fdb77" }
+                ];
+                this.playDialogueLoop();
+                return;
+            }
+
+            uiControl.addLog("石で囲まれた小さな花壇がある。", "ambient");
+            uiControl.updateUI();
+            return;
+        }
+
+        uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
+    },
+
     talk: function () {
         if (!RPG.State.isInDungeon) {
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkAtInn);
             return;
         }
 
-        const dist = RPG.State.currentDistance;
-        const flags = RPG.State.flags;
-
-        if (RPG.State.storyPhase === 0 && dist === 3 && flags.forest3mInspectCount === 0) {
-            flags.forest3mInspectCount += 1;
-            RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [
-                { text: "カイン「おまえも手伝ってくれ」", delay: 1500 },
-                { text: "オーエン「手伝ってるよ。間抜けな姿を見ててあげてるでしょ」", delay: 1500, color: "#a020f0" },
-                { text: "カイン「……」", delay: 1500 }
-            ];
-            this.playDialogueLoop();
+        if (this.isInHerbGarden()) {
+            this.inspectHerbGarden();
             return;
         }
 
-        if (RPG.State.storyPhase === 0 && dist === 5 && !flags.forest5mBroochFound) {
+        const dist = RPG.State.currentDistance;
+        const flags = RPG.State.flags;
+
+        if (dist === 5 && !flags.forest5mBroochFound) {
             flags.forest5mBroochFound = true;
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
@@ -448,6 +1231,119 @@ const explorationSystem = {
                 { text: "カイン「誰かの落とし物かもしれない。一応拾っておこう」", delay: 1500 },
                 { text: "オーエン「汚いしゴミだと思うけど」", delay: 1500, color: "#a020f0" },
                 { text: "カイン「日に当てるとちょっとだけキラッとする」", delay: 1500 }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        if (this.isPhase6WagonDriverSpot()) {
+            if (flags.wagonHorseEncouraged === true) {
+                if (flags.scentPouchCrafted !== true) {
+                    const hasMint = (RPG.State.inventory.mintFlower || 0) > 0;
+                    const hasBoneMeal = (RPG.State.inventory.boneMeal || 0) > 0;
+
+                    if (!hasMint || !hasBoneMeal) {
+                        RPG.State.mode = "event";
+                        RPG.State.dialogueQueue = this.buildDialogueQueue(
+                            RPG.Assets.GAME_TEXT.events.phase6WagonMaterialsPending
+                        );
+                        this.playDialogueLoop();
+                        return;
+                    }
+
+                    if (flags.herbGardenBroochReturned !== true) {
+                        RPG.State.mode = "event";
+                        RPG.State.dialogueQueue = this.buildDialogueQueue(
+                            RPG.Assets.GAME_TEXT.events.phase6WagonBroochReturnPending
+                        );
+                        this.playDialogueLoop();
+                        return;
+                    }
+
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = [
+                        ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6ScentPouchCraft),
+                        {
+                            text: "🪻薄荷草と🦴骨粉を失った",
+                            type: "marker",
+                            color: "#f1e6c8",
+                            action: () => {
+                                RPG.State.inventory.mintFlower = Math.max(0, (RPG.State.inventory.mintFlower || 0) - 1);
+                                RPG.State.inventory.boneMeal = Math.max(0, (RPG.State.inventory.boneMeal || 0) - 1);
+                                uiControl.updateUI();
+                            }
+                        },
+                        {
+                            text: "💐香草袋が完成した！",
+                            type: "marker",
+                            color: "#f1e6c8",
+                            action: () => {
+                                RPG.State.inventory.scentPouch = (RPG.State.inventory.scentPouch || 0) + 1;
+                                flags.scentPouchCrafted = true;
+                                uiControl.updateUI();
+                            }
+                        }
+                    ];
+                    this.playDialogueLoop();
+                    return;
+                }
+
+                if (flags.wagonReadyForDeparture !== true) {
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildDialogueQueue(
+                        RPG.Assets.GAME_TEXT.events.phase6ScentPouchTry
+                    );
+                    this.playDialogueLoop();
+                    return;
+                }
+
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = this.buildDialogueQueue(
+                    RPG.Assets.GAME_TEXT.events.phase6WagonReadyTalk
+                );
+                this.playDialogueLoop();
+                return;
+            } else {
+                const talkStep = flags.wagonDriverTalkStep || 0;
+
+                if (talkStep <= 0) {
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildDialogueQueue(
+                        RPG.Assets.GAME_TEXT.events.phase6WagonDriverTalk,
+                        () => {
+                            flags.wagonDriverTalkStep = 1;
+                            uiControl.updateUI();
+                        }
+                    );
+                    this.playDialogueLoop();
+                    return;
+                }
+
+                if (talkStep === 1) {
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildDialogueQueue(
+                        RPG.Assets.GAME_TEXT.events.phase6WagonDriverMoreTalk,
+                        () => {
+                            flags.wagonDriverTalkStep = 2;
+                            this.showWagonEncourageChoices();
+                        }
+                    );
+                    this.playDialogueLoop();
+                    return;
+                }
+
+                this.showWagonEncourageChoices();
+                return;
+            }
+        }
+
+        if (RPG.State.storyPhase === 0 && dist === 3 && flags.forest3mInspectCount === 0) {
+            flags.forest3mInspectCount += 1;
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "カイン「おまえも手伝ってくれ」", delay: 1500 },
+                { text: "オーエン「手伝ってるよ。間抜けな姿を見ててあげてるでしょ」", delay: 1500, color: "#a020f0" },
+                { text: "カイン「……」", delay: 1500 }
             ];
             this.playDialogueLoop();
             return;
@@ -554,6 +1450,58 @@ const explorationSystem = {
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
     },
 
+    showWagonEncourageChoices: function () {
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+
+        const btnChoiceA = document.getElementById('btnChoiceA');
+        const btnChoiceB = document.getElementById('btnChoiceB');
+
+        if (btnChoiceA) {
+            btnChoiceA.style.display = 'flex';
+            btnChoiceA.textContent = "馬をはげます";
+            btnChoiceA.onclick = () => this.chooseWagonHorseEncourage();
+            btnChoiceA.style.background = "";
+        }
+
+        if (btnChoiceB) {
+            if (RPG.State.flags.wagonDriverEncouraged === true) {
+                btnChoiceB.style.display = 'none';
+            } else {
+                btnChoiceB.style.display = 'flex';
+                btnChoiceB.textContent = "御者をはげます";
+                btnChoiceB.onclick = () => this.chooseWagonDriverEncourage();
+                btnChoiceB.style.background = "#555";
+            }
+        }
+    },
+
+    chooseWagonDriverEncourage: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue(
+            RPG.Assets.GAME_TEXT.events.phase6WagonDriverEncourage,
+            () => {
+                RPG.State.flags.wagonDriverEncouraged = true;
+                this.showWagonEncourageChoices();
+            }
+        );
+        this.playDialogueLoop();
+    },
+
+    chooseWagonHorseEncourage: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue(
+            RPG.Assets.GAME_TEXT.events.phase6WagonHorseEncourage,
+            () => {
+                RPG.State.flags.wagonHorseEncouraged = true;
+                RPG.State.flags.scentPouchQuestStarted = true;
+                RPG.State.mode = "base";
+                uiControl.updateUI();
+            }
+        );
+        this.playDialogueLoop();
+    },
+
     buildMatamatabiFadeQueue: function () {
         const lines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiFade || [];
         return lines.map(line => {
@@ -589,6 +1537,7 @@ const explorationSystem = {
                     color: "#9acd32",
                     action: () => {
                         RPG.State.flags.matamatabiActive = true;
+                        RPG.State.flags.matamatabiNightPending = true;
                         RPG.State.matamatabiStepsRemaining = 10;
                         RPG.State.matamatabiUseCount = (RPG.State.matamatabiUseCount || 0) + 1;
                         uiControl.updateUI();
@@ -599,7 +1548,169 @@ const explorationSystem = {
         });
     },
 
+    buildGlowingCatRabbitRewardUseQueue: function (itemId) {
+        if (itemId === "lightBook") {
+            return [
+                { text: "カインは📙光の書を開いた！", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「これは文字か？全然読めない」" },
+                { text: "ページには指で擦ったような、文字とも言えない痕がたくさんついている。カインが指先で触れた瞬間、口が勝手に内容を読み始めた。" },
+                { text: "カイン「…！魔界において、最強の魔獣であり洞穴の守護者…我ら、光る猫うさぎの王の名においてこの書を記す。我らの王の名はミス…っむぐ」" },
+                { text: "オーエン「おい」" },
+                { text: "オーエンがカインの口を後ろから手で塞いで、もう片手でその本を奪い取った。" },
+                { text: "カイン「んぐ」" },
+                { text: "オーエン「呼ぶなよ。来たらどうすんの」" },
+                { text: "カイン「むぐぐ」" },
+                { text: "オーエンは本を紫の炎で燃やし尽くすと土に投げ捨て、靴で踏んだ。" },
+                { text: "オーエン「…やっぱりね。そんな気がしてたんだ」" },
+                { text: "カイン「知ってるのか？光る猫うさぎの王を」" },
+                { text: "オーエン「知らないよ。猫もうさぎもどうでもいい」" },
+                { text: "カイン（光る猫うさぎの愛読書か？内容がめちゃくちゃ気になるな）" }
+            ];
+        }
+
+        if (itemId === "purpleMacaron") {
+            return [
+                { text: "カインは🟣紫マカロンを取り出した！", type: "marker", color: "#f1e6c8" },
+                { text: "オーエン「やった！お菓子だ！」" },
+                { text: "カイン「…食べ物に紫は不味そうじゃないか？」" },
+                { text: "オーエン「はやく頂戴」" },
+                { text: "オーエンはマカロンを奪い取った！" },
+                { text: "カイン（けど、オーエンの服装とは合ってるな。）" },
+                { text: "オーエン「もぐもぐ。甘い。……」" },
+                { text: "オーエンが黙る。" },
+                { text: "カイン「…どうした？」" },
+                { text: "オーエンが口元を抑える。" },
+                { text: "オーエン「……、っ！！！」" },
+                { text: "抑えた手元から、ボタボタと鮮血が垂れる。珍しく苦しそうだ。" },
+                { text: "カイン「オーエン！？」" },
+                { text: "オーエン「……、」" },
+                { text: "オーエンはカインの手を引き寄せて、そこに口の中のものを全部出した。" },
+                { text: "カイン「うわ！？地面に吐けよ！」" },
+                { text: "オーエン「…っげほ、」" },
+                { text: "しゅう、と手袋が溶ける。" },
+                { text: "カイン「なっ！？」" },
+                { text: "溶けた手袋の下で、指先がじんと痺れた。" },
+                {
+                    text: "《カインは毒状態になった！》",
+                    type: "marker",
+                    color: "#ff4d4d",
+                    action: () => {
+                        RPG.State.isPoisoned = true;
+                        RPG.State.poisonDamageRemaining = Math.max(1, Math.floor(RPG.State.maxHP / 3));
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "オーエン「ふう…すっきりした」" },
+                { text: "オーエンの鼻血はもう止まっている。" },
+                { text: "カイン（……俺が毒状態になったんだが…）" },
+                { text: "カインは溶けた手袋を外した。" }
+            ];
+        }
+
+        if (itemId === "glowingBunnyEars") {
+            const healAmount = Math.max(1, Math.floor(RPG.State.maxHP * 0.3));
+            return [
+                { text: "カインは🐰光るうさ耳をつけた！", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「にゃあ！にゃあにゃあ！！」" },
+                { text: "（変わった耳だな！本物みたいで）" },
+                { text: "オーエン「は？」" },
+                { text: "カイン「にゃっ！？にゃあにゃあ！！」" },
+                { text: "（えっ！俺にゃあにゃあ言ってる！？）" },
+                { text: "オーエン「たのしそうだね」" },
+                { text: "カインは光るうさ耳を外そうとした。" },
+                { text: "カイン「…っ」" },
+                { text: "（痛い！）" },
+                { text: "オーエン「どうしたの？」" },
+                { text: "カイン「にゃあにゃあ！」" },
+                { text: "（外せない！取ってくれ！）" },
+                { text: "オーエン「お腹空いたの？」" },
+                { text: "カイン「にゃあ！」（違う！）" },
+                { text: "オーエン「撫でて欲しい？」" },
+                { text: "カイン「にゃあ！」（違…っ）" },
+                { text: "オーエンの手が、カインのウサ耳をやんわりと掴む。" },
+                { text: "カイン「にゃ…っ！！」" },
+                { text: "鳥肌の立つような感覚に思わず目を瞑る。" },
+                { text: "カチューシャがする、と頭から取れた。" },
+                { text: "カイン「はあ、はあ……びっくりした。」" },
+                { text: "オーエン「ふうん…？」" },
+                { text: "《オーエンはカチューシャを再びカインの頭に戻した》", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「にゃあ！にゃあにゃあ！！」" },
+                { text: "オーエン「あはは！何？もっとちゃんと言ってよ」" },
+                { text: "オーエンはしつこく耳を触る。" },
+                { text: "カイン「にゃあ！！にゃあ！！」" },
+                { text: "オーエン「身体が光ってきた。たのしい」" },
+                {
+                    text: null,
+                    action: () => {
+                        const logContainer = document.getElementById("logContainer");
+                        if (logContainer) logContainer.classList.add("night-mode");
+                    }
+                },
+                {
+                    text: null,
+                    delay: 2600,
+                    action: () => {
+                        RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
+                        uiControl.updateUI();
+                    }
+                },
+                {
+                    text: null,
+                    action: () => {
+                        const logContainer = document.getElementById("logContainer");
+                        if (logContainer) logContainer.classList.remove("night-mode");
+                    }
+                },
+                { text: "――しばらくして。", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「はあ…はあ…」" },
+                { text: "ぼんやりと光ったカインは明らかに弱っている。" },
+                { text: "オーエン「ほら、食べていいよ」" },
+                { text: "オーエンはカインの口に🌿薬草を入れた！" },
+                { text: `HPが${healAmount}回復した。`, type: "marker", color: "#9acd32" },
+                { text: "カイン「……むしゃむしゃ」" },
+                { text: "オーエン「ありがとうは？」" },
+                { text: "カイン「にゃあ……」" },
+                { text: "オーエン「どういたしまして」" },
+                { text: "オーエンはカインからカチューシャを取ると、光るうさ耳を自分の懐へしまった。" },
+                { text: "《🐰光るうさ耳を失った！》", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「え？」" },
+                { text: "オーエン「僕が貰ってあげる。」" },
+                { text: "カイン「…何か使い道あるのか？それ」" },
+                { text: "オーエン「必要な時に使う。」" },
+                { text: "カイン（どんな時かは聞かないでおこう…）" }
+            ];
+        }
+
+        return null;
+    },
+
     getItemUseDialogue: function (itemId) {
+        if (itemId === 'scentPouch') {
+            if (this.canUseScentPouchOnHighway()) {
+                return [
+                    ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase7ScentPouchHandoff),
+                    {
+                        text: null,
+                        action: () => {
+                            RPG.State.flags.scentPouchHandedToDriver = true;
+                            uiControl.updateUI();
+                        }
+                    }
+                ];
+            }
+
+            return [
+                ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6ScentPouchUse),
+                {
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.wagonReadyForDeparture = true;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+        }
+
         if (itemId === 'herb') {
             if (RPG.State.herbUseCount === 1) {
                 return [
@@ -639,6 +1750,10 @@ const explorationSystem = {
             return this.buildMatamatabiManualUseQueue();
         }
 
+        if (["lightBook", "purpleMacaron", "glowingBunnyEars"].includes(itemId)) {
+            return this.buildGlowingCatRabbitRewardUseQueue(itemId);
+        }
+
         return null;
     },
 
@@ -649,21 +1764,36 @@ const explorationSystem = {
         let consumeItem = true;
         switch (itemId) {
             case 'herb':
-                if (RPG.State.currentHP >= RPG.State.maxHP && !RPG.State.isPoisoned) {
+                if (RPG.State.currentHP >= RPG.State.maxHP) {
                     uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
                     uiControl.closeModal();
                     return;
                 }
-                const healAmount = Math.floor(RPG.State.maxHP * 0.4);
+                const healAmount = Math.floor(RPG.State.maxHP * 0.3);
                 RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
-
-                if (RPG.State.isPoisoned) {
-                    RPG.State.isPoisoned = false;
-                    uiControl.addLog(`薬草を使い、HPが${healAmount}回復し、毒が浄化された。`, "", "#a333c8");
-                } else {
-                    uiControl.addLog(`薬草を使い、HPが${healAmount}回復した。`);
-                }
+                uiControl.addLog(`🌿薬草を使い、HPが${healAmount}回復した。`);
                 RPG.State.herbUseCount = (RPG.State.herbUseCount || 0) + 1;
+                success = true;
+                break;
+            case 'highHerb':
+                if (RPG.State.currentHP >= RPG.State.maxHP) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
+                    uiControl.closeModal();
+                    return;
+                }
+                const highHerbHealAmount = Math.floor(RPG.State.maxHP * 0.6);
+                RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + highHerbHealAmount);
+                uiControl.addLog(`🌿上薬草を使い、HPが${highHerbHealAmount}回復した。`);
+                success = true;
+                break;
+            case 'antidoteHerb':
+                if (!RPG.State.isPoisoned) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
+                    uiControl.closeModal();
+                    return;
+                }
+                battleSystem.curePoison();
+                uiControl.addLog("🌼毒消し草を使い、毒が浄化された。", "", "#a333c8");
                 success = true;
                 break;
             case 'debug_poison':
@@ -687,6 +1817,51 @@ const explorationSystem = {
                 }
                 success = true;
                 consumeItem = false;
+                break;
+            case 'emptyBottle':
+                if (!this.canCollectHerbGardenBoneMeal()) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.inventory.boneMeal = (RPG.State.inventory.boneMeal || 0) + 1;
+                RPG.State.flags.herbGardenBoneMealCollected = true;
+                uiControl.addLog("🦴骨粉を手に入れた！", "", "#f1e6c8");
+                success = true;
+                break;
+            case 'scentPouch':
+                const canUseScentPouchAtWagon = this.canUseScentPouchAtWagon();
+                const canUseScentPouchOnHighway = this.canUseScentPouchOnHighway();
+                if (!canUseScentPouchAtWagon && !canUseScentPouchOnHighway) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);
+                    uiControl.closeModal();
+                    return;
+                }
+                success = true;
+                consumeItem = canUseScentPouchOnHighway;
+                break;
+            case 'glowingBunnyEars':
+                if (!RPG.State.isInDungeon) {
+                    uiControl.addLog("カイン（人前でつけるのはちょっと恥ずかしいな）");
+                    uiControl.closeModal();
+                    return;
+                }
+                success = true;
+                break;
+            case 'nightMedicine':
+                if (!RPG.State.isAtInn) {
+                    uiControl.addLog("カイン（寝る前に飲もう）");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.inventory[itemId]--;
+                uiControl.updateUI();
+                uiControl.closeModal();
+                innSystem.playNightMedicineSleep();
+                return;
+            case 'lightBook':
+            case 'purpleMacaron':
+                success = true;
                 break;
             default:
                 uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);

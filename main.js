@@ -41,7 +41,6 @@ const debugSystem = {
 // 🚩ーー【宿屋・拠点システム & イベントシステム】ーー
 // Build 8.16: Inn and Tree Event systems moved to inn.js
 // See inn.js for: innSystem (enterInn, exitInn, talk, stay, observe, deliver)
-//                 treeEventSystem (showChoices, choiceTakeCoin, choiceLeave, triggerDuel)
 
 
 
@@ -49,6 +48,7 @@ const debugSystem = {
 window.onload = () => {
     // 強制初期化
     RPG.State.location = "宿屋《琥珀亭》";
+    RPG.State.isAtInn = true;
     const exploreUI = document.getElementById('exploreUI');
     const innUI = document.getElementById('innUI');
     const locationBar = document.getElementById('locationBar');

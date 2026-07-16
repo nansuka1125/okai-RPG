@@ -8,7 +8,6 @@ RPG.Assets = RPG.Assets || {};
 RPG.Assets.BATTLE_TEXT = {
     intro: {
         larva: "泥這う大幼蟲との戦闘開始！",
-        // tree intro string removed in 15.1.0 to prevent double logs
         default: (name) => `${name}が現れた！`,
         preemptive: (name) => `${name}の先制攻撃！`
     },
@@ -66,21 +65,84 @@ RPG.Assets.BATTLE_TEXT = {
     },
     glowing_cat_rabbit: {
         intro: (level) => `✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv${level}】 *:･ﾟ✧*:･ﾟ✧`,
+        bossIntro: (level) => `✧･ﾟ: *✧･ﾟ:* 【光る猫うさぎLv${level}】が現れた！ *:･ﾟ✧*:･ﾟ✧`,
         sight: "淡い虹色の光が森の奥で跳ねた。",
         standardAttack: (level) => `光る猫うさぎLv${level}は小さな火の玉を吐いた!`,
         yawn: (level) => `光る猫うさぎLv${level}はあくびをした！`,
         waiting: (level) => `光る猫うさぎLv${level}は様子を見ている…`,
         vanish: (level) => `光る猫うさぎLv${level}は光って消えた…`,
         escape: (level) => `光る猫うさぎLv${level}は逃げ出した！`,
+        furDropOnEscape: (level) => `光る猫うさぎLv${level}は逃げ際に、きらめく毛をふわりと落とした！`,
+        furDropOnDefeat: () => "光が弾け、きらめく毛がふわりと落ちた！",
         killImmune: "光る猫うさぎには効果がないようだ！",
         miss: "カインの一撃は光の尾だけを切った！",
         hit: (count) => `${count}hit!`
+    },
+    carnivorous_vine: {
+        vineStrike: "肉食カズラはつるを伸ばした！",
+        acid: "肉食カズラは溶解液を吐きかけた！",
+        waiting: "肉食カズラは大きく口を開けて待ち構えている。",
+        preparedVineStrike: "肉食カズラは太い蔓を振り下ろした！",
+        preparedAcid: "肉食カズラは口いっぱいの溶解液を浴びせかけた！"
     }
 };
 
 
 // ⚔️ AI Behavior Modules
 RPG.Assets.BATTLE_AI = {
+    carnivorous_vine: {
+        execute: function (sys) {
+            const enemy = RPG.State.currentEnemy;
+            const text = RPG.Assets.BATTLE_TEXT.carnivorous_vine;
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+
+            const finishTurn = () => {
+                if (sys.checkBattleEnd()) return;
+                RPG.State.battleTurn++;
+                setTimeout(() => sys.runBattleLoop(), delay);
+            };
+
+            const dealDamage = (damage, message, color = null) => {
+                uiControl.addLog(message, "enemy-action", color);
+                if (sys.tryNightMedicineDodge()) {
+                    finishTurn();
+                    return;
+                }
+                RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
+                sys.markPlayerTookDamage(damage);
+                uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage", color);
+                uiControl.updateUI();
+                finishTurn();
+            };
+
+            if (enemy.vineMouthOpen === true) {
+                enemy.vineMouthOpen = false;
+                if (Math.random() < 0.6) {
+                    uiControl.flashFullScreen("#8b7d25", 420);
+                    dealDamage(18, text.preparedAcid, "#d9c44c");
+                } else {
+                    dealDamage(17, text.preparedVineStrike, "#b7df62");
+                }
+                return;
+            }
+
+            const roll = Math.random();
+            if (roll < 0.3) {
+                enemy.vineMouthOpen = true;
+                uiControl.addLog(text.waiting, "ambient");
+                setTimeout(finishTurn, delay);
+                return;
+            }
+
+            if (roll < 0.55) {
+                uiControl.flashFullScreen("#8b7d25", 320);
+                dealDamage(16, text.acid, "#d9c44c");
+                return;
+            }
+
+            dealDamage(enemy.atk, text.vineStrike, "#b7df62");
+        }
+    },
     // 🐛 Giant Larva (Build 9.0.0+)
     giant_larva: {
         execute: function (sys) {
@@ -124,7 +186,7 @@ RPG.Assets.BATTLE_AI = {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.poisonFog, "enemy-action");
                 setTimeout(() => {
                     if (!RPG.State.isPoisoned) {
-                        RPG.State.isPoisoned = true;
+                        sys.inflictPoison();
                         uiControl.addLog("カインは猛毒に侵された！", "damage", "#ff4d4d");
                     } else {
                         uiControl.addLog("霧がカインの体を包み込む……", "ambient");
@@ -166,6 +228,11 @@ RPG.Assets.BATTLE_AI = {
 
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.bodySlam, "enemy-action");
             setTimeout(() => {
+                if (sys.tryNightMedicineDodge()) {
+                    RPG.State.battleTurn++;
+                    setTimeout(() => sys.runBattleLoop(), 1200);
+                    return;
+                }
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 RPG.State.currentHP -= damage;
                 sys.markPlayerTookDamage(damage);
@@ -199,6 +266,11 @@ RPG.Assets.BATTLE_AI = {
                 const damage = Math.floor(Math.max(1, (enemy.atk * 1.5) - (def / 2)));
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.strongAttack, "enemy-action", "#ff4d4d");
                 setTimeout(() => {
+                    if (sys.tryNightMedicineDodge()) {
+                        RPG.State.battleTurn++;
+                        setTimeout(() => sys.runBattleLoop(), loopDelay);
+                        return;
+                    }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     RPG.State.currentHP -= damage;
                     sys.markPlayerTookDamage(damage);
@@ -213,6 +285,11 @@ RPG.Assets.BATTLE_AI = {
                 const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.standardAttack, "enemy-action");
                 setTimeout(() => {
+                    if (sys.tryNightMedicineDodge()) {
+                        RPG.State.battleTurn++;
+                        setTimeout(() => sys.runBattleLoop(), loopDelay);
+                        return;
+                    }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     RPG.State.currentHP -= damage;
                     sys.markPlayerTookDamage(damage);
@@ -283,6 +360,11 @@ RPG.Assets.BATTLE_AI = {
             const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.standardAttack, "enemy-action");
             setTimeout(() => {
+                if (sys.tryNightMedicineDodge()) {
+                    RPG.State.battleTurn++;
+                    setTimeout(() => sys.runBattleLoop(), loopDelay);
+                    return;
+                }
                 RPG.State.currentHP -= damage;
                 sys.markPlayerTookDamage(damage);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
@@ -307,7 +389,8 @@ RPG.Assets.OWEN_BEHAVIOR = {
     shouldIntervene: function (battleTurn) {
         if (RPG.State.hasOwenIntervened) return false;
 
-        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true;
+        const isGlowingCatRabbit = RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit";
+        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true && !isGlowingCatRabbit;
         if (isMatamatabiActive) return true;
 
         // Build 14.2.5: Targeted Supporter - Bypass mood check for Emergency (Herb)
@@ -331,7 +414,8 @@ RPG.Assets.OWEN_BEHAVIOR = {
         const isLowHP = RPG.State.currentHP < (RPG.State.maxHP * 0.4);
 
         const isBossEnemy = RPG.State.currentEnemy && RPG.State.currentEnemy.isBoss === true;
-        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true;
+        const isGlowingCatRabbit = RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit";
+        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true && !isGlowingCatRabbit;
         if (!isBossEnemy && isMatamatabiActive && Math.random() < 0.8) return "kill";
         if (!isBossEnemy && (isFirstTurn || isLowHP) && Math.random() < 0.15) return "kill";
         if (Math.random() < 0.20) return "freeze";
@@ -349,8 +433,7 @@ RPG.Assets.ENEMIES = [
         id: "rat", name: "魔界のネズミ", maxHp: 40,
         atk: 5,
         xp: 15,
-        area: [1, 9], weight: 10,
-        attackLog: "飢えた琥珀樹は根を伸ばしてカインに絡みついた！"
+        area: [1, 9], weight: 10
     },
     // --- Build 14.2.2: Former Highway Enemies ---
     {
@@ -392,16 +475,37 @@ RPG.Assets.ENEMIES = [
         msg: "カマで切り裂いてきた！"
     },
     {
+        id: "skull_bee",
+        name: "ドクロ蜂",
+        maxHp: 30,
+        atk: 7,
+        xp: 18,
+        area: null,
+        poison: true,
+        poisonRate: 0.2,
+        msg: "ドクロ蜂は刺してきた！",
+        ambientAttackChance: 0.25,
+        ambientAttackLog: "ドクロ蜂は耳障りな羽音を立てた。"
+    },
+    {
+        id: "carnivorous_vine",
+        name: "肉食カズラ",
+        maxHp: 90,
+        atk: 11,
+        xp: 30,
+        area: null,
+        isBoss: true,
+        drops: [
+            { id: "herb", weight: 50 },
+            { id: "antidoteHerb", weight: 30 },
+            { id: "highHerb", weight: 20 }
+        ]
+    },
+    {
         id: "sap", name: "琥珀の樹液", maxHp: 60, atk: 8,
         xp: 18,
         area: [4, 9], weight: 5,
         msg: "樹液の触手で攻撃してきた！"
-    },
-    {
-        id: "hungry_tree", name: "飢えた琥珀樹", maxHp: 100, atk: 18,
-        xp: 45,
-        isBoss: true,
-        area: null // Build 12.0.6: Excluded from random encounters
     },
     // Build 9.0.0: Giant Larva Mid-Boss
     {
@@ -448,7 +552,7 @@ RPG.Assets.ENEMIES = [
         msg: "小さな火の玉を吐いた!",
         isRare: true,
         forestOnly: true,
-        rareRate: 0.01,
+        rareRate: 0.005,
         rabbitLevel: 5,
         hitGoal: 3,
         rewardItem: "glowingCatRabbitFur"

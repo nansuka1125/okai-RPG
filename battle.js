@@ -67,6 +67,9 @@ const battleSystem = {
             RPG.State.battleState = {};
         }
         RPG.State.battleState.playerTookDamage = true;
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.playBattleCue("party-hit");
+        }
     },
 
     inflictPoison: function () {
@@ -289,6 +292,11 @@ const battleSystem = {
         RPG.State.hasOwenIntervened = false;
         RPG.State.hasOwenSavedLife = false;
 
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.syncScene();
+            visualDirector.playBattleCue("encounter");
+        }
+
         // Build 8.45: Boss Scaling & Intros (Delegated to Cinematics)
         if (Cinematics.scaleBoss(this, RPG.State.currentEnemy)) return;
 
@@ -447,6 +455,10 @@ const battleSystem = {
         RPG.State.hasOwenIntervened = true;
         let delay = 1000;
 
+        if (action !== "idle" && typeof visualDirector !== "undefined") {
+            visualDirector.playBattleCue("owen-action");
+        }
+
         switch (action) {
             case "herb":
                 RPG.State.inventory.herb--;
@@ -502,6 +514,10 @@ const battleSystem = {
     },
 
     processCainAction: function (next) {
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.playBattleCue("cain-attack");
+        }
+
         if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
             const enemy = RPG.State.currentEnemy;
             const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
@@ -539,7 +555,10 @@ const battleSystem = {
         }
 
         RPG.State.currentEnemy.hp -= damage;
-        uiControl.addLog(`カインの攻撃！ ${RPG.State.currentEnemy.name}に${damage}のダメージ！`);
+        uiControl.addLog(
+            `カインの攻撃！ ${RPG.State.currentEnemy.name}に${damage}のダメージ！`,
+            "player-action"
+        );
         uiControl.updateUI();
 
         const isAmberTree = RPG.State.currentEnemy.id === 'hungry_amber_tree';
@@ -584,6 +603,10 @@ const battleSystem = {
             return;
         }
 
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.playBattleCue("enemy-attack");
+        }
+
         const dodgeChance = this.hasNightMedicineEvasion() ? 0.5 : 0.1;
         if (Math.random() < dodgeChance) {
             uiControl.addLog(
@@ -622,7 +645,10 @@ const battleSystem = {
             msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
         }
 
-        uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`);
+        uiControl.addLog(
+            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+            "enemy-action"
+        );
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
             if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
@@ -1264,7 +1290,10 @@ const battleSystem = {
             msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
         }
 
-        uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`);
+        uiControl.addLog(
+            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+            "enemy-action"
+        );
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
             if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
@@ -1328,6 +1357,9 @@ const battleSystem = {
                 hasPostBattleEvent = true;
             }
         } else if (!playerWin) {
+            if (typeof visualDirector !== "undefined") {
+                visualDirector.playBattleCue("enemy-defeated");
+            }
             RPG.State.defeatCounts[enemyId].owen++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
             if (matamatabiActivationQueue.length > 0) {
@@ -1357,6 +1389,9 @@ const battleSystem = {
     executeStandardVictory: function (enemyId) {
         // Build 15.1.8: Lock UI IMMEDIATELY to prevent Race Condition
         RPG.State.mode = "event";
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.playBattleCue("enemy-defeated");
+        }
         // Victory text ownership rule:
         // - Common defeat/victory lines such as "〇〇を倒した！" or "〇〇は塵になった…" are emitted ONLY here.
         // - Post-battle BATTLE_EVENTS / onDeathEvent handlers must not repeat those generic victory lines.
@@ -1560,6 +1595,14 @@ const battleSystem = {
 
     resolveDefeat: function () {
         uiControl.addSeparator();
+
+        if (
+            RPG.State.isBattling &&
+            RPG.State.currentEnemy &&
+            typeof visualDirector !== "undefined"
+        ) {
+            visualDirector.playBattleCue("party-defeated");
+        }
 
         // Build 14.1.5: Special Boss Defeat
         if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === 'giant_larva') {

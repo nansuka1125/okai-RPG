@@ -2127,6 +2127,122 @@ RPG.Assets.HERB_GARDEN_AMBIENT_TEXTS = {
     3: "空気中に細かい粒子が漂っている。"
 };
 
+// Build 15.3.1: Spoiler-safe save memo resolver.
+// Rules only describe objectives revealed by flags already present in the save.
+RPG.Assets.getJourneyMemo = function (state) {
+    const flags = state && state.flags ? state.flags : {};
+    const inventory = state && state.inventory ? state.inventory : {};
+    const phase = Number(state && state.storyPhase) || 0;
+
+    if (phase >= 9) {
+        if (
+            flags.scentPouchCrafted === true &&
+            flags.scentPouchHandedToDriver !== true &&
+            (inventory.scentPouch || 0) > 0
+        ) {
+            return "かつての街道で、香草袋を御者へ渡す。";
+        }
+        return "かつての街道を進み、次の町を目指す。";
+    }
+
+    if (phase === 8 || flags.onWagon === true) {
+        return "馬車で琥珀の森を抜け、かつての街道へ向かう。";
+    }
+
+    if (phase >= 7 || flags.phase7DepartureNightSeen === true) {
+        return "出発の朝。宿を出て、馬車へ向かう。";
+    }
+
+    if (flags.wagonReadyForDeparture === true) {
+        return "旅立ちの支度は整った。琥珀亭で出発前夜を過ごす。";
+    }
+
+    if (flags.scentPouchCrafted === true) {
+        return "完成した香草袋を、森の5m地点にいる御者の馬で試す。";
+    }
+
+    if (flags.scentPouchQuestStarted === true) {
+        if (flags.scentPouchInfoHeard !== true) {
+            return "香草袋の材料について、宿屋の主人に聞く。";
+        }
+
+        if (
+            flags.herbGardenFortuneConsultUnlocked === true &&
+            flags.herbGardenBroochGranted !== true
+        ) {
+            return "薬草園の幻惑を抜ける方法を、占い師に相談する。";
+        }
+
+        if (flags.herbGardenBroochGranted === true) {
+            const hasMint = (inventory.mintFlower || 0) > 0;
+            const hasBoneMeal = (inventory.boneMeal || 0) > 0;
+
+            if (hasMint && hasBoneMeal) {
+                if (flags.herbGardenBroochReturned !== true) {
+                    return "香草袋の材料が揃った。光兎のブローチを占い師へ返す。";
+                }
+                return "材料を持って、森の5m地点にいる御者のもとへ戻る。";
+            }
+            if (hasMint) return "香草袋の薄荷草は入手済み。薬草園で骨粉を探す。";
+            if (hasBoneMeal) return "香草袋の骨粉は入手済み。薬草園で薄荷草を探す。";
+            return "薬草園で、香草袋に使う薄荷草と骨粉を探す。";
+        }
+
+        return "薬草園の奥で、香草袋の材料を探す。";
+    }
+
+    if (flags.wagonInfoHeard === true) {
+        return "琥珀の森の5m地点で、立ち往生した馬車を調べる。";
+    }
+
+    if (flags.silverDelivered === true) {
+        if (flags.phase6PostDeliverySleepDone !== true) {
+            return "銀貨を納品した。今夜は琥珀亭でゆっくり休む。";
+        }
+        return "次の道を決めるため、宿屋の主人に話を聞く。";
+    }
+
+    if (flags.giantLarvaDefeated === true || phase >= 5) {
+        return "銀貨3枚を取り戻した。宿屋の主人へ納品する。";
+    }
+
+    if (flags.phase4TheftDiscovered === true || phase >= 4) {
+        if (flags.phase4FortuneConsultDone !== true) {
+            return "盗まれた銀貨を追うため、宿の占い師に相談する。";
+        }
+        if (flags.needsGlowingRabbitFur === true) {
+            return "盗まれた銀貨の行方を占ってもらうため、琥珀の森で光る猫うさぎの毛を探す。";
+        }
+        if (flags.heardScream === true) {
+            return "森の最奥から聞こえた悲鳴を追う。";
+        }
+        return "盗まれた銀貨と黒髪の少年を、森の奥で追う。";
+    }
+
+    if (flags.metThiefBoy === true || phase >= 3) {
+        return "宿屋前で黒髪の少年とぶつかった。ひと息ついて持ち物を整理する。";
+    }
+
+    if (flags.treeDefeated === true || phase >= 2) {
+        return "琥珀樹から銀貨を得た。残りの銀貨を探す手掛かりを追う。";
+    }
+
+    if (flags.hasTreeEventOccurred === true) {
+        return "森の8m地点にある、銀貨を呑み込んだ琥珀樹を調べる。";
+    }
+
+    const coinCount = Math.max(
+        Number(state && state.silverCoins) || 0,
+        Number(inventory.silverCoin) || 0
+    );
+    const remainingCoins = Math.max(0, 3 - coinCount);
+    if (remainingCoins > 0) {
+        return `宿代のため、琥珀の森で銀貨をあと${remainingCoins}枚探す。`;
+    }
+
+    return "集めた銀貨を、宿屋の主人へ納品する。";
+};
+
 
 // Legacy Support Shim
 window.CONFIG = RPG.Assets.CONFIG;

@@ -13,14 +13,15 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 
 1. `state.js`
 2. `assets.js`
-3. `battleData.js`
-4. `Cinematics.js`
-5. `battle.js`
-6. `uiControl.js`
-7. `scenarioEvents.js`
-8. `exploration.js`
-9. `inn.js`
-10. `main.js`
+3. `visualDirector.js`
+4. `battleData.js`
+5. `Cinematics.js`
+6. `battle.js`
+7. `uiControl.js`
+8. `scenarioEvents.js`
+9. `exploration.js`
+10. `inn.js`
+11. `main.js`
 
 ## File Ownership
 
@@ -30,6 +31,7 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 | `style.css` | Global presentation and effect styling | Keep DOM/class changes synchronized with UI code. |
 | `state.js` | `RPG.Config` and the default `RPG.State` | Persistent defaults and legacy `window.gameState` shim. |
 | `assets.js` | Text and scenario/content data | Owns `GAME_TEXT`, `EVENT_DATA`, `BATTLE_EVENTS`, `TALK_DATA`, `INN_EVENTS`, and `LOCATIONS`; preserves legacy globals. |
+| `visualDirector.js` | Non-persistent presentation cues | Coordinates scene backgrounds, travel locks, the party marker, and status-bar battle feedback without changing story state. |
 | `battleData.js` | Enemy definitions and battle behavior data | Owns enemy/AI content exposed through `RPG.Assets` and legacy globals. |
 | `Cinematics.js` | Named cinematic sequences | Reuse for multi-step set pieces instead of duplicating orchestration. |
 | `battle.js` | Battle runtime and battle outcomes | Coordinates `RPG.State`, battle data, UI, exploration dialogue, and defeat routing. |
@@ -51,6 +53,9 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 ### Save and Load
 
 - Save slots serialize the complete `RPG.State` into `localStorage` keys named `okai_rpg_save_1` through `okai_rpg_save_5`.
+- Manual slot writes are available from the inn journal only while the game is in a stable `base` state; outside the inn, `okai_rpg_suspend` stores one replaceable suspend bookmark.
+- New saves include presentation-only `saveMeta` (`kind`, timestamp, memo, and location). Older saves without it remain valid and receive default metadata on load.
+- New snapshots clear dialogue and battle residue before serialization. Loading legacy saves preserves the existing compatibility path.
 - Loading merges the immutable `RPG.DefaultState` snapshot with saved values so newer fields survive old saves without inheriting progress from another slot.
 - The current code version is retained on load.
 - Changes that rename, move, remove, or change the meaning of saved fields are high-risk and require an explicit compatibility plan.

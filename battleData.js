@@ -430,7 +430,7 @@ RPG.Assets.OWEN_BEHAVIOR = {
 // 🚩ーー【敵データ】ーー
 RPG.Assets.ENEMIES = [
     {
-        id: "rat", name: "魔界のネズミ", maxHp: 40,
+        id: "rat", name: "魔界のネズミ", symbol: "×", maxHp: 40,
         atk: 5,
         xp: 15,
         area: [1, 9], weight: 10
@@ -439,6 +439,7 @@ RPG.Assets.ENEMIES = [
     {
         id: 'hell_rat_swarm',
         name: '魔界のネズミ《群》',
+        symbol: '× × ×',
         hp: 40,
         maxHp: 40,
         atk: 6,
@@ -451,6 +452,7 @@ RPG.Assets.ENEMIES = [
     {
         id: 'eye_eating_crow',
         name: '目食いカラス',
+        symbol: '⌃',
         hp: 30,
         maxHp: 30,
         atk: 8,
@@ -460,6 +462,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "normal_rat",
         name: "普通のネズミ",
+        symbol: "·",
         maxHp: 1,
         atk: 1,
         xp: 1,
@@ -467,7 +470,7 @@ RPG.Assets.ENEMIES = [
         msg: "噛みついてきた！"
     },
     {
-        id: "weasel", name: "魔界のイタチ", maxHp: 50, atk: 12, // Build 6.2: HP 35 -> 50
+        id: "weasel", name: "魔界のイタチ", symbol: "⌁", maxHp: 50, atk: 12, // Build 6.2: HP 35 -> 50
         xp: 22,
         area: [1, 9], weight: 3,
         preemptive: 1.0, // Build 6.3: Guaranteed first strike
@@ -477,6 +480,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "skull_bee",
         name: "ドクロ蜂",
+        symbol: "✦",
         maxHp: 30,
         atk: 7,
         xp: 18,
@@ -490,6 +494,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "carnivorous_vine",
         name: "肉食カズラ",
+        symbol: "⌇",
         maxHp: 90,
         atk: 11,
         xp: 30,
@@ -502,14 +507,14 @@ RPG.Assets.ENEMIES = [
         ]
     },
     {
-        id: "sap", name: "琥珀の樹液", maxHp: 60, atk: 8,
+        id: "sap", name: "琥珀の樹液", symbol: "◉", maxHp: 60, atk: 8,
         xp: 18,
         area: [4, 9], weight: 5,
         msg: "樹液の触手で攻撃してきた！"
     },
     // Build 9.0.0: Giant Larva Mid-Boss
     {
-        id: "giant_larva", name: "泥這う大幼蟲",
+        id: "giant_larva", name: "泥這う大幼蟲", symbol: "≋",
         maxHp: 100, // Dynamic: Atk * 12 (Build 9.1)
         atk: 15,
         area: null, // Build 12.0.6: Boss only summoned by event
@@ -522,6 +527,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "amber_husk_giant_larva",
         name: "琥珀骸の巨虫",
+        symbol: "≋",
         maxHp: 600,
         atk: 20,
         baseAtk: 20,
@@ -536,6 +542,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "hungry_amber_tree",
         name: "飢えた琥珀樹",
+        symbol: "╫",
         maxHp: 150,
         atk: 13, // Adjusted for survival balance
         xp: 100,
@@ -545,6 +552,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "glowing_cat_rabbit",
         name: "光る猫うさぎ",
+        symbol: "✧",
         maxHp: 1,
         atk: 5,
         xp: 0,

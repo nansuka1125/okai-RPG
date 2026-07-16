@@ -18,7 +18,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.2.115 (Legacy Cleanup)", // Build 15.2.115: Remove confirmed unreferenced legacy data and state
+    version: "15.3.1 (Inn Journal Saves)", // Build 15.3.1: Inn journal and safe suspend saves
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -39,6 +39,13 @@ RPG.State = {
     talkPhaseReached: {},  // Build 15.2.30: Track highest inn talk entry read per phase
     currentInnTalkLoop: null, // Build 15.2.31: Remember current generic inn talk loop line
     innEventViewedIds: [], // Track viewed random inn-stay events per save slot
+    saveMeta: {
+        format: 1,
+        kind: null,
+        savedAt: null,
+        memo: "",
+        location: ""
+    }, // Presentation metadata stored with each manual or suspend save
 
     // 基本ステータス (Unified HP variables)
     currentDistance: 0,

@@ -3,13 +3,13 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>RPG_UI_Base</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>銀貨と宿屋</title>
     <link rel="stylesheet" href="style.css">
     <!-- Build 14.0: Modular Architecture -->
     <script src="state.js"></script>
     <script src="assets.js"></script>
+    <script src="visualDirector.js"></script>
     <script src="battleData.js"></script>
     <script src="Cinematics.js"></script>
     <script src="battle.js"></script>
@@ -26,7 +26,7 @@
         style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; cursor:pointer;">
     </div>
 
-    <div id="chapterHeader">Chapter 1 銀貨と宿屋 (Build 14.0.1)</div>
+    <div id="chapterHeader">Chapter 1 銀貨と宿屋</div>
     <div id="debugParams">
         <span id="debugEncounterToggle" onclick="debugSystem.toggleEncounters()">👾</span>
     </div>
@@ -51,17 +51,23 @@
                 <span id="progressEndLabel" class="edge-label edge-label-right">森の深層</span>
             </div>
             <div class="progress-track">
-                <div id="progressMarker"></div>
+                <div id="progressTrail" aria-hidden="true"></div>
+                <div id="progressMarker" aria-hidden="true"></div>
             </div>
         </div>
         <div id="battleInfoRow" class="battle-info-row" style="display:none;">
+            <span id="enemySymbolLabel" class="enemy-symbol-label" aria-hidden="true">👾</span>
             <span id="enemyNameLabel" class="enemy-name-label">敵名</span>
             <div class="enemy-top-hp-bg">
                 <div id="enemyTopHpFill" class="hp-bar-fill"></div>
             </div>
         </div>
     </header>
-    <main id="logContainer"></main>
+    <section id="logViewport">
+        <div id="sceneBackdrop" aria-hidden="true"></div>
+        <div id="sceneReadingVeil" aria-hidden="true"></div>
+        <main id="logContainer"></main>
+    </section>
 
     <footer>
         <div id="exploreUI" class="btn-grid">
@@ -77,6 +83,7 @@
             <button id="btnInnTalk" class="btn" onclick="innSystem.talk()">話す</button>
             <button id="btnInnStay" class="btn" onclick="innSystem.stay()">泊まる</button>
             <button id="btnInnObserve" class="btn" onclick="innSystem.observe()">様子を見る</button>
+            <button id="btnInnJournal" class="btn btn-journal" onclick="uiControl.openSaveModal()">旅の記録</button>
             <button id="btnInnDeliver" class="btn btn-accent" onclick="innSystem.deliver()">銀貨を納品</button>
             <button id="btnInnExit" class="btn btn-full" onclick="innSystem.exitInn()">外に出る</button>
         </div>
@@ -104,50 +111,61 @@
 
     <div id="saveModal">
         <div class="save-modal-content">
-            <div style="padding:15px; border-bottom:1px solid #333; text-align:center; font-weight:bold;">セーブデータ</div>
-            <div style="padding:15px;">
-                <div class="save-slot">
-                    <div class="save-slot-header">Slot 1</div>
-                    <div id="saveSlot1Info" class="save-slot-info">Empty</div>
+            <div class="save-modal-title">
+                <span>琥珀亭の宿帳</span>
+                <small>旅の続きを書き留める</small>
+            </div>
+            <div id="currentJourneyMemo" class="journey-memo-preview"></div>
+            <div id="saveSlotList" class="save-slot-list">
+                <div id="suspendSaveSlot" class="save-slot suspend-save-slot" style="display:none;">
+                    <div class="save-slot-header">中断記録</div>
+                    <div id="suspendSaveInfo" class="save-slot-info"></div>
                     <div class="slot-actions">
-                        <button class="slot-btn save" onclick="uiControl.saveGame(1)">記録</button>
-                        <button id="btnLoad1" class="slot-btn load" onclick="uiControl.loadGame(1)">再開</button>
+                        <button id="btnLoadSuspend" class="slot-btn load" onclick="uiControl.loadSuspendGame()">中断地点から再開</button>
                     </div>
                 </div>
                 <div class="save-slot">
-                    <div class="save-slot-header">Slot 2</div>
-                    <div id="saveSlot2Info" class="save-slot-info">Empty</div>
+                    <div class="save-slot-header">第一頁</div>
+                    <div id="saveSlot1Info" class="save-slot-info">まだ何も書かれていない。</div>
                     <div class="slot-actions">
-                        <button class="slot-btn save" onclick="uiControl.saveGame(2)">記録</button>
-                        <button id="btnLoad2" class="slot-btn load" onclick="uiControl.loadGame(2)">再開</button>
+                        <button id="btnSave1" class="slot-btn save" onclick="uiControl.saveGame(1)">書き留める</button>
+                        <button id="btnLoad1" class="slot-btn load" onclick="uiControl.loadGame(1)">ここから再開</button>
                     </div>
                 </div>
                 <div class="save-slot">
-                    <div class="save-slot-header">Slot 3</div>
-                    <div id="saveSlot3Info" class="save-slot-info">Empty</div>
+                    <div class="save-slot-header">第二頁</div>
+                    <div id="saveSlot2Info" class="save-slot-info">まだ何も書かれていない。</div>
                     <div class="slot-actions">
-                        <button class="slot-btn save" onclick="uiControl.saveGame(3)">記録</button>
-                        <button id="btnLoad3" class="slot-btn load" onclick="uiControl.loadGame(3)">再開</button>
+                        <button id="btnSave2" class="slot-btn save" onclick="uiControl.saveGame(2)">書き留める</button>
+                        <button id="btnLoad2" class="slot-btn load" onclick="uiControl.loadGame(2)">ここから再開</button>
                     </div>
                 </div>
                 <div class="save-slot">
-                    <div class="save-slot-header">Slot 4</div>
-                    <div id="saveSlot4Info" class="save-slot-info">Empty</div>
+                    <div class="save-slot-header">第三頁</div>
+                    <div id="saveSlot3Info" class="save-slot-info">まだ何も書かれていない。</div>
                     <div class="slot-actions">
-                        <button class="slot-btn save" onclick="uiControl.saveGame(4)">記録</button>
-                        <button id="btnLoad4" class="slot-btn load" onclick="uiControl.loadGame(4)">再開</button>
+                        <button id="btnSave3" class="slot-btn save" onclick="uiControl.saveGame(3)">書き留める</button>
+                        <button id="btnLoad3" class="slot-btn load" onclick="uiControl.loadGame(3)">ここから再開</button>
                     </div>
                 </div>
                 <div class="save-slot">
-                    <div class="save-slot-header">Slot 5</div>
-                    <div id="saveSlot5Info" class="save-slot-info">Empty</div>
+                    <div class="save-slot-header">第四頁</div>
+                    <div id="saveSlot4Info" class="save-slot-info">まだ何も書かれていない。</div>
                     <div class="slot-actions">
-                        <button class="slot-btn save" onclick="uiControl.saveGame(5)">記録</button>
-                        <button id="btnLoad5" class="slot-btn load" onclick="uiControl.loadGame(5)">再開</button>
+                        <button id="btnSave4" class="slot-btn save" onclick="uiControl.saveGame(4)">書き留める</button>
+                        <button id="btnLoad4" class="slot-btn load" onclick="uiControl.loadGame(4)">ここから再開</button>
+                    </div>
+                </div>
+                <div class="save-slot">
+                    <div class="save-slot-header">第五頁</div>
+                    <div id="saveSlot5Info" class="save-slot-info">まだ何も書かれていない。</div>
+                    <div class="slot-actions">
+                        <button id="btnSave5" class="slot-btn save" onclick="uiControl.saveGame(5)">書き留める</button>
+                        <button id="btnLoad5" class="slot-btn load" onclick="uiControl.loadGame(5)">ここから再開</button>
                     </div>
                 </div>
             </div>
-            <button class="btn" style="margin:10px;" onclick="uiControl.closeSaveModal()">閉じる</button>
+            <button class="btn save-modal-close" onclick="uiControl.closeSaveModal()">宿帳を閉じる</button>
         </div>
     </div>
 

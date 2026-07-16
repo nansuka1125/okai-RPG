@@ -789,9 +789,11 @@ const explorationSystem = {
         this.move(0);
     },
 
-    move: function (step) {
+    move: function (step, options = {}) {
+        const skipTravelCue = options.skipTravelCue === true;
         if (RPG.State.mode !== "base" || RPG.State.isAtInn) return;
         if (RPG.State.location === "宿屋内部") return;
+        if (!skipTravelCue && typeof visualDirector !== "undefined" && visualDirector.travelActive) return;
 
         if (this.isInHerbGarden()) {
             this.moveHerbGarden(step);
@@ -800,6 +802,20 @@ const explorationSystem = {
 
         // 0m地点からの脱出 (Return to Inn Front)
         if (RPG.State.isInDungeon && RPG.State.currentDistance === 0 && step === -1) {
+            if (
+                !skipTravelCue &&
+                typeof visualDirector !== "undefined" &&
+                visualDirector.isAmberForestScene()
+            ) {
+                const started = visualDirector.playTravel({
+                    direction: step,
+                    targetDistance: 0,
+                    maxDistance: RPG.Assets.CONFIG.MAX_DISTANCE,
+                    onComplete: () => this.move(step, { skipTravelCue: true })
+                });
+                if (started) return;
+            }
+
             RPG.State.isInDungeon = false;
             RPG.State.explorationArea = null;
             RPG.State.location = "宿屋前";
@@ -832,10 +848,29 @@ const explorationSystem = {
             return;
         }
 
+        if (
+            step !== 0 &&
+            !skipTravelCue &&
+            typeof visualDirector !== "undefined" &&
+            visualDirector.isAmberForestScene() &&
+            RPG.State.flags.onWagon !== true
+        ) {
+            const started = visualDirector.playTravel({
+                direction: step,
+                targetDistance: nextDist,
+                maxDistance: RPG.Assets.CONFIG.MAX_DISTANCE,
+                onComplete: () => this.move(step, { skipTravelCue: true })
+            });
+            if (started) return;
+        }
+
         if (step !== 0) {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDist;
-            uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.moved(RPG.State.currentDistance));
+            uiControl.addLog(
+                RPG.Assets.GAME_TEXT.exploration.moved(RPG.State.currentDistance),
+                "movement"
+            );
 
             // Keep forest location labels in sync with distance thresholds.
             // Do not overwrite special area names like the Former Highway.

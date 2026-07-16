@@ -8,6 +8,9 @@
     --xp-gold: #d4af37;
     --ui-bg: #1a1a1a;
     --border-color: #333333;
+    --amber: #c69a4b;
+    --amber-soft: rgba(198, 154, 75, 0.42);
+    --owen-purple: #cc73ff;
     --modal-overlay: rgba(0, 0, 0, 0.9);
     --safe-area-bottom: env(safe-area-inset-bottom);
 }
@@ -41,15 +44,16 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 12px;
-    color: #888;
+    color: #8f8b82;
+    letter-spacing: 0.04em;
     padding-top: env(safe-area-inset-top);
 }
 
 header {
     flex: 0 0 auto;
     padding: 12px 15px 8px;
-    background: var(--ui-bg);
-    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(180deg, #171714 0%, #10100f 100%);
+    border-bottom: 1px solid rgba(198, 154, 75, 0.22);
     position: relative;
 }
 
@@ -129,7 +133,8 @@ header {
 }
 
 .overworld-row {
-    margin-top: 12px;
+    height: 32px;
+    margin-top: 10px;
 }
 
 .location-scale-row {
@@ -138,6 +143,19 @@ header {
     align-items: center;
     gap: 10px;
     margin-bottom: 8px;
+}
+
+.overworld-row.location-only .location-scale-row {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0;
+}
+
+.overworld-row.location-only .edge-label,
+.overworld-row.location-only .progress-track {
+    display: none;
 }
 
 .edge-label {
@@ -160,24 +178,40 @@ header {
     position: relative;
     width: 100%;
     height: 4px;
-    background: #444;
+    background: #363631;
     border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+    overflow: visible;
+}
+
+#progressTrail {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(198, 154, 75, 0.18), rgba(198, 154, 75, 0.72));
+    transition: width 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 0 7px rgba(198, 154, 75, 0.18);
 }
 
 #progressMarker {
     position: absolute;
     top: 50%;
     left: 0%;
-    width: 10px;
-    height: 10px;
-    background: var(--text-color);
-    border-radius: 50%;
+    width: 8px;
+    height: 8px;
     transform: translate(-50%, -50%);
-    transition: left 0.3s ease;
+    transition: left 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border: 1px solid rgba(240, 208, 148, 0.52);
+    border-radius: 50%;
+    background: #aa8650;
+    box-shadow: 0 0 4px rgba(198, 154, 75, 0.28);
+    z-index: 2;
 }
 
 .battle-info-row {
     display: none;
+    height: 32px;
     align-items: center;
     gap: 12px;
     margin-top: 10px;
@@ -189,6 +223,14 @@ header {
     font-weight: bold;
 }
 
+.enemy-symbol-label {
+    flex: 0 0 auto;
+    min-width: 24px;
+    font-size: 18px;
+    text-align: center;
+    filter: saturate(0.72);
+}
+
 .enemy-top-hp-bg {
     flex: 1 1 auto;
     height: 8px;
@@ -197,7 +239,7 @@ header {
     overflow: hidden;
 }
 
-/* Build 8.22/8.23: Save Modal */
+/* Build 15.3.1: Inn journal save modal */
 #saveModal {
     display: none;
     position: fixed;
@@ -205,54 +247,103 @@ header {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.9);
-    z-index: 9998;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(112, 78, 32, 0.16), transparent 38%),
+        rgba(0, 0, 0, 0.92);
+    z-index: 10001;
     justify-content: center;
     align-items: center;
     padding: 20px;
 }
 
 .save-modal-content {
-    background: var(--ui-bg);
-    border: 1px solid #444;
+    background: linear-gradient(180deg, #211e18 0%, #151411 100%);
+    border: 1px solid rgba(198, 154, 75, 0.42);
     border-radius: 12px;
     width: 100%;
-    max-width: 400px;
-    max-height: 80vh;
-    /* Build 8.27: Limit height for 5 slots */
-    padding: 20px;
+    max-width: 430px;
+    max-height: 88vh;
+    max-height: 88dvh;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 226, 170, 0.05);
 }
 
-/* Build 8.27: Scrollable slot container */
-.save-modal-content>div:nth-child(2) {
+.save-modal-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid rgba(198, 154, 75, 0.2);
+    color: #f1e6c8;
+    font-family: Georgia, "Yu Mincho", "Hiragino Mincho ProN", serif;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+}
+
+.save-modal-title small {
+    color: #948a78;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+}
+
+.journey-memo-preview {
+    margin: 12px 14px;
+    padding: 11px 12px;
+    border-left: 2px solid rgba(198, 154, 75, 0.7);
+    background: rgba(0, 0, 0, 0.2);
+    color: #cfc4af;
+    font-size: 12px;
+    line-height: 1.65;
+    white-space: pre-line;
+}
+
+.save-slot-list {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    max-height: 60vh;
+    padding: 0 14px 8px;
 }
 
 .save-slot {
-    padding: 10px;
-    border: 1px solid #333;
+    padding: 12px;
+    border: 1px solid rgba(198, 154, 75, 0.16);
     margin-bottom: 8px;
     border-radius: 8px;
-    background: #222;
+    background: rgba(255, 248, 229, 0.035);
     display: flex;
     flex-direction: column;
     gap: 8px;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.save-slot:hover {
+    border-color: rgba(198, 154, 75, 0.34);
+    background: rgba(255, 248, 229, 0.055);
+}
+
+.suspend-save-slot {
+    border-color: rgba(126, 142, 169, 0.34);
+    background: rgba(69, 82, 107, 0.12);
 }
 
 .save-slot-header {
     font-weight: bold;
     font-size: 14px;
-    color: #e0e0e0;
+    color: #e5d6b8;
 }
 
 .save-slot-info {
+    min-height: 34px;
     font-size: 11px;
-    color: #aaa;
+    line-height: 1.55;
+    color: #aaa295;
     margin-bottom: 4px;
+    white-space: pre-line;
 }
 
 .slot-actions {
@@ -263,16 +354,16 @@ header {
 .slot-btn {
     flex: 1;
     padding: 8px;
-    background: #333;
-    border: 1px solid #555;
-    color: white;
-    border-radius: 4px;
+    background: #2b2a26;
+    border: 1px solid #4b4942;
+    color: #e5e0d7;
+    border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
 }
 
 .slot-btn:hover {
-    background: #444;
+    background: #3a3730;
 }
 
 .slot-btn:disabled {
@@ -285,36 +376,123 @@ header {
 }
 
 .slot-btn.save {
-    background: #2d4a2d;
-    /* Subtle Green */
-    border-color: #4a6a4a;
+    background: #493c27;
+    border-color: #79613a;
 }
 
 .slot-btn.load {
-    background: #2d2d4a;
-    /* Subtle Blue */
-    border-color: #4a4a6a;
+    background: #292d38;
+    border-color: #484f62;
 }
 
-/* Widen the close button */
-.save-modal-content .btn {
-    width: 100%;
-    margin: 0;
+.slot-btn.save.confirming {
+    background: #6a352b;
+    border-color: #b56b55;
+    color: #fff1e8;
 }
 
-main {
+.save-modal-close {
+    flex: 0 0 auto;
+    width: auto;
+    height: 46px;
+    margin: 6px 14px 14px;
+    color: #bbb2a2;
+    font-size: 13px;
+}
+
+#logViewport {
     flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    isolation: isolate;
+}
+
+#sceneBackdrop,
+#sceneReadingVeil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+#sceneBackdrop {
+    inset: -10px;
+    z-index: 0;
+    background: #000 url("images/amber-forest.webp") 58% center / cover no-repeat;
+    opacity: 0;
+    filter: saturate(0.8) brightness(0.78) contrast(1.04);
+    transform: scale(1.02);
+    transition: opacity 0.72s ease;
+    will-change: opacity;
+}
+
+#sceneReadingVeil {
+    z-index: 1;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.04) 42%, rgba(0, 0, 0, 0.58) 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.82) 38%, rgba(0, 0, 0, 0.62) 70%, rgba(0, 0, 0, 0.38) 100%);
+    opacity: 0;
+    transition: opacity 0.72s ease;
+}
+
+body.scene-forest #sceneBackdrop {
+    opacity: 0.9;
+}
+
+body.scene-forest #sceneReadingVeil {
+    opacity: 1;
+}
+
+#logContainer {
+    position: relative;
+    z-index: 3;
+    width: 100%;
+    height: 100%;
     overflow-y: auto;
     padding: 15px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    background: transparent;
+    scroll-behavior: smooth;
 }
 
 .log-entry {
     font-size: 16px;
     line-height: 1.6;
     white-space: pre-line;
+    max-width: 68ch;
+    color: rgba(255, 255, 255, 0.86);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.98), 0 0 8px rgba(0, 0, 0, 0.74);
+    animation: log-entry-arrive 0.24s ease-out both;
+}
+
+.log-entry.log-current {
+    color: #fff;
+}
+
+.log-entry.log-movement {
+    color: rgba(225, 216, 196, 0.68);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+}
+
+.log-entry.log-enemy-action {
+    color: #e4b0a7;
+}
+
+.log-entry.log-player-action {
+    color: #f0dfb8;
+}
+
+.log-entry.log-damage {
+    color: #ff8c82;
+    font-weight: 650;
+}
+
+.log-entry.log-item {
+    color: #e2c375;
 }
 
 .log-marker {
@@ -351,8 +529,8 @@ main {
 
 footer {
     flex: 0 0 auto;
-    background: var(--ui-bg);
-    border-top: 1px solid var(--border-color);
+    background: linear-gradient(180deg, rgba(25, 25, 22, 0.98), #11110f);
+    border-top: 1px solid rgba(198, 154, 75, 0.2);
     padding: 10px 10px calc(10px + var(--safe-area-bottom));
 }
 
@@ -365,8 +543,8 @@ footer {
 
 .btn {
     height: 54px;
-    background: #333;
-    border: 1px solid #444;
+    background: linear-gradient(180deg, #30302d 0%, #262624 100%);
+    border: 1px solid #45443f;
     color: white;
     border-radius: 8px;
     font-size: 16px;
@@ -375,6 +553,50 @@ footer {
     align-items: center;
     justify-content: center;
     text-decoration: none;
+    transition: transform 0.12s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.btn:active:not(:disabled) {
+    transform: translateY(1px) scale(0.992);
+}
+
+.btn:focus-visible {
+    outline: 2px solid #e2bd72;
+    outline-offset: 2px;
+}
+
+#exploreUI.explore-forest {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#exploreUI.explore-forest #btnMoveForward {
+    grid-column: 1 / -1;
+    min-height: 62px;
+    color: #f5ead1;
+    background: linear-gradient(180deg, rgba(67, 57, 37, 0.98), rgba(39, 35, 27, 0.98));
+    border-color: rgba(198, 154, 75, 0.62);
+    box-shadow: inset 0 1px 0 rgba(255, 224, 160, 0.08), 0 0 18px rgba(198, 154, 75, 0.06);
+    letter-spacing: 0.08em;
+}
+
+#exploreUI.explore-forest #btnMoveForward::after {
+    content: "›";
+    margin-left: 12px;
+    color: #d9b56b;
+    font-size: 24px;
+    font-weight: 400;
+}
+
+#exploreUI.explore-forest #btnMoveBack,
+#exploreUI.explore-forest #btnTalk,
+#exploreUI.explore-forest #btnItem {
+    min-width: 0;
+    height: 50px;
+    font-size: 14px;
+}
+
+body.travel-active button {
+    pointer-events: none !important;
 }
 
 .btn:disabled {
@@ -388,6 +610,12 @@ footer {
 .btn-accent {
     background: var(--accent-purple);
     border-color: var(--accent-purple);
+}
+
+.btn-journal {
+    color: #f0dfbd;
+    border-color: rgba(198, 154, 75, 0.52);
+    background: linear-gradient(180deg, rgba(73, 60, 39, 0.98), rgba(43, 38, 29, 0.98));
 }
 
 #itemModal {
@@ -441,16 +669,16 @@ footer {
     position: fixed;
     bottom: 5px;
     right: 5px;
-    font-size: 14px;
-    color: #ff0000;
+    font-size: 10px;
+    color: rgba(255, 132, 120, 0.72);
     font-weight: bold;
     pointer-events: none;
     z-index: 9999;
-    opacity: 1.0;
-    background: white;
+    opacity: 0.38;
+    background: rgba(0, 0, 0, 0.72);
     font-family: monospace;
     padding: 2px 5px;
-    border: 1px solid #ccc;
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 4px;
 }
 
@@ -465,74 +693,111 @@ footer {
 #debugEncounterToggle {
     cursor: pointer;
     font-size: 16px;
+    opacity: 0.48;
 }
 
-/* Build 8.22: Mini Save Button */
+/* Inn-event load access and outside suspend bookmark */
 #miniSaveButton {
     position: fixed;
     top: 10px;
     right: 50px;
-    background: #444;
-    border: 1px solid #666;
-    color: white;
+    background: rgba(25, 25, 23, 0.92);
+    border: 1px solid rgba(198, 154, 75, 0.34);
+    color: #c8c1b4;
     padding: 6px 12px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
-    z-index: 1000;
+    z-index: 10000;
     transition: background 0.2s ease;
 }
 
 #miniSaveButton:hover {
-    background: #555;
+    background: #38352e;
 }
 
-/* Build 8.22: Save Modal */
-#saveModal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.9);
-    z-index: 9998;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
+/* Battle motion is intentionally concentrated in the existing status bars. */
+#battleInfoRow.cue-encounter .enemy-symbol-label {
+    animation: enemy-glyph-arrive 0.34s ease-out both;
 }
 
-.save-modal-content {
-    background: var(--ui-bg);
-    border: 1px solid #444;
-    border-radius: 12px;
-    width: 100%;
-    max-width: 400px;
-    padding: 20px;
+#battleInfoRow.cue-cain-attack .enemy-symbol-label {
+    animation: enemy-glyph-hit 0.28s ease-out;
 }
 
-.save-slot {
-    padding: 15px;
-    border: 1px solid #333;
-    margin-bottom: 10px;
-    border-radius: 8px;
-    background: #222;
-    cursor: pointer;
-    transition: background 0.2s ease;
+#battleInfoRow.cue-owen-action .enemy-symbol-label {
+    animation: enemy-glyph-owen 0.38s ease-out;
 }
 
-.save-slot:hover {
-    background: #333;
+#battleInfoRow.cue-enemy-defeated .enemy-symbol-label {
+    animation: enemy-glyph-fade 0.38s ease-out both;
 }
 
-.save-slot-header {
-    font-weight: bold;
-    margin-bottom: 5px;
+.hp-bar-bg.cue-party-hit {
+    animation: player-hp-hit 0.3s ease-out;
 }
 
-.save-slot-info {
-    font-size: 12px;
-    color: #aaa;
+.hp-bar-bg.cue-party-defeated {
+    animation: player-hp-defeated 0.45s ease-out;
+}
+
+@keyframes log-entry-arrive {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes enemy-glyph-arrive {
+    from { opacity: 0; transform: translateX(18px) scale(0.7); filter: blur(3px); }
+    to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+
+@keyframes enemy-glyph-hit {
+    0%, 100% { transform: translateX(0); opacity: 1; }
+    45% { transform: translateX(3px); opacity: 0.42; color: #fff0c7; }
+}
+
+@keyframes enemy-glyph-owen {
+    0%, 100% { color: #d9b26b; text-shadow: 0 0 10px rgba(198, 154, 75, 0.42); }
+    48% { color: #df9cff; text-shadow: 0 0 14px #a333c8; }
+}
+
+@keyframes enemy-glyph-fade {
+    from { opacity: 1; filter: blur(0); }
+    to { opacity: 0; filter: blur(3px); }
+}
+
+@keyframes player-hp-hit {
+    0%, 100% { box-shadow: none; }
+    40% { box-shadow: 0 0 0 1px rgba(255, 108, 96, 0.9), 0 0 14px rgba(255, 77, 77, 0.42); }
+}
+
+@keyframes player-hp-defeated {
+    from { opacity: 1; }
+    to { opacity: 0.45; box-shadow: inset 0 0 18px rgba(120, 0, 0, 0.4); }
+}
+
+@media (max-width: 600px) {
+    #sceneBackdrop {
+        background-position: 52% center;
+    }
+
+    #sceneReadingVeil {
+        background:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.08) 40%, rgba(0, 0, 0, 0.66) 100%),
+            linear-gradient(90deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.76) 58%, rgba(0, 0, 0, 0.5) 100%);
+    }
+
+    #logContainer {
+        padding: 14px;
+    }
+}
+
+@media (max-width: 360px) {
+    #exploreUI.explore-forest #btnMoveBack,
+    #exploreUI.explore-forest #btnTalk,
+    #exploreUI.explore-forest #btnItem {
+        font-size: 12px;
+    }
 }
 
 /* Build 11.0.0: Tap-to-Advance System */
@@ -560,5 +825,24 @@ footer {
     50% {
         transform: translateY(-10px);
         opacity: 1.0;
+    }
+}
+
+/* Keep the final override after every animation declaration. */
+@media (prefers-reduced-motion: reduce) {
+    #sceneBackdrop,
+    #sceneReadingVeil,
+    #progressMarker,
+    #progressTrail,
+    .btn,
+    .log-entry {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .floating-arrow,
+    #battleInfoRow *,
+    .hp-bar-bg {
+        animation: none !important;
     }
 }

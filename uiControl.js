@@ -1,6 +1,9 @@
 // 🚩ーー【UI表示・更新処理】ーー
 // Build 8.13: Extracted from main.js for better code organization
 const uiControl = {
+    pendingOverwriteSlot: null,
+    overwriteResetTimer: null,
+
     // --- addLog: ログの出力 ---
     addLog: function (text, type = "", color = null, fontSize = null, allowEmpty = false, colorSource = text) {
         if (!text && !allowEmpty) return; // Build 8.44: Prevent empty divs from creating black gaps
@@ -10,6 +13,10 @@ const uiControl = {
 
         const entry = document.createElement('div');
         entry.className = 'log-entry';
+        if (type) {
+            const safeType = String(type).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+            entry.classList.add(`log-${safeType}`);
+        }
         const OWEN_DIALOGUE_COLOR = "#cc73ff";
         const normalizedText = typeof colorSource === "string" ? colorSource.trimStart() : "";
         const isOwenDialogue = /^オーエン[「｢]/.test(normalizedText);
@@ -30,6 +37,9 @@ const uiControl = {
         if (fontSize) entry.style.fontSize = fontSize;
         entry.textContent = text;
 
+        const previousCurrent = container.querySelector('.log-current');
+        if (previousCurrent) previousCurrent.classList.remove('log-current');
+        entry.classList.add('log-current');
         container.appendChild(entry);
         container.scrollTop = container.scrollHeight;
         return entry;
@@ -119,10 +129,11 @@ const uiControl = {
             xpFill.style.width = `${xpRatio}%`;
         }
 
-        // Build 10.0: Update Header text with Version
+        // Keep the chapter title immersive; the current build remains available as a tooltip.
         const header = document.getElementById('chapterHeader');
         if (header) {
-            header.textContent = `Chapter 1 銀貨と宿屋 (Build ${RPG.State.version})`;
+            header.textContent = 'Chapter 1 銀貨と宿屋';
+            header.title = `Build ${RPG.State.version}`;
         }
 
         const overworldRow = document.getElementById('overworldRow');
@@ -131,12 +142,16 @@ const uiControl = {
         const progressStartLabel = document.getElementById('progressStartLabel');
         const progressEndLabel = document.getElementById('progressEndLabel');
         const progressMarker = document.getElementById('progressMarker');
+        const progressTrail = document.getElementById('progressTrail');
+        const progressTrack = document.querySelector('.progress-track');
+        const enemySymbolLabel = document.getElementById('enemySymbolLabel');
         const enemyNameLabel = document.getElementById('enemyNameLabel');
         const enemyTopHpFill = document.getElementById('enemyTopHpFill');
 
         const currentLocationText = RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name;
         const isHighway = currentLocationText === "かつての街道";
         const isHerbGarden = RPG.State.explorationArea === "herbGarden";
+        const shouldShowLocationBar = RPG.State.isInDungeon === true && RPG.State.isAtInn !== true;
 
         if (progressStartLabel) progressStartLabel.textContent = isHerbGarden ? "薬草園入口" : (isHighway ? "街道入口" : "宿屋");
         if (progressEndLabel) progressEndLabel.textContent = isHerbGarden ? "薬草園の最奥" : (isHighway ? "街道奥" : "森の深層");
@@ -144,6 +159,7 @@ const uiControl = {
         if (RPG.State.isBattling && RPG.State.currentEnemy) {
             if (overworldRow) overworldRow.style.display = 'none';
             if (battleInfoRow) battleInfoRow.style.display = 'flex';
+            if (enemySymbolLabel) enemySymbolLabel.textContent = '👾';
             if (enemyNameLabel) enemyNameLabel.textContent = RPG.State.currentEnemy.name;
             if (enemyTopHpFill) {
                 const hpPct = Math.max(0, (RPG.State.currentEnemy.hp / RPG.State.currentEnemy.maxHp) * 100);
@@ -152,7 +168,10 @@ const uiControl = {
             }
         } else {
             if (battleInfoRow) battleInfoRow.style.display = 'none';
-            if (overworldRow) overworldRow.style.display = 'block';
+            if (overworldRow) {
+                overworldRow.style.display = 'block';
+                overworldRow.classList.toggle('location-only', !shouldShowLocationBar);
+            }
             if (currentLocationName) currentLocationName.textContent = currentLocationText;
         }
 
@@ -161,7 +180,15 @@ const uiControl = {
                 ? RPG.Assets.CONFIG.HERB_GARDEN_MAX_DISTANCE
                 : RPG.Assets.CONFIG.MAX_DISTANCE;
             const ratio = (RPG.State.currentDistance / maxDistance) * 100;
-            progressMarker.style.left = `${ratio}%`;
+            progressMarker.style.left = `clamp(5px, ${ratio}%, calc(100% - 5px))`;
+            if (progressTrail) progressTrail.style.width = `${ratio}%`;
+            if (progressTrack) {
+                progressTrack.setAttribute('role', 'progressbar');
+                progressTrack.setAttribute('aria-label', '探索距離');
+                progressTrack.setAttribute('aria-valuemin', '0');
+                progressTrack.setAttribute('aria-valuemax', String(maxDistance));
+                progressTrack.setAttribute('aria-valuenow', String(RPG.State.currentDistance));
+            }
         }
 
         // デバッグ用気分値表示
@@ -170,16 +197,28 @@ const uiControl = {
             debugMood.textContent = `Mood: ${RPG.State.mood}`;
         }
 
-        // Keep the save button available without consuming header layout space.
+        // Outside the inn this becomes a one-slot suspend bookmark. During an
+        // inn event it remains a load-only journal entrance for returning players.
         let saveBtn = document.getElementById('miniSaveButton');
         if (!saveBtn) {
             saveBtn = document.createElement('button');
             saveBtn.id = 'miniSaveButton';
-            saveBtn.textContent = 'Save';
-            saveBtn.onclick = () => this.openSaveModal();
             document.body.appendChild(saveBtn);
         }
+        const canSuspend = this.canWriteSuspendSave();
+        const showInnLoadAccess = RPG.State.isAtInn === true && RPG.State.mode === 'event';
+        if (saveBtn) {
+            saveBtn.style.display = (canSuspend || showInnLoadAccess) ? 'block' : 'none';
+            saveBtn.textContent = canSuspend ? '中断' : '宿帳';
+            saveBtn.title = canSuspend ? '旅の途中に中断記録を残す' : '保存した旅を再開する';
+            saveBtn.onclick = canSuspend
+                ? () => this.saveSuspendGame()
+                : () => this.openSaveModal();
+        }
 
+        if (typeof visualDirector !== 'undefined') {
+            visualDirector.syncScene();
+        }
         this.updateControlPanels(loc);
     },
 
@@ -455,7 +494,11 @@ const uiControl = {
             // Dialogue State: Keep standard set (visible) but disable interaction
             allButtons.forEach(btn => {
                 // Don't disable Choice Buttons if they somehow exist
-                if (btn.id !== 'btnChoiceA' && btn.id !== 'btnChoiceB') {
+                if (
+                    btn.id !== 'btnChoiceA' &&
+                    btn.id !== 'btnChoiceB' &&
+                    btn.id !== 'miniSaveButton'
+                ) {
                     btn.disabled = true;
                     btn.style.opacity = "0.5";
                     btn.style.pointerEvents = "none";
@@ -547,62 +590,230 @@ const uiControl = {
         }
     },
 
-    // Build 8.22: Save/Load System
-    openSaveModal: function () {
-        const modal = document.getElementById('saveModal');
-        if (!modal) return;
+    // Build 15.3.1: Inn journal and safe one-slot suspend saves.
+    canWriteJournalSave: function () {
+        return (
+            RPG.State.isAtInn === true &&
+            RPG.State.mode === "base" &&
+            RPG.State.isBattling !== true
+        );
+    },
 
-        // Update slot info display
+    canWriteSuspendSave: function () {
+        return (
+            RPG.State.isAtInn !== true &&
+            RPG.State.mode === "base" &&
+            RPG.State.isBattling !== true
+        );
+    },
+
+    getJourneyMemo: function (state = RPG.State) {
+        if (RPG.Assets && typeof RPG.Assets.getJourneyMemo === "function") {
+            return RPG.Assets.getJourneyMemo(state);
+        }
+        return "琥珀亭を拠点に、旅の続きを進める。";
+    },
+
+    createSaveSnapshot: function (kind) {
+        const snapshot = JSON.parse(JSON.stringify(RPG.State));
+
+        // New saves are only written from a stable base state. Strip completed
+        // dialogue/battle residue so a reload cannot resume half an interaction.
+        snapshot.mode = "base";
+        snapshot.dialogueQueue = [];
+        snapshot.dialogueIndex = 0;
+        snapshot.isWaitingForInput = false;
+        snapshot.isBattling = false;
+        snapshot.currentEnemy = null;
+        delete snapshot.battleState;
+
+        snapshot.saveMeta = {
+            format: 1,
+            kind,
+            savedAt: new Date().toISOString(),
+            memo: this.getJourneyMemo(RPG.State),
+            location: RPG.State.location || "宿屋《琥珀亭》"
+        };
+        return snapshot;
+    },
+
+    readSaveData: function (storageKey) {
+        const serialized = localStorage.getItem(storageKey);
+        if (!serialized) return null;
+
+        const data = JSON.parse(serialized);
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+            throw new Error("Invalid save data");
+        }
+        return data;
+    },
+
+    formatSaveTime: function (savedAt) {
+        if (!savedAt) return "以前の記録";
+        const date = new Date(savedAt);
+        if (Number.isNaN(date.getTime())) return "日時不明";
+        return new Intl.DateTimeFormat("ja-JP", {
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        }).format(date);
+    },
+
+    formatSaveInfo: function (data) {
+        const meta = data.saveMeta && typeof data.saveMeta === "object"
+            ? data.saveMeta
+            : {};
+        const obsoleteMemos = [
+            "占い師への礼に、光る猫兎の毛皮を探す。"
+        ];
+        const memo = (!meta.memo || obsoleteMemos.includes(meta.memo))
+            ? this.getJourneyMemo(data)
+            : meta.memo;
+        const location = meta.location || data.location || "場所不明";
+        const level = Number(data.cainLv) || 1;
+        const time = this.formatSaveTime(meta.savedAt);
+        return `${memo}\n${time} ・ ${location} ・ Lv.${level}`;
+    },
+
+    resetOverwriteConfirmation: function () {
+        this.pendingOverwriteSlot = null;
+        if (this.overwriteResetTimer) clearTimeout(this.overwriteResetTimer);
+        this.overwriteResetTimer = null;
+
+        for (let i = 1; i <= 5; i++) {
+            const button = document.getElementById(`btnSave${i}`);
+            if (!button) continue;
+            button.textContent = "書き留める";
+            button.classList.remove("confirming");
+        }
+    },
+
+    refreshSaveModal: function () {
+        const manualSaveAllowed = this.canWriteJournalSave();
+        document.querySelectorAll("#saveModal button").forEach(button => {
+            button.disabled = false;
+            button.style.opacity = "1";
+            button.style.pointerEvents = "auto";
+        });
+        const preview = document.getElementById("currentJourneyMemo");
+        if (preview) {
+            const prefix = manualSaveAllowed ? "いまの旅の続き" : "いまは記録の読み込みのみできます";
+            preview.textContent = `${prefix}\n${this.getJourneyMemo(RPG.State)}`;
+        }
+
         for (let i = 1; i <= 5; i++) {
             const slotInfo = document.getElementById(`saveSlot${i}Info`);
             const loadBtn = document.getElementById(`btnLoad${i}`);
-            const saveData = localStorage.getItem(`okai_rpg_save_${i}`);
+            const saveBtn = document.getElementById(`btnSave${i}`);
 
-            if (saveData) {
-                try {
-                    const data = JSON.parse(saveData);
-                    if (slotInfo) slotInfo.textContent = `Lv.${data.cainLv} | ${data.currentDistance}m | ${data.silverCoins} coins`;
+            if (saveBtn) saveBtn.disabled = !manualSaveAllowed;
+            try {
+                const data = this.readSaveData(`okai_rpg_save_${i}`);
+                if (data) {
+                    if (slotInfo) slotInfo.textContent = this.formatSaveInfo(data);
                     if (loadBtn) loadBtn.disabled = false;
-                } catch (e) {
-                    if (slotInfo) slotInfo.textContent = 'Empty';
+                } else {
+                    if (slotInfo) slotInfo.textContent = "まだ何も書かれていない。";
                     if (loadBtn) loadBtn.disabled = true;
                 }
-            } else {
-                if (slotInfo) slotInfo.textContent = 'Empty';
+            } catch (error) {
+                if (slotInfo) slotInfo.textContent = "文字が滲んでいて読めない。";
                 if (loadBtn) loadBtn.disabled = true;
             }
         }
 
-        modal.style.display = 'flex';
+        const suspendSlot = document.getElementById("suspendSaveSlot");
+        const suspendInfo = document.getElementById("suspendSaveInfo");
+        const suspendLoadBtn = document.getElementById("btnLoadSuspend");
+        try {
+            const suspendData = this.readSaveData("okai_rpg_suspend");
+            if (suspendSlot) suspendSlot.style.display = suspendData ? "flex" : "none";
+            if (suspendInfo && suspendData) suspendInfo.textContent = this.formatSaveInfo(suspendData);
+            if (suspendLoadBtn) suspendLoadBtn.disabled = !suspendData;
+        } catch (error) {
+            if (suspendSlot) suspendSlot.style.display = "flex";
+            if (suspendInfo) suspendInfo.textContent = "中断記録を読み込めない。";
+            if (suspendLoadBtn) suspendLoadBtn.disabled = true;
+        }
+    },
+
+    openSaveModal: function () {
+        const modal = document.getElementById("saveModal");
+        if (!modal) return;
+
+        this.resetOverwriteConfirmation();
+        this.refreshSaveModal();
+        modal.style.display = "flex";
     },
 
     closeSaveModal: function () {
-        const modal = document.getElementById('saveModal');
-        if (modal) modal.style.display = 'none';
+        const modal = document.getElementById("saveModal");
+        if (modal) modal.style.display = "none";
+        this.resetOverwriteConfirmation();
     },
 
     saveGame: function (slot) {
-        if (!slot || slot < 1 || slot > 5) return;
-        const saveData = JSON.stringify(RPG.State);
-        localStorage.setItem(`okai_rpg_save_${slot}`, saveData);
-        this.addLog(`Slot ${slot} にセーブしました。`);
-        this.closeSaveModal();
+        if (!slot || slot < 1 || slot > 5 || !this.canWriteJournalSave()) return;
+
+        const storageKey = `okai_rpg_save_${slot}`;
+        if (localStorage.getItem(storageKey) && this.pendingOverwriteSlot !== slot) {
+            this.resetOverwriteConfirmation();
+            this.pendingOverwriteSlot = slot;
+            const button = document.getElementById(`btnSave${slot}`);
+            if (button) {
+                button.textContent = "もう一度押して上書き";
+                button.classList.add("confirming");
+            }
+            this.overwriteResetTimer = setTimeout(() => {
+                this.resetOverwriteConfirmation();
+            }, 4500);
+            return;
+        }
+
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(this.createSaveSnapshot("journal")));
+            this.addLog("カインは宿帳に旅の続きを書き留めた。", "item");
+            this.closeSaveModal();
+        } catch (error) {
+            this.addLog("宿帳に記録を書き留められなかった。", "damage");
+        }
+    },
+
+    saveSuspendGame: function () {
+        if (!this.canWriteSuspendSave()) return;
+
+        try {
+            localStorage.setItem("okai_rpg_suspend", JSON.stringify(this.createSaveSnapshot("suspend")));
+            this.addLog("旅の途中に、しおりを挟んだ。", "item");
+        } catch (error) {
+            this.addLog("中断記録を残せなかった。", "damage");
+        }
     },
 
     loadGame: function (slot) {
         if (!slot || slot < 1 || slot > 5) return;
-        const saveData = localStorage.getItem(`okai_rpg_save_${slot}`);
+        this.loadFromStorage(`okai_rpg_save_${slot}`, `第${["一", "二", "三", "四", "五"][slot - 1]}頁`);
+    },
+
+    loadSuspendGame: function () {
+        this.loadFromStorage("okai_rpg_suspend", "中断記録");
+    },
+
+    loadFromStorage: function (storageKey, sourceLabel) {
+        const saveData = localStorage.getItem(storageKey);
         if (!saveData) {
-            this.addLog(`Slot ${slot} にデータがありません。`);
+            this.addLog("記録が見つからなかった。", "damage");
             return;
         }
+
         try {
             const loadedState = JSON.parse(saveData);
             if (!loadedState || typeof loadedState !== "object" || Array.isArray(loadedState)) {
                 throw new Error("Invalid save data");
             }
 
-            // Build 10.0.8: Preserve current system version
+            // Preserve current system version and merge defaults for old saves.
             const currentVersion = RPG.State.version;
             const defaultState = JSON.parse(JSON.stringify(RPG.DefaultState));
             const mergedState = {
@@ -610,7 +821,8 @@ const uiControl = {
                 ...loadedState,
                 flags: { ...defaultState.flags, ...(loadedState.flags || {}) },
                 inventory: { ...defaultState.inventory, ...(loadedState.inventory || {}) },
-                debug: { ...defaultState.debug, ...(loadedState.debug || {}) }
+                debug: { ...defaultState.debug, ...(loadedState.debug || {}) },
+                saveMeta: { ...defaultState.saveMeta, ...(loadedState.saveMeta || {}) }
             };
 
             // Retired keys may still exist in older saves; do not reintroduce
@@ -643,12 +855,12 @@ const uiControl = {
                 RPG.State.silverCoins = syncedCoins;
                 RPG.State.inventory.silverCoin = syncedCoins;
             }
-            RPG.State.version = currentVersion; // Hard-force the version
-            this.addLog(`Slot ${slot} からロードしました。`);
+            RPG.State.version = currentVersion;
+            this.addLog(`${sourceLabel}から旅を再開した。`, "item");
             this.updateUI();
             this.closeSaveModal();
-        } catch (e) {
-            this.addLog('セーブデータの読み込みに失敗しました。');
+        } catch (error) {
+            this.addLog("記録の読み込みに失敗した。", "damage");
         }
     },
 

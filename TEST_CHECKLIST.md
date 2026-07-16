@@ -53,6 +53,18 @@ Every implementation handoff should state:
 - Confirm entering and leaving the forest, herb garden, inn, or highway returns to the correct controls.
 - Test boundary distances such as 0m and the area's maximum distance.
 
+## Visual Experience Layer
+
+- Confirm the forest background appears only in the Amber Forest, not the inn, herb garden, or Former Highway.
+- Confirm the black reading veil keeps long white dialogue readable across the full log width.
+- Confirm the small amber point moves once per valid step without drawing attention away from the location name.
+- Confirm the forest background remains completely stationary during movement.
+- Confirm reduced-motion mode shortens or removes new travel and battle animations.
+- Confirm the battle header shows `👾` beside the enemy HP gauge and only the icon or HP bar reacts.
+- Confirm `宿屋《琥珀亭》` and `宿屋前` remain visible while their exploration track is hidden, then the full track returns on entering an exploration area.
+- Confirm entering and leaving battle does not resize or recrop the forest background.
+- Confirm the primary exploration button layout remains usable at narrow phone widths.
+
 ## Battle Changes
 
 - Start the intended enemy through the normal route when possible.
@@ -91,6 +103,12 @@ Required for changes to `state.js`, persistent flags, inventory, counters, story
 - Confirm inventory, currency, location, distance, phase, and critical flags through visible game behavior.
 - Revisit the changed event after loading to check one-time/repeat behavior.
 - Do not overwrite the only known-good save during compatibility testing.
+- At the inn in `base` mode, confirm `旅の記録` opens the five-page journal and an empty page saves immediately.
+- Confirm an occupied journal page requires a second tap before it is overwritten.
+- Confirm each new page shows the saved time, location, Cain's level, and a memo matching the currently revealed objective.
+- Outside the inn in `base` mode, confirm `中断` writes one replaceable bookmark; confirm it is hidden during dialogue and battle.
+- Reload from an inn event and confirm the load-only `宿帳` entrance can open above the tap overlay without advancing dialogue.
+- Load an older slot without `saveMeta` and confirm it shows a fallback memo, loads normally, and is not rewritten automatically.
 
 ## UI and Styling Changes
 

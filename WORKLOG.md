@@ -1,5 +1,84 @@
 # Work Log
 
+## Inn Journal Saves
+
+Status: implemented; Director visual and gameplay verification pending
+
+### Experience target
+
+- Turn manual saving into an in-world `旅の記録` action at `宿屋《琥珀亭》`.
+- Keep bedtime play interruption-friendly with one outside-the-inn `中断` bookmark.
+- Show a spoiler-safe memo describing the next known objective on every new save.
+
+### Implementation
+
+- Added five journal pages with timestamps, saved location, Cain's level, and a progression-aware memo.
+- Added deterministic memo rules for coin collection, the theft/fortune route, rabbit fur, wagon discovery, herb-garden materials, scent-pouch preparation, departure morning, and the Former Highway.
+- Added two-tap overwrite confirmation for occupied journal pages.
+- Added one replaceable `okai_rpg_suspend` bookmark, writable only outside the inn in stable `base` mode.
+- Manual journal saves are writable only inside the inn in stable `base` mode. Battle and active-dialogue saves are blocked.
+- New snapshots clear dialogue/battle residue and include `saveMeta`; old saves without metadata still load and display a generated fallback memo.
+- During an inn event, a small load-only `宿帳` entrance remains above the tap overlay so returning players can reach existing saves.
+
+### Protected behavior
+
+- Existing five local-storage keys and the default-state merge path are preserved.
+- Story flags, event IDs, inventory, battle formulas, and dialogue progression are unchanged.
+- Loading an old save does not require a migration or overwrite that slot.
+
+### Verification completed
+
+- Runtime tests cover memo priority, safe snapshot normalization, empty-slot saving, two-tap overwrite, suspend saving, old-save metadata fallback, and journal/suspend visibility gates.
+- All runtime JavaScript files pass `node --check`; `git diff --check` reports no whitespace errors.
+
+### Director verification
+
+- Open `旅の記録` inside the inn and confirm the current memo and five pages fit and scroll on the target phone.
+- Save to an empty page, then overwrite it using the required second tap.
+- Leave the inn, create a `中断` bookmark, reload the page, and resume it from the journal.
+- Confirm `旅の記録` cannot write during dialogue or battle and ordinary story progression is unchanged after loading.
+
+## Amber Forest Experience Slice
+
+Status: implemented; Director visual and gameplay verification pending
+
+### Experience target
+
+- Complete the first three-minute loop as a presentation vertical slice: enter the Amber Forest, move through the first distances, meet an ordinary enemy, fight, and return.
+- Keep prose as the primary narrative surface while background art and symbols supply place, motion, and impact.
+
+### Implementation
+
+- Added the Director-provided forest art as optimized `images/amber-forest.webp` behind the scrolling log.
+- Added a fixed scene backdrop and asymmetric black reading veil without changing `logContainer` ownership or blackout behavior.
+- Added a subdued amber progress point and delayed valid forest movement until a short visual travel cue settles.
+- Added non-persistent `visualDirector` presentation state; no save migration or story flag was introduced.
+- Added compact encounter, attack, hit, Owen-action, victory, and defeat cues in the existing battle header and HP bar.
+- Promoted `進む` to the primary forest action while retaining every existing command and event gate.
+- Added reduced-motion handling, keyboard focus styling, and browser zoom support.
+- After Director feedback, increased forest visibility, removed all background movement, and removed the extra log-area battle stage.
+- The inn and inn front retain their location names while hiding only the exploration track; the battle HP row uses a fixed `👾` marker.
+- Matched the exploration and battle context-row heights so `background-size: cover` does not visibly recrop when battle begins or ends.
+
+### Protected behavior
+
+- Movement bounds, poison timing, random encounter rate, event order, `EVENT_DATA`, battle formulas, and save data are unchanged.
+- Former Highway wagon movement does not use the forest walking delay.
+- The provided PNG remains untouched outside the repository; the game uses a 300KB WebP derivative.
+
+### Verification completed
+
+- All runtime JavaScript files pass `node --check`; `git diff --check` reports no whitespace errors.
+- Focused runtime tests cover delayed single-step movement, rapid-tap locking, one movement log, scene-class switching, and enemy-symbol synchronization.
+- DOM/script/image references were checked statically.
+
+### Director verification
+
+- Check background crop and the brighter reading-veil balance on the target phone.
+- Walk 0m -> 1m -> 2m -> 3m, including rapid taps, and confirm one step per cue.
+- Trigger an ordinary rat or weasel battle and confirm the battle header remains simple and each reaction is legible.
+- Walk back to 0m and leave the forest; confirm the background fades to black and inn-front controls return.
+
 ## Confirmed Legacy Cleanup
 
 Status: implemented; Director smoke test pending

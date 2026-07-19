@@ -285,3 +285,11 @@ Status: implemented; Director gameplay verification pending.
 
 - A rematch is rediscovered at Amber Forest 8m, matching the original encounter point.
 - The legacy 9m dialogue and 10m battle gate were replaced with an explicit 8m choice: red `戦う` starts the battle, while `戻る` safely retreats to 7m.
+
+### Typewriter Skip Log Follow-up
+
+Status: implemented; Director gameplay verification pending.
+
+- Typewriter scenes remain skippable with Space.
+- While skipping, log scrolling now moves immediately to the newest line instead of falling behind the scene's initial top position.
+- Normal-speed dialogue keeps the existing smooth log-scroll behavior and scene-title presentation.

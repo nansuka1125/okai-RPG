@@ -4,10 +4,15 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 
 ## Current Technical Shape
 
-- Browser game built with plain HTML, CSS, and JavaScript.
-- No package manager, build step, automated test runner, or application framework is currently present.
+- Static GitHub Pages top page plus a browser game built with plain HTML, CSS, and JavaScript.
+- The game has no application build step or framework; package metadata is used only for Playwright smoke tests.
 - Runtime modules share the global `window.RPG` namespace and several legacy global shims.
-- Script order in `index.html` is a runtime dependency and must be preserved unless an architecture change is explicitly approved.
+- Script order in `chapter1.html` is a runtime dependency and must be preserved unless an architecture change is explicitly approved.
+
+## Page Entrypoints
+
+- `index.html`: GitHub Pages top page and chapter navigation.
+- `chapter1.html`: Chapter 1 game entrypoint. It loads the existing runtime and keeps the script order below.
 
 ## Script Load Order
 
@@ -27,11 +32,13 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 
 | File | Primary responsibility | Important contracts |
 | --- | --- | --- |
-| `index.html` | DOM structure and script loading | Element IDs and script order are shared dependencies. |
+| `index.html` | GitHub Pages top page | Keep chapter links relative so they work under the repository Pages path. |
+| `top.css` | Top-page presentation | Keep it separate from the game stylesheet. |
+| `chapter1.html` | Chapter 1 DOM structure and script loading | Element IDs and script order are shared dependencies. |
 | `style.css` | Global presentation and effect styling | Keep DOM/class changes synchronized with UI code. |
 | `state.js` | `RPG.Config` and the default `RPG.State` | Persistent defaults and legacy `window.gameState` shim. |
 | `assets.js` | Text and scenario/content data | Owns `GAME_TEXT`, `EVENT_DATA`, `BATTLE_EVENTS`, `TALK_DATA`, `INN_EVENTS`, and `LOCATIONS`; preserves legacy globals. |
-| `visualDirector.js` | Non-persistent presentation cues | Coordinates scene backgrounds, travel locks, the party marker, and status-bar battle feedback without changing story state. |
+| `visualDirector.js` | Non-persistent presentation cues | Coordinates forest/inn scene backgrounds, transient inn-room overrides, travel locks, the party marker, and status-bar battle feedback without changing story state. |
 | `battleData.js` | Enemy definitions and battle behavior data | Owns enemy/AI content exposed through `RPG.Assets` and legacy globals. |
 | `Cinematics.js` | Named cinematic sequences | Reuse for multi-step set pieces instead of duplicating orchestration. |
 | `battle.js` | Battle runtime and battle outcomes | Coordinates `RPG.State`, battle data, UI, exploration dialogue, and defeat routing. |

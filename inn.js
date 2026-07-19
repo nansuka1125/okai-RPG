@@ -1,6 +1,12 @@
 // 🚩ーー【宿屋・拠点システム】ーー
 // Build 8.16: Extracted from main.js for better code organization
 innSystem = {
+    showInnScene: function (sceneName) {
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.setInnScene(sceneName);
+        }
+    },
+
     getAutomaticMorningTrainingId: function () {
         const state = RPG.State;
         const flags = state.flags;
@@ -39,33 +45,11 @@ innSystem = {
         );
     },
 
-    canPlayPhase6BlacksmithMorning: function () {
-        const state = RPG.State;
-        const flags = state.flags;
-        return (
-            state.storyPhase === 6 &&
-            flags.phase6PostDeliverySleepDone === true &&
-            flags.wagonInfoHeard === true &&
-            flags.phase6BlacksmithMorningSeen !== true &&
-            flags.wagonReadyForDeparture !== true
-        );
-    },
-
-    canTalkToPhase6Blacksmith: function () {
-        const state = RPG.State;
-        const flags = state.flags;
-        return (
-            state.storyPhase === 6 &&
-            flags.phase6BlacksmithAvailable === true &&
-            flags.phase6BlacksmithTalked !== true &&
-            flags.wagonReadyForDeparture !== true
-        );
-    },
-
     playPhase7SimpleStay: function () {
         const state = RPG.State;
         const recoveryAmount = Math.max(0, state.maxHP - state.currentHP);
 
+        this.showInnScene("room");
         state.mode = "event";
         state.canStay = false;
         state.dialogueQueue = [
@@ -109,23 +93,6 @@ innSystem = {
         ];
 
         explorationSystem.playDialogueLoop();
-    },
-
-    buildPhase6BlacksmithMorningQueue: function (recoveryAmount = 0) {
-        return [
-            ...(RPG.Assets.GAME_TEXT.events.phase6BlacksmithMorning || []).map(text => ({ text })),
-            {
-                text: null,
-                action: () => {
-                    RPG.State.flags.phase6BlacksmithMorningSeen = true;
-                    RPG.State.flags.phase6BlacksmithAvailable = true;
-                    if (recoveryAmount > 0) {
-                        uiControl.addLog(`HPが ${recoveryAmount} 回復した。`);
-                    }
-                    uiControl.updateUI();
-                }
-            }
-        ];
     },
 
     moveToInnFrontForMorning: function () {
@@ -174,6 +141,11 @@ innSystem = {
     },
 
     refreshHerbGardenHarvestsAfterStay: function () {
+        RPG.State.travelStepsSinceStay = 0;
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.syncScene();
+        }
+
         RPG.State.flags.herbGardenHerb1Available = true;
 
         if (
@@ -418,7 +390,7 @@ innSystem = {
         if (choiceUI) choiceUI.style.display = 'none';
 
         const button = document.createElement('button');
-        button.id = 'btnChoiceA';
+        button.id = 'btnSweetDeliveryAccept'; // Build 15.2.x: unique ID to avoid colliding with static #choiceUI btnChoiceA
         button.className = 'btn btn-full';
         button.textContent = '甘いものを納品';
         button.onclick = () => {
@@ -444,6 +416,7 @@ innSystem = {
         const startingHP = state.currentHP;
         const recoveryAmount = Math.max(0, state.maxHP - startingHP);
 
+        this.showInnScene("storage");
         state.mode = "event";
         state.canStay = false;
         state.flags.matamatabiNightPending = false;
@@ -531,6 +504,7 @@ innSystem = {
         const startingHP = state.currentHP;
         const recoveryAmount = Math.max(0, state.maxHP - startingHP);
 
+        this.showInnScene("room");
         state.mode = "event";
         state.canStay = false;
         state.flags.nightMedicineAftermathPending = true;
@@ -628,12 +602,19 @@ innSystem = {
         explorationSystem.playDialogueLoop();
     },
 
-    enterInn: function (showGreeting = true) {
+    enterInn: function (showGreeting = true, options = {}) {
+        const preserveEventMode = options.preserveEventMode === true;
+        const skipEntryEvents = options.skipEntryEvents === true;
+
         // Build 12.1.0: Delegated to scenarioEvents
-        if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
+        if (!skipEntryEvents && scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
 
         RPG.State.isAtInn = true;
-        RPG.State.mode = "base";
+        RPG.State.isInDungeon = false;
+        RPG.State.explorationArea = null;
+        RPG.State.currentDistance = 0;
+        RPG.State.currentInnTalkLoop = null;
+        RPG.State.mode = preserveEventMode ? "event" : "base";
         RPG.State.location = "宿屋《琥珀亭》";
         uiControl.addLog(RPG.Assets.GAME_TEXT.inn.welcome, "marker");
 
@@ -642,6 +623,7 @@ innSystem = {
         }
 
         const shouldPlayPhase4FortuneIntro =
+            !skipEntryEvents &&
             this.shouldUsePhase4FortuneRoute() &&
             RPG.State.flags.phase4FortuneIntroDone !== true;
 
@@ -684,6 +666,9 @@ innSystem = {
         RPG.State.currentDistance = 0; // Explicitly 0m
         RPG.State.mode = "base";
         RPG.State.currentInnTalkLoop = null;
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.clearInnScene();
+        }
 
         // Remove night mode if persisted
         const logContainer = document.getElementById('logContainer');
@@ -1029,6 +1014,7 @@ innSystem = {
             RPG.State.flags.phase6PostDeliverySleepDone !== true;
 
         if (shouldPlayPhase6PostDeliverySleep) {
+            this.showInnScene("room");
             RPG.State.mode = "event";
             RPG.State.canStay = false;
             RPG.State.dialogueQueue = [];
@@ -1199,6 +1185,7 @@ innSystem = {
             RPG.State.flags.firstInnSleep === false;
 
         if (shouldPlayFirstInnSleep) {
+            this.showInnScene("storage");
             RPG.State.mode = "event";
             RPG.State.canStay = false;
             RPG.State.dialogueQueue = [];
@@ -1281,13 +1268,14 @@ innSystem = {
 
         // PRE-CALCULATE ALL VARIABLES UPFRONT (exactly like showDefeatSequence)
         const event = this.selectInnEvent();
+        const eventScene = event.id === "stable"
+            ? "stable"
+            : (event.id === "storage_room" ? "storage" : "lobby");
+        this.showInnScene(eventScene);
         const morningResult = event.morningOptions[Math.floor(Math.random() * event.morningOptions.length)];
         const recoveryAmount = Math.floor(RPG.State.maxHP * morningResult.rate);
         const morningLines = morningResult.text.split('\n').filter(l => l.trim() !== "");
-        const shouldPlayPhase6BlacksmithMorning = this.canPlayPhase6BlacksmithMorning();
-        const automaticMorningTrainingId = shouldPlayPhase6BlacksmithMorning
-            ? null
-            : this.getAutomaticMorningTrainingId();
+        const automaticMorningTrainingId = this.getAutomaticMorningTrainingId();
 
         // BUILD INITIAL DIALOGUES (snappy 800ms pacing)
         let baseDialogues = [];
@@ -1315,6 +1303,9 @@ innSystem = {
             text: "（カインは眠りについた……）",
             delay: 2000,
             action: () => {
+                if (event.id === "daughter_room") {
+                    this.showInnScene("storage");
+                }
                 const logContainer = document.getElementById('logContainer');
                 if (logContainer) logContainer.classList.add('night-mode');
             }
@@ -1339,27 +1330,7 @@ innSystem = {
             }
         });
 
-        if (shouldPlayPhase6BlacksmithMorning) {
-            // The blacksmith arrives on a normal phase 6 morning and leaves the player inside the inn.
-            RPG.State.dialogueQueue.push({
-                text: null,
-                delay: 1000,
-                action: () => {
-                    const logContainer = document.getElementById('logContainer');
-                    if (logContainer) logContainer.classList.remove('night-mode');
-
-                    setTimeout(() => {
-                        const hpFill = document.getElementById('hpFill');
-                        if (hpFill) hpFill.style.transition = "width 0.3s ease";
-                    }, 1000);
-
-                    uiControl.updateUI();
-                }
-            });
-            RPG.State.dialogueQueue.push(
-                ...this.buildPhase6BlacksmithMorningQueue(recoveryAmount)
-            );
-        } else if (automaticMorningTrainingId) {
+        if (automaticMorningTrainingId) {
             // The training scene replaces the generic morning line and starts outside.
             RPG.State.dialogueQueue.push({
                 text: null,
@@ -1474,7 +1445,9 @@ innSystem = {
                     const logContainer = document.getElementById('logContainer');
                     if (logContainer) logContainer.classList.remove('night-mode');
 
-                    this.enterInn(false);
+                    this.showInnScene("storage");
+                    // Keep the defeat dialogue locked while the return location is applied.
+                    this.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
                     RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                     RPG.State.isPoisoned = false;
                     uiControl.updateUI();
@@ -1511,7 +1484,9 @@ innSystem = {
             text: "",
             delay: 1000,
             action: () => {
-                this.enterInn(); // 宿屋の場所名を表示
+                this.showInnScene("room");
+                // Defeat recovery is not a normal inn entrance: preserve the dialogue lock.
+                this.enterInn(true, { preserveEventMode: true, skipEntryEvents: true });
                 // 宿屋についてからHPを10%にする
                 RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                 RPG.State.isPoisoned = false;
@@ -1534,7 +1509,8 @@ innSystem = {
                 const logContainer = document.getElementById('logContainer');
                 if (logContainer) logContainer.classList.remove('night-mode');
 
-                this.enterInn(false); // ★引数に false を渡して挨拶をスキップ
+                // Arrival was already established above. Let the queue end release controls once.
+                RPG.State.mode = "event";
                 uiControl.updateUI();
             }
         });
@@ -1633,6 +1609,7 @@ innSystem = {
                             (RPG.State.inventory.glowingCatRabbitFur || 0) - 1
                         );
                         RPG.State.flags.needsGlowingRabbitFur = false;
+                        RPG.State.flags.phase4MatamatabiRabbitEncounters = 0;
                         RPG.State.flags.thiefDiscoveryStatus = 1;
                         RPG.State.flags.thiefTrackActive = false;
                         uiControl.updateUI();
@@ -1648,6 +1625,7 @@ innSystem = {
                     () => {
                         RPG.State.flags.phase4FortuneConsultDone = true;
                         RPG.State.flags.needsGlowingRabbitFur = true;
+                        RPG.State.flags.phase4MatamatabiRabbitEncounters = 0;
                         uiControl.updateUI();
                     }
                 );
@@ -1754,34 +1732,6 @@ innSystem = {
                     uiControl.updateUI();
                 }
             );
-            explorationSystem.playDialogueLoop();
-            return;
-        }
-
-        if (this.canTalkToPhase6Blacksmith()) {
-            uiControl.addSeparator();
-            RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [
-                ...(RPG.Assets.GAME_TEXT.events.phase6BlacksmithTalk || []).map(text => {
-                    if (text === "剣を研いでくれた！" || text === "カインの剣のレベルが上がった！") {
-                        return { text, type: "marker", color: "#f1e6c8" };
-                    }
-                    if (text === "攻撃力＋2") {
-                        return { text, type: "marker", color: "#9acd32" };
-                    }
-                    return { text };
-                }),
-                {
-                    text: null,
-                    action: () => {
-                        RPG.State.attack += 2;
-                        RPG.State.swordLevel = (RPG.State.swordLevel || 1) + 1;
-                        RPG.State.flags.phase6BlacksmithAvailable = false;
-                        RPG.State.flags.phase6BlacksmithTalked = true;
-                        uiControl.updateUI();
-                    }
-                }
-            ];
             explorationSystem.playDialogueLoop();
             return;
         }

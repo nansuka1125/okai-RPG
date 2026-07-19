@@ -419,12 +419,15 @@ header {
 #sceneBackdrop {
     inset: -10px;
     z-index: 0;
-    background: #000 url("images/amber-forest.webp") 58% center / cover no-repeat;
+    background-color: #000;
+    background-position: 58% center;
+    background-size: cover;
+    background-repeat: no-repeat;
     opacity: 0;
     filter: saturate(0.8) brightness(0.78) contrast(1.04);
     transform: scale(1.02);
-    transition: opacity 0.72s ease;
-    will-change: opacity;
+    transition: opacity 0.72s ease, filter 0.9s ease;
+    will-change: opacity, filter;
 }
 
 #sceneReadingVeil {
@@ -437,11 +440,60 @@ header {
 }
 
 body.scene-forest #sceneBackdrop {
+    background-image: url("images/amber-forest.webp");
     opacity: 0.9;
 }
 
 body.scene-forest #sceneReadingVeil {
     opacity: 1;
+}
+
+body.scene-forest.time-night #sceneBackdrop {
+    filter: saturate(0.62) brightness(0.46) contrast(1.1) hue-rotate(155deg);
+}
+
+body.scene-forest.time-night #sceneReadingVeil {
+    background:
+        linear-gradient(180deg, rgba(5, 12, 30, 0.4) 0%, rgba(3, 9, 24, 0.14) 42%, rgba(0, 3, 12, 0.72) 100%),
+        linear-gradient(90deg, rgba(0, 3, 12, 0.94) 0%, rgba(1, 6, 18, 0.86) 38%, rgba(3, 10, 28, 0.68) 70%, rgba(5, 14, 34, 0.46) 100%);
+}
+
+body.scene-inn #sceneBackdrop {
+    opacity: 0.88;
+    filter: saturate(0.76) brightness(0.72) contrast(1.03);
+}
+
+body.scene-inn #sceneReadingVeil {
+    opacity: 1;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0.05) 42%, rgba(0, 0, 0, 0.6) 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.93) 0%, rgba(0, 0, 0, 0.84) 40%, rgba(0, 0, 0, 0.62) 72%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+body.scene-inn-lobby #sceneBackdrop {
+    background-image: url("images/amber-inn-lobby-counter-crop.webp");
+    background-position: 50% center;
+}
+
+body.scene-inn-lobby #sceneReadingVeil {
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.04) 42%, rgba(0, 0, 0, 0.58) 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.78) 40%, rgba(0, 0, 0, 0.56) 72%, rgba(0, 0, 0, 0.38) 100%);
+}
+
+body.scene-inn-storage #sceneBackdrop {
+    background-image: url("images/amber-inn-storage.webp");
+    background-position: 54% center;
+}
+
+body.scene-inn-stable #sceneBackdrop {
+    background-image: url("images/amber-inn-stable.webp");
+    background-position: 42% center;
+}
+
+body.scene-inn-room #sceneBackdrop {
+    background-image: url("images/amber-inn-room.webp");
+    background-position: 66% center;
 }
 
 #logContainer {
@@ -779,6 +831,22 @@ body.travel-active button {
 @media (max-width: 600px) {
     #sceneBackdrop {
         background-position: 52% center;
+    }
+
+    body.scene-inn-lobby #sceneBackdrop {
+        background-position: 78% center;
+    }
+
+    body.scene-inn-room #sceneBackdrop {
+        background-position: 68% center;
+    }
+
+    body.scene-inn-storage #sceneBackdrop {
+        background-position: 52% center;
+    }
+
+    body.scene-inn-stable #sceneBackdrop {
+        background-position: 38% center;
     }
 
     #sceneReadingVeil {

@@ -3,6 +3,7 @@ const visualDirector = {
     travelActive: false,
     travelTimer: null,
     battleCueTimer: null,
+    innSceneOverride: null,
     lastEnemySymbol: "×",
 
     enemySymbols: {
@@ -29,10 +30,33 @@ const visualDirector = {
 
     isAmberForestScene: function () {
         return (
+            RPG.State.isAtInn !== true &&
             RPG.State.isInDungeon === true &&
             RPG.State.explorationArea === "forest" &&
             RPG.State.location !== "かつての街道"
         );
+    },
+
+    getInnScene: function () {
+        if (RPG.State.isAtInn !== true) return null;
+        if (this.innSceneOverride === "none") return null;
+        return this.innSceneOverride || "lobby";
+    },
+
+    isNightTime: function () {
+        const threshold = RPG.Config.NIGHT_STEP_THRESHOLD || 20;
+        return (Number(RPG.State.travelStepsSinceStay) || 0) >= threshold;
+    },
+
+    setInnScene: function (sceneName) {
+        const validScenes = ["lobby", "storage", "stable", "room", "none"];
+        this.innSceneOverride = validScenes.includes(sceneName) ? sceneName : null;
+        this.syncScene();
+    },
+
+    clearInnScene: function () {
+        this.innSceneOverride = null;
+        this.syncScene();
     },
 
     getEnemySymbol: function (enemy) {
@@ -44,12 +68,18 @@ const visualDirector = {
         const body = document.body;
         if (!body || !RPG.State) return;
 
+        const innScene = this.getInnScene();
         const isForest = this.isAmberForestScene();
         const showBattle = Boolean(RPG.State.isBattling && RPG.State.currentEnemy);
         const exploreUI = document.getElementById("exploreUI");
         const enemySymbolLabel = document.getElementById("enemySymbolLabel");
 
         body.classList.toggle("scene-forest", isForest);
+        body.classList.toggle("scene-inn", Boolean(innScene));
+        body.classList.toggle("time-night", this.isNightTime());
+        ["lobby", "storage", "stable", "room"].forEach(sceneName => {
+            body.classList.toggle(`scene-inn-${sceneName}`, innScene === sceneName);
+        });
         body.classList.toggle("scene-battle", showBattle);
 
         if (exploreUI) {

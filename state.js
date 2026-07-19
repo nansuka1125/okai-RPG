@@ -9,7 +9,8 @@ window.RPG = window.RPG || {};
 RPG.Config = {
     MAX_DISTANCE: 10,    // 琥珀の森の最深部
     MIN_DISTANCE: 0,     // 宿屋前
-    BATTLE_RATE: 0.3,    // エンカウント率（30%）
+    BATTLE_RATE: 0.6,    // エンカウント率（60%）
+    NIGHT_STEP_THRESHOLD: 20, // Valid field moves after staying before night falls
     HEAL_ON_LEVEL_UP: false, // Build 15.2.47: Toggle full HP recovery on level up
     LEVEL_UP_TALK_BATTLE_ONLY: true // Build 15.2.49: Reserve milestone level-up talks for battle victories only
 };
@@ -18,7 +19,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.3.1 (Inn Journal Saves)", // Build 15.3.1: Inn journal and safe suspend saves
+    version: "15.4.0 (Amber Inn Scenes)", // Build 15.4.0: Lobby and inn-room presentation backgrounds
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -49,12 +50,12 @@ RPG.State = {
 
     // 基本ステータス (Unified HP variables)
     currentDistance: 0,
+    travelStepsSinceStay: 0, // Valid forward/back field moves since the last overnight stay
     deathCount: 0, // Track number of defeats
     cainLv: 1,
     currentHP: 100,        // Unified HP variable
     maxHP: 100,            // Unified max HP variable
     attack: 10,
-    swordLevel: 1,
     exp: 0,
 
     // Debug flags
@@ -165,9 +166,6 @@ RPG.State = {
         morningTraining2Done: false, // Build 15.2.107: Post-fortune-request morning training scene
         morningTraining3Pending: false, // Build 15.2.107: Play the wood-chopping scene on a later inn-front exit
         morningTraining3Done: false, // Build 15.2.107: One-time wood-chopping training scene
-        phase6BlacksmithMorningSeen: false, // Build 15.2.108: The daughter has announced the visiting blacksmith
-        phase6BlacksmithAvailable: false, // Build 15.2.108: The blacksmith remains in the inn until departure or conversation
-        phase6BlacksmithTalked: false, // Build 15.2.108: The optional sword-maintenance event has been completed
         metThiefBoy: false, // Flag for meeting the thief boy
         thiefDiscoveryStatus: 0, // 0=not discovered, 1=discovered
         thiefTrackActive: false, // Tracking quest active
@@ -182,6 +180,7 @@ RPG.State = {
         phase4SweetDeliveryDone: false, // Build 15.2.81: Track the one-time joke delivery button after Owen's second consultation
         phase4FortuneFollowupCount: 0, // Build 15.2.81: Track the two optional fortune-teller follow-up talks
         needsGlowingRabbitFur: false, // Build 15.2.62: Phase 4 fur quest gate before re-enabling the 9m/10m rescue route
+        phase4MatamatabiRabbitEncounters: 0, // Fur-less rabbit encounters while matatabi is active; the second quest encounter guarantees fur
         phase4MatamatabiTalkCount: 0, // Build 15.2.63: Track the two rumor talks about the matamatabi branch
         heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
         matamatabiBranchFound: false, // Build 15.2.63: Track whether the branch has already been picked up at 4m

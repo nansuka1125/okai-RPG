@@ -64,9 +64,40 @@ const scenarioEvents = {
             }
         },
 
+        showRematchChoices: function () {
+            const state = RPG.State;
+            state.mode = "choice";
+            uiControl.updateUI();
+
+            const btnChoiceA = document.getElementById("btnChoiceA");
+            const btnChoiceB = document.getElementById("btnChoiceB");
+
+            if (btnChoiceA) {
+                btnChoiceA.style.display = "flex";
+                btnChoiceA.textContent = "戦う";
+                btnChoiceA.style.background = "#8b0000";
+                btnChoiceA.style.fontWeight = "bold";
+                btnChoiceA.onclick = () => this.choiceRematchFight();
+            }
+            if (btnChoiceB) {
+                btnChoiceB.style.display = "flex";
+                btnChoiceB.textContent = "戻る";
+                btnChoiceB.style.background = "";
+                btnChoiceB.style.fontWeight = "";
+                btnChoiceB.onclick = () => this.choiceRematchRetreat();
+            }
+        },
+
         clearChoices: function () {
             const choiceUI = document.getElementById('choiceUI');
             if (choiceUI) choiceUI.style.display = 'none';
+
+            [document.getElementById("btnChoiceA"), document.getElementById("btnChoiceB")]
+                .forEach(button => {
+                    if (!button) return;
+                    button.style.background = "";
+                    button.style.fontWeight = "";
+                });
         },
 
         choiceTakeCoin: function () {
@@ -116,6 +147,19 @@ const scenarioEvents = {
             explorationSystem.playDialogueLoop();
         },
 
+        choiceRematchFight: function () {
+            this.clearChoices();
+            RPG.State.mode = "event";
+            RPG.State.flags.hasTreeEventOccurred = true;
+            battleSystem.startBattle("hungry_amber_tree");
+        },
+
+        choiceRematchRetreat: function () {
+            this.clearChoices();
+            RPG.State.mode = "base";
+            explorationSystem.move(-1);
+        },
+
         handleEncounter: function (step = 0) {
             // Build 15.1.3: Centralized Encounter Logic (Refined Spatial Trigger)
             const state = RPG.State;
@@ -126,20 +170,17 @@ const scenarioEvents = {
             // Prevent spatial triggers if a Kill Count or other dialogue is still active
             if (state.dialogueQueue && state.dialogueQueue.length > 0) return false;
             
-            // --- Case A: Rematch Logic (Spatial) ---
+            // --- Case A: Rematch Logic ---
             if (state.flags.isTreeRematch === true) {
-                // 9m: The Resolve (Cinematic Beat)
-                if (isForwardMove && state.currentDistance === 9) {
-                    uiControl.addLog("カイン「…あそこに、さっきの木の化け物がいる。俺たちで倒せるだろうか」", "", "#ffffff");
-                    uiControl.addLog("オーエン「僕は手伝わないよ。アレはおまえ指名でしょ。」", "", "#a020f0");
-                    return false; // Let base system continue to update UI
-                }
-                
-                // 10m: The Ambush (Instant Battle)
-                if (isForwardMove && state.currentDistance === 10) {
+                // Revisit the hungry amber tree at its original 8m location.
+                if (isForwardMove && state.currentDistance === 8) {
                     state.mode = "event";
-                    state.flags.hasTreeEventOccurred = true;
-                    battleSystem.startBattle('hungry_amber_tree');
+                    state.dialogueQueue = [
+                        { text: "カイン「…あそこに、さっきの木の化け物がいる。俺たちで倒せるだろうか」" },
+                        { text: "オーエン「僕は手伝わないよ。アレはおまえ指名でしょ。」", color: "#a020f0" },
+                        { text: null, action: () => this.showRematchChoices() }
+                    ];
+                    explorationSystem.playDialogueLoop();
                     return true;
                 }
                 return false;

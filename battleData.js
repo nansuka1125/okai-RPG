@@ -47,6 +47,10 @@ RPG.Assets.BATTLE_TEXT = {
         waiting: "琥珀樹は不気味にざわめいている…",
         strongAttack: "樹の全力のしなりが叩きつけられた！"
     },
+    sap: {
+        beforeTreeDefeat: "樹液は何かを引きずるように、森の奥へ向かって蠢いている。",
+        afterTreeDefeat: "主を失った樹液が、行き先もなく森を這い回っている。"
+    },
     amber_husk_giant_larva: {
         standardAttack: "琥珀の殻を軋ませながら、巨大な鎌が振り下ろされる！",
         phaseTwo: "巨虫の動きが変わった…",
@@ -321,7 +325,7 @@ RPG.Assets.BATTLE_AI = {
 
             if (!enemy.phaseThreeTriggered && hpRatio <= 0.4) {
                 enemy.phaseThreeTriggered = true;
-                enemy.atk = Math.floor(enemy.baseAtk * 2.0);
+                enemy.atk = Math.floor(enemy.baseAtk * 1.7);
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.phaseThree, "enemy-action", "#ff4d4d");
             }
 
@@ -369,7 +373,7 @@ RPG.Assets.BATTLE_AI = {
                 sys.markPlayerTookDamage(damage);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
 
-                if (enemy.hp <= maxHp * 0.6 && Math.random() < 0.35) {
+                if (enemy.hp <= maxHp * 0.6 && Math.random() < 0.25) {
                     uiControl.screenShake();
                     uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.stun, "damage", "#ff4d4d");
                     RPG.State.battleState.stunTurns = 1;

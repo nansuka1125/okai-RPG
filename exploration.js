@@ -301,7 +301,9 @@ const explorationSystem = {
         if (nextDistance < 0 || nextDistance > this.getHerbGardenMaxDistance()) return;
 
         if (step !== 0) {
+            RPG.State.canStay = true;
             RPG.State.currentDistance = nextDistance;
+            this.recordTravelStep();
             RPG.State.location = uiControl.getLocData(nextDistance).name;
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.moved(nextDistance));
 
@@ -411,6 +413,18 @@ const explorationSystem = {
                 ];
                 this.playDialogueLoop();
             };
+        }
+    },
+
+    recordTravelStep: function () {
+        // Wagon movement belongs to its story sequence rather than the free-roam day clock.
+        if (RPG.State.flags.onWagon === true) return;
+
+        RPG.State.travelStepsSinceStay =
+            Math.max(0, Number(RPG.State.travelStepsSinceStay) || 0) + 1;
+
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.syncScene();
         }
     },
 
@@ -614,26 +628,76 @@ const explorationSystem = {
         return queue;
     },
 
+    activeTypewriter: null,
+
+    hasActiveTypewriter: function () {
+        return !!(this.activeTypewriter && !this.activeTypewriter.finished);
+    },
+
+    completeActiveTypewriter: function () {
+        if (!this.hasActiveTypewriter()) return false;
+        return this.activeTypewriter.complete();
+    },
+
+    cancelActiveTypewriter: function () {
+        const active = this.activeTypewriter;
+        if (!active) return;
+
+        active.finished = true;
+        if (active.timerId) clearTimeout(active.timerId);
+        this.activeTypewriter = null;
+    },
+
     typewriteLogEntry: function (entry, text, characterDelay, onComplete) {
         const characters = Array.from(text);
         let index = 0;
 
+        this.cancelActiveTypewriter();
+
+        const controller = {
+            timerId: null,
+            finished: false,
+            complete: null
+        };
+
+        const finish = (showFullText) => {
+            if (controller.finished) return false;
+
+            controller.finished = true;
+            if (controller.timerId) clearTimeout(controller.timerId);
+            if (showFullText) entry.textContent = text;
+
+            const container = entry.parentElement;
+            uiControl.scrollLogToLatest(container);
+
+            if (this.activeTypewriter === controller) {
+                this.activeTypewriter = null;
+            }
+            onComplete();
+            return true;
+        };
+
+        controller.complete = () => finish(true);
+        this.activeTypewriter = controller;
+
         const writeNextCharacter = () => {
+            if (controller.finished) return;
+
             const character = characters[index];
             entry.textContent += character;
             index += 1;
 
             const container = entry.parentElement;
-            if (container) container.scrollTop = container.scrollHeight;
+            uiControl.scrollLogToLatest(container);
 
             if (index >= characters.length) {
-                onComplete();
+                finish(false);
                 return;
             }
 
             // Sentence endings receive a small natural pause without delaying every line.
             const punctuationPause = /[、。！？…]/.test(character) ? 90 : 0;
-            setTimeout(writeNextCharacter, characterDelay + punctuationPause);
+            controller.timerId = setTimeout(writeNextCharacter, characterDelay + punctuationPause);
         };
 
         writeNextCharacter();
@@ -683,6 +747,10 @@ const explorationSystem = {
                 RPG.State.flags.hasIntroFinished = true;
                 RPG.State.location = "宿屋《琥珀亭》";
                 RPG.State.isAtInn = true;
+            }
+
+            if (typeof visualDirector !== "undefined") {
+                visualDirector.clearInnScene();
             }
 
             // UIロック解除
@@ -740,6 +808,9 @@ const explorationSystem = {
             };
 
             if (nextLine.typewriter && typewriterEntry) {
+                RPG.State.isWaitingForInput = false;
+                uiControl.hideFloatingArrow();
+                uiControl.enableTapOverlay();
                 this.typewriteLogEntry(
                     typewriterEntry,
                     nextLine.text,
@@ -762,6 +833,8 @@ const explorationSystem = {
     },
 
     enterDungeon: function () {
+        if (RPG.State.mode !== "base" || RPG.State.isAtInn) return;
+
         const entranceLoc = uiControl.getLocData(0);
         RPG.State.isInDungeon = true;
         RPG.State.explorationArea = "forest";
@@ -867,6 +940,7 @@ const explorationSystem = {
         if (step !== 0) {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDist;
+            this.recordTravelStep();
             uiControl.addLog(
                 RPG.Assets.GAME_TEXT.exploration.moved(RPG.State.currentDistance),
                 "movement"
@@ -992,6 +1066,7 @@ const explorationSystem = {
             !RPG.State.flags.isTreeRematch;
 
         if (canInspectAmberTree) {
+            uiControl.addLog("きらり。", "ambient");
             uiControl.addLog("少し先の木立の奥で、樹液が鈍く光っている。", "ambient");
             uiControl.updateUI();
             return;
@@ -1169,9 +1244,13 @@ const explorationSystem = {
             (RPG.State.inventory.lightRabbitBrooch || 0) > 0 &&
             flags.herbGardenBoneMealCollected !== true
         ) {
-            flags.herbGardenBoneMealInspected = true;
-            uiControl.addLog("砕けた小さな骨のようだ。", "ambient");
-            uiControl.addLog("（瓶に入れよう）");
+            if (!flags.herbGardenBoneMealInspected) {
+                flags.herbGardenBoneMealInspected = true;
+                uiControl.addLog("砕けた小さな骨のようだ。", "ambient");
+                uiControl.addLog("カイン（これを🫙空瓶に入れれば、骨粉として持ち帰れそうだ）");
+                // A subdued one-time operation cue prevents inspect-spam without overpowering the scene.
+                uiControl.addLog("《アイテム欄から🫙空瓶を選んで使おう》", "ambient", "#555555", "13px");
+            }
             uiControl.updateUI();
             return;
         }
@@ -1236,7 +1315,23 @@ const explorationSystem = {
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
     },
 
+    getForestObservation: function (distance) {
+        if (RPG.State.location === "かつての街道") return null;
+
+        const observations = RPG.Assets.GAME_TEXT.exploration.forestObservations || {};
+
+        if (RPG.State.flags.giantLarvaDefeated === true && distance === 9) {
+            return observations.giantLarvaDefeated?.[distance] || null;
+        }
+        if (RPG.State.flags.treeDefeated === true && (distance === 7 || distance === 8)) {
+            return observations.treeDefeated?.[distance] || null;
+        }
+        return null;
+    },
+
     talk: function () {
+        if (RPG.State.mode !== "base") return;
+
         if (!RPG.State.isInDungeon) {
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkAtInn);
             return;
@@ -1249,6 +1344,13 @@ const explorationSystem = {
 
         const dist = RPG.State.currentDistance;
         const flags = RPG.State.flags;
+
+        const forestObservation = this.getForestObservation(dist);
+        if (forestObservation) {
+            uiControl.addLog(forestObservation, "ambient");
+            uiControl.updateUI();
+            return;
+        }
 
         if (dist === 5 && !flags.forest5mBroochFound) {
             flags.forest5mBroochFound = true;

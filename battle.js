@@ -191,6 +191,20 @@ const battleSystem = {
         return RPG.Assets.ENEMIES.find(e => e.id === "weasel") || null;
     },
 
+    buildPreBattleDialogue: function (template) {
+        if (Array.isArray(template.preBattleDialogue)) {
+            return template.preBattleDialogue.map(line => ({ ...line }));
+        }
+
+        if (template.id !== "sap") return [];
+
+        const sapText = RPG.Assets.BATTLE_TEXT.sap;
+        const text = RPG.State.flags.treeDefeated === true
+            ? sapText.afterTreeDefeat
+            : sapText.beforeTreeDefeat;
+        return [{ text, type: "ambient" }];
+    },
+
     startBattle: function (enemyId = null) {
         // Enemy Selection logic remains in engine as it processes data
         let template = null;
@@ -235,11 +249,12 @@ const battleSystem = {
         }
 
         uiControl.addSeparator();
+        const preBattleDialogue = this.buildPreBattleDialogue(template);
 
-        if (template.preBattleDialogue) {
+        if (preBattleDialogue.length > 0) {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
-                ...template.preBattleDialogue.map(line => ({ ...line })),
+                ...preBattleDialogue,
                 {
                     text: null,
                     action: () => {
@@ -637,7 +652,7 @@ const battleSystem = {
             return;
         }
 
-        RPG.State.currentHP = Math.max(1, newHP);
+        RPG.State.currentHP = Math.max(0, newHP);
         this.markPlayerTookDamage(dmg);
 
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
@@ -658,11 +673,7 @@ const battleSystem = {
 
         uiControl.updateUI();
 
-        if (RPG.State.currentHP === 1) {
-            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
-            setTimeout(() => this.resolveDefeat(), delay);
-            return;
-        }
+        if (this.checkBattleEnd()) return;
 
         const delay = RPG.State.debug.isSkipping ? 50 : 1000;
         setTimeout(onComplete, delay);
@@ -911,7 +922,14 @@ const battleSystem = {
             RPG.State.flags.needsGlowingRabbitFur === true &&
             (RPG.State.inventory.glowingCatRabbitFur || 0) === 0;
 
-        return canReceiveQuestFur && Math.random() < 0.2;
+        if (!canReceiveQuestFur) return false;
+        if (
+            RPG.State.flags.matamatabiActive === true &&
+            (RPG.State.flags.phase4MatamatabiRabbitEncounters || 0) >= 1
+        ) {
+            return true;
+        }
+        return Math.random() < 0.2;
     },
 
     getGlowingCatRabbitVictoryReward: function (rabbitLevel) {
@@ -998,6 +1016,12 @@ const battleSystem = {
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
         const rabbitLevel = enemy?.rabbitLevel || 5;
         const hadBranch = (RPG.State.inventory.matamatabiBranch || 0) > 0;
+        const isActiveFurQuest =
+            RPG.State.flags.needsGlowingRabbitFur === true &&
+            (RPG.State.inventory.glowingCatRabbitFur || 0) === 0;
+        const isMatamatabiQuestEncounter =
+            isActiveFurQuest &&
+            RPG.State.flags.matamatabiActive === true;
         const furAwarded = this.shouldAwardGlowingCatRabbitFur(enemy);
         const victoryReward = escaped ? null : this.getGlowingCatRabbitVictoryReward(rabbitLevel);
         const followupDialogue = this.getGlowingCatRabbitFollowupDialogue(rabbitLevel);
@@ -1023,9 +1047,13 @@ const battleSystem = {
                 "#ffd166"
             );
             RPG.State.inventory.glowingCatRabbitFur = (RPG.State.inventory.glowingCatRabbitFur || 0) + 1;
+            RPG.State.flags.phase4MatamatabiRabbitEncounters = 0;
             if (!hadBranch) {
                 uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
             }
+        } else if (isMatamatabiQuestEncounter) {
+            RPG.State.flags.phase4MatamatabiRabbitEncounters =
+                (RPG.State.flags.phase4MatamatabiRabbitEncounters || 0) + 1;
         }
 
         if (victoryReward) {
@@ -1281,7 +1309,7 @@ const battleSystem = {
             return;
         }
 
-        RPG.State.currentHP = Math.max(1, newHP);
+        RPG.State.currentHP = Math.max(0, newHP);
         this.markPlayerTookDamage(dmg);
 
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
@@ -1303,14 +1331,11 @@ const battleSystem = {
 
         uiControl.updateUI();
 
-        if (RPG.State.currentHP === 1) {
-            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
-            setTimeout(() => this.resolveDefeat(), delay);
-        } else {
-            RPG.State.battleTurn++;
-            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
-            setTimeout(() => this.runBattleLoop(), delay);
-        }
+        if (this.checkBattleEnd()) return;
+
+        RPG.State.battleTurn++;
+        const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+        setTimeout(() => this.runBattleLoop(), delay);
     },
 
     checkBattleEnd: function () {
@@ -1319,6 +1344,18 @@ const battleSystem = {
             return true;
         }
         if (RPG.State.currentHP <= 1) {
+            if ((RPG.State.inventory.charm || 0) > 0) {
+                RPG.State.inventory.charm -= 1;
+                RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.5);
+                if (RPG.State.battleState) {
+                    RPG.State.battleState.stunTurns = 0;
+                }
+                uiControl.screenShake();
+                uiControl.addLog("🧧お守り袋が眩い光を放った！", "marker", "#f1e6c8");
+                uiControl.addLog("カイン（なんだ…！？助かった、のか？）");
+                uiControl.updateUI();
+                return false;
+            }
             this.resolveDefeat();
             return true;
         }
@@ -1586,8 +1623,6 @@ const battleSystem = {
         RPG.State.flags.innRatEvent2BattleActive = false;
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
-        RPG.State.isInDungeon = false;
-        RPG.State.currentDistance = 0;
         RPG.State.mood = Math.max(0, RPG.State.mood - 20);
 
         innSystem.showDefeatSequence(defeatedEnemyId);

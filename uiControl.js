@@ -4,6 +4,26 @@ const uiControl = {
     pendingOverwriteSlot: null,
     overwriteResetTimer: null,
 
+    scrollLogToLatest: function (container) {
+        if (!container) return;
+
+        // Smooth scrolling is pleasant during normal dialogue, but it falls behind
+        // when a held skip key adds several lines at once.
+        const isSkipping = RPG.State.debug && RPG.State.debug.isSkipping === true;
+        const previousBehavior = container.style.scrollBehavior;
+        if (isSkipping) container.style.scrollBehavior = "auto";
+
+        container.scrollTop = container.scrollHeight;
+
+        if (isSkipping) {
+            requestAnimationFrame(() => {
+                if (container.style.scrollBehavior === "auto") {
+                    container.style.scrollBehavior = previousBehavior;
+                }
+            });
+        }
+    },
+
     // --- addLog: ログの出力 ---
     addLog: function (text, type = "", color = null, fontSize = null, allowEmpty = false, colorSource = text) {
         if (!text && !allowEmpty) return; // Build 8.44: Prevent empty divs from creating black gaps
@@ -41,7 +61,7 @@ const uiControl = {
         if (previousCurrent) previousCurrent.classList.remove('log-current');
         entry.classList.add('log-current');
         container.appendChild(entry);
-        container.scrollTop = container.scrollHeight;
+        this.scrollLogToLatest(container);
         return entry;
     },
 
@@ -255,6 +275,17 @@ const uiControl = {
                 actionButtons.childElementCount > 0;
 
             if (choiceUI) choiceUI.style.display = isWagonChoiceActive ? 'none' : 'grid';
+
+            // Choice mode is an exclusive input state. Do not rely only on hidden
+            // panels: a queued tap must not reach exploration or inn commands.
+            allButtons.forEach(btn => {
+                const isActiveChoiceButton = isWagonChoiceActive
+                    ? actionButtons?.contains(btn)
+                    : choiceUI?.contains(btn);
+                btn.disabled = !isActiveChoiceButton;
+                btn.style.opacity = isActiveChoiceButton ? "1" : "0.5";
+                btn.style.pointerEvents = isActiveChoiceButton ? "auto" : "none";
+            });
             return; // Exit early to prevent exploration setup
         }
 
@@ -329,14 +360,6 @@ const uiControl = {
                         }
                     }
 
-                    // The visiting blacksmith yields to all active herb-garden progression actions.
-                    if (
-                        observeLabel === "様子を見る" &&
-                        typeof innSystem !== "undefined" &&
-                        innSystem.canTalkToPhase6Blacksmith()
-                    ) {
-                        observeLabel = "鍛冶屋に話しかける";
-                    }
                 }
                 btnInnObserve.textContent = observeLabel;
             }
@@ -417,11 +440,7 @@ const uiControl = {
                     btnMoveForward.onclick = () => explorationSystem.move(1);
 
                     // Highway / Special Transitions
-                    if (RPG.State.flags.isTreeRematch && RPG.State.currentDistance === 9) {
-                        btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.moveForward;
-                        btnMoveForward.style.backgroundColor = "#8b0000";
-                        btnMoveForward.style.fontWeight = "bold";
-                    } else if (
+                    if (
                         RPG.State.location === "かつての街道" &&
                         RPG.State.currentDistance === 9 &&
                         mode === "base"
@@ -497,6 +516,9 @@ const uiControl = {
                 if (
                     btn.id !== 'btnChoiceA' &&
                     btn.id !== 'btnChoiceB' &&
+                    btn.id !== 'btnWagonAccept' &&
+                    btn.id !== 'btnWagonWait' &&
+                    btn.id !== 'btnSweetDeliveryAccept' &&
                     btn.id !== 'miniSaveButton'
                 ) {
                     btn.disabled = true;
@@ -813,6 +835,12 @@ const uiControl = {
                 throw new Error("Invalid save data");
             }
 
+            if (typeof explorationSystem !== "undefined") {
+                explorationSystem.cancelActiveTypewriter();
+            }
+            this.hideFloatingArrow();
+            this.disableTapOverlay();
+
             // Preserve current system version and merge defaults for old saves.
             const currentVersion = RPG.State.version;
             const defaultState = JSON.parse(JSON.stringify(RPG.DefaultState));
@@ -930,6 +958,13 @@ const uiControl = {
 
     // Build 13.0.0: Global Input Handler
     handlePlayerInput: function () {
+        if (
+            typeof explorationSystem !== "undefined" &&
+            explorationSystem.completeActiveTypewriter()
+        ) {
+            return;
+        }
+
         if (RPG.State.isWaitingForInput) {
             this.advanceDialogue();
         }
@@ -947,12 +982,18 @@ const uiControl = {
     },
 
     endDialogueSequence: function () {
+        if (typeof explorationSystem !== "undefined") {
+            explorationSystem.cancelActiveTypewriter();
+        }
         this.hideFloatingArrow();
         this.disableTapOverlay();
         RPG.State.isWaitingForInput = false;
         RPG.State.dialogueQueue = [];
         RPG.State.dialogueIndex = 0;
         RPG.State.mode = "base";
+        if (typeof visualDirector !== "undefined") {
+            visualDirector.clearInnScene();
+        }
         this.updateUI();
     },
 
@@ -977,7 +1018,7 @@ const uiControl = {
         const overlay = document.getElementById('tap-overlay');
         if (overlay) {
             overlay.style.display = 'block';
-            overlay.onclick = () => this.advanceDialogue();
+            overlay.onclick = () => this.handlePlayerInput();
         }
     },
 
@@ -1037,20 +1078,30 @@ const uiControl = {
     showWagonChoice: function () {
         const container = document.getElementById('action-buttons');
         const choiceUI = document.getElementById('choiceUI');
+        const exploreUI = document.getElementById('exploreUI');
+        const innUI = document.getElementById('innUI');
         if (!container) return;
 
         container.innerHTML = '';
         container.style.display = 'flex';
         if (choiceUI) choiceUI.style.display = 'none';
+        // Build 15.2.x fix: hide exploration/inn buttons so they can't be
+        // triggered underneath the wagon choice while it's on screen.
+        if (exploreUI) exploreUI.style.display = 'none';
+        if (innUI) innUI.style.display = 'none';
 
+        // Build 15.2.x fix: unique IDs so this dynamically-created choice
+        // never collides with the static #choiceUI btnChoiceA/btnChoiceB
+        // buttons (whose onclick handlers are reassigned by other events,
+        // e.g. the herb garden brooch choice via getElementById).
         const btnAccept = document.createElement('button');
-        btnAccept.id = 'btnChoiceA'; // Add ID to bypass disable logic
+        btnAccept.id = 'btnWagonAccept';
         btnAccept.className = 'btn btn-full';
         btnAccept.textContent = 'もちろん';
         btnAccept.onclick = () => this.acceptWagonRide();
 
         const btnWait = document.createElement('button');
-        btnWait.id = 'btnChoiceB'; // Add ID to bypass disable logic
+        btnWait.id = 'btnWagonWait';
         btnWait.className = 'btn btn-full';
         btnWait.textContent = 'ちょっと待ってくれ';
         btnWait.onclick = () => this.declineWagonRide();
@@ -1064,6 +1115,9 @@ const uiControl = {
 
 
     acceptWagonRide: function () {
+        // Guard against double-fire (e.g. rapid double click)
+        if (RPG.State.flags.onWagon === true) return;
+
         // Clear choice buttons
         const container = document.getElementById('action-buttons');
         if (container) {
@@ -1121,8 +1175,14 @@ const uiControl = {
 
 // Build 13.0.0: Global Input & Key Listeners
 document.addEventListener('keydown', function (event) {
-    if ((event.code === 'Space' || event.code === 'Enter') && RPG.State.isWaitingForInput) {
+    const isDialogueInput = event.code === 'Space' || event.code === 'Enter';
+    const isTypewriterActive =
+        typeof explorationSystem !== "undefined" &&
+        explorationSystem.hasActiveTypewriter();
+
+    if (isDialogueInput && (RPG.State.isWaitingForInput || isTypewriterActive)) {
         event.preventDefault();
+        if (event.repeat && event.code !== 'Space') return;
         uiControl.handlePlayerInput();
     }
 });

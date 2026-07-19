@@ -56,6 +56,10 @@ Every implementation handoff should state:
 ## Visual Experience Layer
 
 - Confirm the forest background appears only in the Amber Forest, not the inn, herb garden, or Former Highway.
+- Confirm the Amber Inn lobby appears for normal inn commands and does not appear at the inn front.
+- Confirm storage-room, stable, and guest-room sleep scenes use their matching background and return to the lobby when dialogue ends.
+- Confirm first amber-tree defeat uses the storage room and an ordinary inn recovery uses the guest room.
+- Confirm `【馬小屋の裏にて】` remains black until its dedicated night exterior art is added.
 - Confirm the black reading veil keeps long white dialogue readable across the full log width.
 - Confirm the small amber point moves once per valid step without drawing attention away from the location name.
 - Confirm the forest background remains completely stationary during movement.

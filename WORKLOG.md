@@ -1,5 +1,32 @@
 # Work Log
 
+## Amber Inn Scene Backgrounds
+
+Status: implemented; Director visual and gameplay verification pending
+
+### Implementation
+
+- Added optimized static backgrounds for the Amber Inn lobby, storage room, stable, and modest guest room.
+- Replaced the lobby source with the Director-cropped counter-and-stair view and a cache-safe filename. Desktop keeps the full composition centered; phones bias right to retain the counter. The lobby veil is slightly lighter than other inn scenes so the counter and ceiling remain visible.
+- The lobby is the default whenever the player is inside the inn; normal talk, observe, delivery, and journal routes retain it.
+- Early sleep and matatabi-night routes use the storage room; stable stays use the stable; post-delivery and room-specific sleep routes use the guest room.
+- The daughter-room offer begins in the lobby and changes to the storage room under the sleep blackout, matching the existing morning text.
+- First amber-tree defeat wakes in the storage room; ordinary defeat recovery uses the guest room.
+- Inn scene overrides are presentation-only and clear through the shared dialogue-completion path. They are not serialized and require no save migration.
+- `【馬小屋の裏にて】` intentionally stays black until the dedicated night exterior art is supplied; the daytime stable interior is not reused.
+
+### Verification completed
+
+- Source art was matched visually against the Director-provided images and converted to WebP without changing source files.
+- Static/runtime checks cover default lobby selection, room overrides, black exterior override, forest/inn exclusivity, and dialogue-end cleanup.
+
+### Director verification
+
+- Enter the inn and confirm the lobby appears without changing the location label or controls.
+- Run one storage-room stay, one stable stay, and the post-delivery guest-room sleep; confirm each returns to the lobby after the dialogue.
+- Trigger first amber-tree defeat and one ordinary defeat; confirm storage-room versus guest-room recovery.
+- Start the departure-eve `馬小屋の裏` scene and confirm the background is black pending the night exterior art.
+
 ## Inn Journal Saves
 
 Status: implemented; Director visual and gameplay verification pending
@@ -147,10 +174,11 @@ Status: implemented; Director gameplay verification pending
 - Phase 4 fortune route: `占い師に相談` -> `オーエンに相談` -> `占い師と話す` / `納品する`.
 - Phase 6 talk route: wagon information -> scent-pouch information -> empty bottle.
 - Phase 6 observe route: fortune consultation -> material briefing/hints -> brooch return.
-- Phase 6 blacksmith route yields to active fortune/herb-garden progression.
 
 ### Known conflicts being addressed
 
+- Fixed: standard defeat recovery keeps `mode = event` until the final recovery dialogue completes, preventing movement input from corrupting the inn return location.
+- Fixed: choice mode now locks every command outside the active choice container; exploration inspect and forest entry also reject non-`base` input.
 - Fixed: Phase 4 fur delivery remains enabled after both fortune follow-ups.
 - Fixed: Phase 6 empty-bottle label and execution now share `needsPhase6EmptyBottle()`.
 - Fixed: Generic Phase 4 fortune-observe lines do not replay after the automatic introduction.
@@ -232,3 +260,28 @@ Status: design pending; do not implement before Director supplies the defeat sce
   - an explicit lethal-attack chance during the visual dodge sequence;
   - a later "blood loss" phase that reduces Cain's evasion.
 - Keep these mechanics scoped to `amber_husk_giant_larva`; do not alter ordinary enemy defeat behavior or the shared three-defeat bad-end system without explicit approval.
+
+### Charm Revival Coverage
+
+Status: implemented; Director gameplay verification pending.
+
+- Both standard-enemy attack paths now use the shared defeat check, as do AI-driven boss attacks.
+- The ordinary enemy's Owen-assisted battle escape keeps priority; a charm is the fallback when a route reaches the shared defeat check without that rescue.
+- Charm revival clears the current battle's one-turn stun so the revived Cain receives a normal next turn; poison and other effects remain unchanged.
+
+### Glowing Cat Rabbit Fur Pacing
+
+Status: implemented; Director gameplay verification pending.
+
+- Quest fur remains unavailable until the phase 4 fortune teller has set `needsGlowingRabbitFur`.
+- During the fur quest, ordinary glowing cat rabbit encounters retain the existing 20% fur chance.
+- While `matamatabiActive`, a fur-less quest encounter increments `phase4MatamatabiRabbitEncounters`; the second such encounter guarantees the fur, whether the rabbit escapes or is defeated.
+- The encounter count persists if a matatabi activation expires, so repeated activations cannot create an open-ended grind. It resets when the request starts, when fur is acquired, and when the fur is delivered.
+- Rabbit victory count, level progression, reward items, and Lv88 behavior remain driven only by actual victories and are unchanged.
+
+### Hungry Amber Tree Rematch Location
+
+Status: implemented; Director gameplay verification pending.
+
+- A rematch is rediscovered at Amber Forest 8m, matching the original encounter point.
+- The legacy 9m dialogue and 10m battle gate were replaced with an explicit 8m choice: red `戦う` starts the battle, while `戻る` safely retreats to 7m.

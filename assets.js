@@ -397,6 +397,47 @@ RPG.Assets.GAME_TEXT = {
 
     // Event Messages
     events: {
+        prologueIntro: [
+            "古い宿屋には、甘い香辛料の匂いが漂っている。",
+            "窓の外には、深く湿った《琥珀の森》が広がっていた。",
+            "黒い外套を纏った騎士――カインは、野宿の泥をまとったまま、カウンターの前に立っている。",
+            "その傍らには、場違いなほど豪華な毛皮を纏った男――オーエンがいた。",
+            "カウンターの上には、乾燥果実の欠片ひとつ残っていない空瓶が置かれている。",
+            "オーエンは最後の一粒をゆっくりと噛みながら、指先を舐めた。",
+            "カインが、左右で色の違う瞳でオーエンを見る。",
+            "オーエンもまた、同じ色の瞳で見返した。",
+            "気まずい沈黙の中、店主は空瓶をつかんで……",
+            "ゴン、とカウンターへ叩きつけた。",
+            "店主「なあ、どうしてくれるんだ？ 最近じゃ砂糖はおろか、乾燥果実も滅多に手に入らない貴重品だぞ」",
+            "カイン「本当にすまない…弁償させてくれ」",
+            "店主「当たり前だ。…ったく、金で買えるもんでもないんだ。」",
+            "カインは革でできた財布を取り出し、中から紙幣を取り出した。",
+            "それをカウンター越しに見た店主が言う。",
+            "店主「王国通貨は使えねえぞ」",
+            "カイン「えっ」",
+            "店主「あんた、王国から来たのか？ その金じゃダメだ。他のもので払ってくれ」",
+            "オーエン「…だって。」",
+            "オーエンが目を細めて、「どんな気分？」とでも言いたげにカインの顔を見た。",
+            "カインは眉間に皺を寄せて黙っていた。"
+        ],
+        prologueDebtTalk: [
+            "カイン「…他のものだと、何をどのくらい払えばいい？」",
+            "店主「銀貨なら3枚だな」",
+            "カイン「3枚！？」",
+            "カイン（宿泊より高い！）",
+            "店主「言っただろう、貴重品だって。どうする？」",
+            "店主は乾燥果実の空瓶をゴン、とカウンターで鳴らした。"
+        ],
+        prologueDebtFurJoke: [
+            "オーエン「……へえ？ おもしろい冗談だね」",
+            "店主「よしてくれ。そんな不吉なもん、買い取れるわけねえだろ！ とにかく、銀貨3枚支払ってくれ」"
+        ],
+        prologueDebtAccepted: [
+            "オーエン「なんとかするって？ なんとかって何」",
+            "カイン「銀貨を稼げる方法を探すさ」",
+            "カイン（銀貨3枚…そもそも、銀貨を持ってるやつがこの辺にいるんだろうか）",
+            "店主「とにかく銀貨3枚支払ってくれ」"
+        ],
         owenFlavor5m: [
             { text: "オーエンは退屈そうに視線を泳がせた" },
             { text: "オーエンは足元の土を蹴ってわざとカインにかけた" },
@@ -1217,14 +1258,66 @@ RPG.Assets.EVENT_DATA = [
         condition: (state) => !state.flags.hasIntroFinished,
         action: (state) => {
             state.dialogueQueue = [
-                { text: "宿屋の主人「…なあ、言いづらいんだがそろそろ宿代を払ってはくれないか？」", delay: 1000 },
-                { text: "カイン「…本当にすまない。今日明日でなんとか、稼いでくるよ。」", delay: 1000 },
-                { text: "宿屋の主人「そうしてくれ」", delay: 1000 },
-                { text: "カイン「まさか財布の中が空っぽになってるとは思わなかったんだよ…」", delay: 1000 },
-                { text: "オーエン「間抜け」", delay: 1000, color: "#a020f0" },
-                { text: "カイン「おまえだろ」", delay: 1000 },
-                { text: "宿屋の主人「よし、こうしよう。【銀貨３枚】持ってきてくれ。それでツケ。チャラにしてやる。それまで寝る場所は物置になるからな。」", delay: 1000 },
-                { text: "System「《銀貨を３枚納品しよう》」", delay: 1000 }
+                {
+                    text: null,
+                    action: () => {
+                        document.body.classList.add("intro-opening");
+                        document.body.classList.add("intro-title-card");
+                        if (typeof visualDirector !== "undefined") {
+                            visualDirector.setInnScene("none");
+                        }
+                        uiControl.beginSceneLogFocus();
+                    }
+                },
+                { text: null, delay: 650 },
+                {
+                    text: "第1章：銀貨と宿屋",
+                    type: "chapter-title",
+                    color: "#f1e6c8",
+                    autoAdvance: true,
+                    delay: 3000
+                },
+                {
+                    text: null,
+                    action: () => {
+                        const title = document.querySelector(".log-chapter-title");
+                        if (title) title.remove();
+                        document.body.classList.remove("intro-title-card");
+                        uiControl.updateUI();
+                    }
+                },
+                { text: null, delay: 850 },
+                ...RPG.Assets.GAME_TEXT.events.prologueIntro.slice(0, 2).map(text => ({
+                    text,
+                    typewriter: true,
+                    typeSpeed: 21
+                })),
+                {
+                    text: "――宿屋《琥珀亭》――",
+                    type: "location-title",
+                    color: "#f1e6c8",
+                    fontSize: "19px",
+                    action: () => {
+                        document.body.classList.remove("intro-opening");
+                        if (typeof visualDirector !== "undefined") {
+                            visualDirector.setInnScene("lobby");
+                        }
+                    }
+                },
+                ...RPG.Assets.GAME_TEXT.events.prologueIntro.slice(2).map(text => ({
+                    text,
+                    typewriter: true,
+                    typeSpeed: 21,
+                    action: text === "ゴン、とカウンターへ叩きつけた。"
+                        ? () => uiControl.screenShake()
+                        : null
+                })),
+                {
+                    text: null,
+                    action: () => {
+                        state.flags.introDebtTalkPending = true;
+                    }
+                }
             ];
         }
     },

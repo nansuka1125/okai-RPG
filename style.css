@@ -49,6 +49,36 @@ body {
     padding-top: env(safe-area-inset-top);
 }
 
+#chapterHeader,
+header,
+footer,
+#debugParams,
+#miniSaveButton,
+#debug-mood {
+    transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+body.intro-opening #chapterHeader,
+body.intro-opening header,
+body.intro-opening #debugParams,
+body.intro-opening #miniSaveButton,
+body.intro-opening #debug-mood {
+    opacity: 0 !important;
+    transform: translateY(6px);
+    pointer-events: none;
+}
+
+/* Keep the command layout present during the black prologue screen, but unavailable. */
+body.intro-opening footer {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* The chapter title stands alone before the disabled commands fade in. */
+body.intro-title-card footer {
+    opacity: 0 !important;
+}
+
 header {
     flex: 0 0 auto;
     padding: 12px 15px 8px;
@@ -550,6 +580,39 @@ body.scene-inn-room #sceneBackdrop {
 .log-marker {
     color: #888;
     font-weight: bold;
+}
+
+.log-chapter-title {
+    align-self: center;
+    margin: 22vh auto 0;
+    color: #f1e6c8;
+    font-size: clamp(20px, 5vw, 28px);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-align: center;
+    animation: chapter-title-reveal 1.5s ease-out both;
+}
+
+.log-location-title {
+    align-self: center;
+    margin: 12px auto 6px;
+    color: #f1e6c8;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-align: center;
+}
+
+@keyframes chapter-title-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+        letter-spacing: 0.2em;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        letter-spacing: 0.14em;
+    }
 }
 
 /* Build 5.1: Night Phase */

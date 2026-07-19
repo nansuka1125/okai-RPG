@@ -377,6 +377,20 @@ const uiControl = {
                     btnInnDeliver.onclick = () => Cinematics.playSilverDeliveryEvent();
                 }
             }
+
+            if (mode === "base" && RPG.State.flags.introDebtTalkPending === true) {
+                allButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = "0.25";
+                    btn.style.pointerEvents = "none";
+                });
+                if (btnInnTalk) {
+                    btnInnTalk.disabled = false;
+                    btnInnTalk.style.opacity = "1";
+                    btnInnTalk.style.pointerEvents = "auto";
+                }
+                return;
+            }
         } else {
             if (exploreUI) exploreUI.style.display = 'grid';
 

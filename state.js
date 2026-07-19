@@ -93,6 +93,9 @@ RPG.State = {
     flags: {
         silverDelivered: false,
         hasIntroFinished: false, // プロローグ完了フラグ
+        introDebtTalkPending: false, // Formal prologue has finished; only the inn talk command may continue the debt negotiation
+        introDebtFurJokeTried: false, // One-time opening joke choice before Cain accepts the silver-coin debt
+        introDebtNegotiationDone: false, // Opening debt negotiation has resolved and normal inn controls may unlock
         hasFoundFirstCoin: false, // First coin discovery now triggered by inspecting 6m
         forest3mFirstVisit: false, // Build 15.2.54: One-time auto dialogue at forest 3m during phase 0
         forest3mInspectCount: 0, // Build 15.2.54: Track one-time special inspect talk at forest 3m during phase 0

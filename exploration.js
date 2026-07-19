@@ -736,6 +736,13 @@ const explorationSystem = {
     // --- playDialogueLoop: 自動会話進行 ---
     playDialogueLoop: function () {
         if (!RPG.State.dialogueQueue || RPG.State.dialogueQueue.length === 0) {
+            // A fully automatic scene can finish without a final player tap.
+            // Always clear the transparent tap layer before restoring commands.
+            this.cancelActiveTypewriter();
+            RPG.State.isWaitingForInput = false;
+            uiControl.hideFloatingArrow();
+            uiControl.disableTapOverlay();
+
             // Build 9.0.0: Prevent overwriting battle mode
             if (RPG.State.mode === "event") {
                 RPG.State.mode = "base";
@@ -797,9 +804,13 @@ const explorationSystem = {
 
             const finishText = () => {
                 if (nextLine.autoAdvance) {
+                    const normalDelay = nextLine.delay || 0;
+                    const delay = RPG.State.debug.isSkipping
+                        ? Math.min(50, normalDelay)
+                        : normalDelay;
                     setTimeout(() => {
                         this.playDialogueLoop();
-                    }, nextLine.delay || 0);
+                    }, delay);
                 } else if (tapDelay > 0 && !nextLine.typewriter) {
                     setTimeout(enableTapAdvance, tapDelay);
                 } else {

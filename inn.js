@@ -368,6 +368,68 @@ innSystem = {
         return queue;
     },
 
+    showPrologueDebtChoices: function () {
+        const flags = RPG.State.flags;
+        const choices = [
+            {
+                label: "わかった、なんとかする",
+                action: () => {
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildDialogueQueue(
+                        RPG.Assets.GAME_TEXT.events.prologueDebtAccepted,
+                        () => {
+                            flags.introDebtNegotiationDone = true;
+                            RPG.State.mode = "base";
+                            uiControl.updateUI();
+                        }
+                    );
+                    explorationSystem.playDialogueLoop();
+                }
+            }
+        ];
+
+        if (flags.introDebtFurJokeTried !== true) {
+            choices.push({
+                label: "……この毛皮を売って解決しないか？",
+                action: () => {
+                    flags.introDebtFurJokeTried = true;
+                    RPG.State.mode = "event";
+                    RPG.State.dialogueQueue = this.buildDialogueQueue(
+                        RPG.Assets.GAME_TEXT.events.prologueDebtFurJoke,
+                        () => this.showPrologueDebtChoices()
+                    );
+                    explorationSystem.playDialogueLoop();
+                }
+            });
+        }
+
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+
+        [document.getElementById("btnChoiceA"), document.getElementById("btnChoiceB")]
+            .forEach((button, index) => {
+                if (!button) return;
+                const choice = choices[index];
+                button.style.display = choice ? "flex" : "none";
+                if (!choice) return;
+
+                button.textContent = choice.label;
+                button.style.background = "";
+                button.style.fontWeight = "";
+                button.onclick = choice.action;
+            });
+    },
+
+    playPrologueDebtTalk: function () {
+        RPG.State.flags.introDebtTalkPending = false;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue(
+            RPG.Assets.GAME_TEXT.events.prologueDebtTalk,
+            () => this.showPrologueDebtChoices()
+        );
+        explorationSystem.playDialogueLoop();
+    },
+
     hasSeenGlowingCatRabbit: function () {
         const flags = RPG.State.flags;
         return (
@@ -767,6 +829,11 @@ innSystem = {
 
     talk: function () {
         if (RPG.State.mode !== "base") return;
+
+        if (RPG.State.flags.introDebtTalkPending === true) {
+            this.playPrologueDebtTalk();
+            return;
+        }
 
         const talkData = RPG.Assets.TALK_DATA.innTalk;
         const currentPhase = Math.max(0, Math.min(RPG.State.storyPhase, 7));

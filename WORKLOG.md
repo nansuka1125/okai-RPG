@@ -293,3 +293,12 @@ Status: implemented; Director gameplay verification pending.
 - Typewriter scenes remain skippable with Space.
 - While skipping, log scrolling now moves immediately to the newest line instead of falling behind the scene's initial top position.
 - Normal-speed dialogue keeps the existing smooth log-scroll behavior and scene-title presentation.
+
+### Formal Chapter 1 Prologue
+
+Status: implemented; Director gameplay verification pending.
+
+- The initial `prologue_event` now presents the formal Chapter 1 introduction: black title card -> Amber Inn reveal -> player-advanced typewriter scene -> opening debt negotiation.
+- The title card temporarily hides HUD, command UI, journal access, and debug mood display; the inn background and disabled UI fade in before the narration begins.
+- After the opening scene, only `話す` is enabled. Its opening negotiation offers the one-time fur-sale joke before `わかった、なんとかする` returns normal inn controls.
+- Persistent flags: `introDebtTalkPending`, `introDebtFurJokeTried`, and `introDebtNegotiationDone`. Existing saves retain `hasIntroFinished` and do not replay the new prologue.

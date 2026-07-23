@@ -1,5 +1,68 @@
 # Work Log
 
+## Chapter 1 Location Backgrounds
+
+Status: implemented; Director visual and gameplay verification pending
+
+### Implementation
+
+- Added optimized static backgrounds for the inn front, stable exterior by day and night, deep forest by day and night, forest 10m, herb-garden entrance/interior/depths, wagon travel, and the Former Highway.
+- Background selection is presentation-only and derives from existing `location`, `explorationArea`, distance, day/night, and `onWagon` state. No save field or migration was added.
+- Amber Forest 0m–6m keeps the established forest art; 7m–9m uses the deep-forest day/night art; 10m uses its dedicated image.
+- Herb Garden 0m uses the portrait entrance composition on both desktop and phone; 1m–6m uses the portrait overgrown interior and only the 7m deepest point uses the open herb garden.
+- The phase-7 wagon route uses the wagon image while `onWagon` is active, and the Former Highway uses its dedicated night road.
+- The departure-eve `【馬小屋の裏にて】` scene now uses the supplied night exterior instead of black. The supplied daytime exterior is ready as a presentation override but remains unused until a matching daytime scene exists.
+- All backdrops remain fixed behind the log and reuse the existing reading veil; story events, movement, commands, and save data are unchanged.
+- After Director feedback, removed the compounded heavy dimming: daytime art now stays near source brightness, dedicated night art is no longer darkened twice, and the reading veil keeps a darker left-side reading corridor while leaving the right-side scenery clearly visible on desktop and phone.
+- After screenshot review, changed the veil from a broad dimmer into a defined reading corridor: the left half is nearly black, the fade clears quickly across the middle, the right edge retains the source image, and phone log lines stop before the scenery strip.
+
+### Verification completed
+
+- All runtime and test JavaScript passes `node --check`; `git diff --check` reports no whitespace errors.
+- All CSS WebP references resolve to repository files.
+- The complete Playwright suite passes 21 tests, including new scene-resolution, stale-class cleanup, and responsive herb-entrance coverage.
+- Automated browser checks loaded the inn-front, highway, and both herb-entrance variants without page errors.
+
+### Director verification
+
+- Leave and re-enter the inn; confirm the inn-front image appears while the location name remains `宿屋前`.
+- Walk through forest 6m -> 7m -> 10m by day, then revisit 7m after nightfall; confirm the intended background cutovers without UI movement or recropping during battle.
+- Enter the Herb Garden and walk 0m -> 1m -> 6m -> 7m; confirm entrance, overgrown interior, and deepest open-garden backgrounds remain readable behind the log.
+- Board the wagon, enter the Former Highway, and play the departure-eve scene; confirm wagon, night road, and stable-back night backgrounds appear in order.
+- Check the same routes on the target phone, especially the portrait entrance/interior, forest 10m, and highway crops.
+
+## Chapter 1 Amber Trade and Hardened Enemies
+
+Status: implemented; Director gameplay and pacing verification pending
+
+### Implementation
+
+- Changed the Hungry Amber Tree victory aftermath so the embedded second silver coin remains in place.
+- Restored the pre-battle `銀貨を取る` / `やめておく` display after another event has hidden a shared choice button; the existing leave dialogue remains unchanged and still leads into the battle.
+- Moved the amber-trader vignette to the first inn `様子を見る` after obtaining one silver coin. Knife borrowing and first appraisal remain forced `様子を見る` events; the one-time return action is labeled `ナイフを返す`. Appraisal/exchange/trade-in commands unlock only after the trader moves to forest 0m.
+- Added the borrowed knife route, 8m coin mining, first guaranteed sparkling appraisal with a non-interactive exchange preview, one-time knife return attempt, and the merchant's move to the forest entrance after one stay.
+- Added free single/bulk appraisal with the confirmed 70/15/15 result weights. Appraised sparkling, junk, and insect amber are stored by the merchant and their counts remain visible in the merchant menu.
+- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Amber-case equipment and all rare-amber combat/exploration effects remain deferred.
+- Added the cumulative three-junk reward that renames the borrowed knife to the mining knife without changing its performance.
+- Added amberized rat/weasel variants after the thief-boy encounter, using a tunable provisional 25% replacement roll and provisional hardened-part durability values of 20/30. The Hungry Amber Tree uses provisional durability 50.
+- Added shared hardened-part damage, overflow, break, and critical-bypass handling. Player-facing logs use `硬化した皮膚` or `硬化した樹皮`; the internal design term is not displayed.
+- Amberized beasts always award one unknown amber, including Owen instant-death victories; Owen victories retain the existing no-EXP rule.
+- Added progression-aware journey memos for borrowing the knife, returning to 8m, and showing the unknown amber to the merchant.
+- No amber-case UI, equipment slots, rare-amber effects, bee/ignored acquisition events, or old-save migration was added.
+
+### Verification completed
+
+- All runtime JavaScript and the new amber Playwright spec pass `node --check`; `git diff --check` reports no whitespace errors.
+- The complete Playwright suite passes all 18 tests, including the Hungry Amber Tree's restored two-choice branch and leave dialogue, the thief-boy encounter gate, the one-silver-coin merchant recognition boundary, the inn command labels, the first appraisal preview, and the forest-entrance menu unlock.
+
+### Director verification
+
+- Play from the first silver coin through tree victory, merchant recognition, knife borrowing, 8m mining, first appraisal, knife return attempt, one stay, and the merchant's 0m appearance.
+- Confirm the merchant menus remain readable on the target phone, especially the six-item exchange list.
+- Fight the Hungry Amber Tree and both amberized beasts; judge the provisional 50/20/30 durability and the 25% replacement frequency.
+- Confirm normal hits, overflow hits, critical bypass, Cain victory, Owen instant death, defeat, and rematch all show the intended logs and reset hardened durability per battle.
+- Save to a spare slot after appraisal, reload it, and confirm merchant storage, knife state, and amber progression remain intact. Old pre-amber saves are intentionally outside this implementation scope.
+
 ## Amber Inn Scene Backgrounds
 
 Status: implemented; Director visual and gameplay verification pending
@@ -13,7 +76,7 @@ Status: implemented; Director visual and gameplay verification pending
 - The daughter-room offer begins in the lobby and changes to the storage room under the sleep blackout, matching the existing morning text.
 - First amber-tree defeat wakes in the storage room; ordinary defeat recovery uses the guest room.
 - Inn scene overrides are presentation-only and clear through the shared dialogue-completion path. They are not serialized and require no save migration.
-- `【馬小屋の裏にて】` intentionally stays black until the dedicated night exterior art is supplied; the daytime stable interior is not reused.
+- `【馬小屋の裏にて】` now uses its dedicated night exterior; the daytime stable interior is not reused.
 
 ### Verification completed
 
@@ -25,7 +88,7 @@ Status: implemented; Director visual and gameplay verification pending
 - Enter the inn and confirm the lobby appears without changing the location label or controls.
 - Run one storage-room stay, one stable stay, and the post-delivery guest-room sleep; confirm each returns to the lobby after the dialogue.
 - Trigger first amber-tree defeat and one ordinary defeat; confirm storage-room versus guest-room recovery.
-- Start the departure-eve `馬小屋の裏` scene and confirm the background is black pending the night exterior art.
+- Start the departure-eve `馬小屋の裏` scene and confirm the dedicated night exterior appears, then the lobby returns after the dialogue.
 
 ## Inn Journal Saves
 

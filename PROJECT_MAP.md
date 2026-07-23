@@ -38,7 +38,7 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 | `style.css` | Global presentation and effect styling | Keep DOM/class changes synchronized with UI code. |
 | `state.js` | `RPG.Config` and the default `RPG.State` | Persistent defaults and legacy `window.gameState` shim. |
 | `assets.js` | Text and scenario/content data | Owns `GAME_TEXT`, `EVENT_DATA`, `BATTLE_EVENTS`, `TALK_DATA`, `INN_EVENTS`, and `LOCATIONS`; preserves legacy globals. |
-| `visualDirector.js` | Non-persistent presentation cues | Coordinates forest/inn scene backgrounds, transient inn-room overrides, travel locks, the party marker, and status-bar battle feedback without changing story state. |
+| `visualDirector.js` | Non-persistent presentation cues | Resolves location, distance, day/night, and wagon state into scene backgrounds; also coordinates transient inn-scene overrides, travel locks, the party marker, and status-bar battle feedback without changing story state. |
 | `battleData.js` | Enemy definitions and battle behavior data | Owns enemy/AI content exposed through `RPG.Assets` and legacy globals. |
 | `Cinematics.js` | Named cinematic sequences | Reuse for multi-step set pieces instead of duplicating orchestration. |
 | `battle.js` | Battle runtime and battle outcomes | Coordinates `RPG.State`, battle data, UI, exploration dialogue, and defeat routing. |

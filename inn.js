@@ -148,6 +148,11 @@ innSystem = {
 
         RPG.State.flags.herbGardenHerb1Available = true;
 
+        if (RPG.State.flags.amberMerchantMovePending === true) {
+            RPG.State.flags.amberMerchantMovePending = false;
+            RPG.State.flags.amberMerchantMovedToForest = true;
+        }
+
         if (
             RPG.State.flags.carnivorousVineDefeated === true &&
             RPG.State.flags.carnivorousVineRegrown !== true
@@ -366,6 +371,372 @@ innSystem = {
             queue.push({ text: null, action });
         }
         return queue;
+    },
+
+    ensureAmberState: function () {
+        RPG.State.amberStorage = RPG.State.amberStorage || { sparkling: 0, junk: 0, insect: 0 };
+        RPG.State.amberAppraisalSeen = RPG.State.amberAppraisalSeen || {
+            sparkling: false,
+            junk: false,
+            insect: false
+        };
+        if (typeof RPG.State.junkAmberDelivered !== "number") {
+            RPG.State.junkAmberDelivered = 0;
+        }
+    },
+
+    closeAmberActionMenu: function () {
+        const container = document.getElementById("action-buttons");
+        if (container) {
+            container.innerHTML = "";
+            container.style.display = "none";
+        }
+    },
+
+    showAmberActionMenu: function (choices) {
+        const container = document.getElementById("action-buttons");
+        if (!container) return;
+
+        container.innerHTML = "";
+        choices.forEach((choice, index) => {
+            const button = document.createElement("button");
+            button.id = `btnAmberAction${index}`;
+            button.className = "btn btn-full";
+            button.textContent = choice.label;
+            button.disabled = choice.disabled === true;
+            button.style.opacity = choice.disabled ? "0.25" : "1";
+            button.style.pointerEvents = choice.disabled ? "none" : "auto";
+            button.onclick = () => {
+                if (choice.disabled) return;
+                this.closeAmberActionMenu();
+                choice.action();
+            };
+            container.appendChild(button);
+        });
+
+        container.style.display = "flex";
+        RPG.State.mode = "choice";
+        uiControl.updateUI();
+    },
+
+    interactWithAmberMerchant: function () {
+        if (RPG.State.mode !== "base" && RPG.State.mode !== "choice") return;
+        this.closeAmberActionMenu();
+        this.ensureAmberState();
+        const flags = RPG.State.flags;
+        const unknownCount = RPG.State.inventory.unknownAmber || 0;
+
+        if (flags.amberMerchantRecognized !== true) {
+            const existingMerchantObservation = RPG.Assets.GAME_TEXT.innObserve?.[1]?.[1] || [];
+            flags.amberMerchantRecognized = true;
+            if (!RPG.State.observePhaseReached || typeof RPG.State.observePhaseReached !== "object") {
+                RPG.State.observePhaseReached = {};
+            }
+            RPG.State.observePhaseReached[1] = Math.max(RPG.State.observePhaseReached[1] || 0, 1);
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(existingMerchantObservation);
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        if (flags.treeDefeated === true && flags.borrowedMiningKnifeReceived !== true) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "琥珀商の男が、琥珀の鑑定をしている。" },
+                { text: "琥珀商「俺に何か用か？」" },
+                { text: "カイン「琥珀化した樹液を掘りたいんだが、何か道具を借りれないか？」" },
+                { text: "琥珀商「このナイフを貸してやってもいいが……そうだな。森で琥珀を見つけたら見せてくれ」" },
+                { text: "カイン「わかった、琥珀だな！」" },
+                {
+                    text: "🔪《借りたナイフ》を手に入れた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.borrowedMiningKnife = 1;
+                        flags.borrowedMiningKnifeReceived = true;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "琥珀商「大事な商売道具だからな。ちゃんと返してくれよ」" }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        if (unknownCount > 0 && flags.firstAmberAppraisalDone !== true) {
+            this.playFirstAmberAppraisal();
+            return;
+        }
+
+        if (flags.firstAmberAppraisalDone === true && flags.amberKnifeReturnAttemptDone !== true) {
+            this.playAmberKnifeReturnAttempt();
+            return;
+        }
+
+        if (
+            flags.amberMerchantMovedToForest !== true ||
+            flags.firstAmberAppraisalDone !== true ||
+            flags.amberKnifeReturnAttemptDone !== true
+        ) {
+            RPG.State.mode = "base";
+            uiControl.updateUI();
+            return;
+        }
+
+        this.showAmberMerchantMenu();
+    },
+
+    playFirstAmberAppraisal: function () {
+        const flags = RPG.State.flags;
+        const exchangeSummary = RPG.Assets.RARE_AMBER_CATALOG
+            .filter(item => item.exchangeable !== false)
+            .map(item => `${item.name}：${item.cost}個\n${item.effect}`)
+            .join("\n\n");
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "琥珀商「琥珀持ってるじゃねえか。見せてみな」" },
+            { text: "カイン「あんたが欲しがってたのはこれか？」" },
+            { text: "琥珀商「こっちは仕事だからな。何でもかんでも欲しいってわけじゃねえよ。どれ、鑑定してやるか」" },
+            {
+                text: "鑑定結果：《キラキラ琥珀》\n光をよく反射する琥珀。レア琥珀との交換に使える。",
+                type: "marker",
+                color: "#ffd166",
+                action: () => {
+                    RPG.State.inventory.unknownAmber = Math.max(0, (RPG.State.inventory.unknownAmber || 0) - 1);
+                    RPG.State.amberStorage.sparkling++;
+                    RPG.State.amberAppraisalSeen.sparkling = true;
+                    flags.firstAmberAppraisalDone = true;
+                    uiControl.updateUI();
+                }
+            },
+            { text: "琥珀商「このキラキラ琥珀は、おまえが持っててもなんの役にも立たないが、俺には売れるルートがある。たくさん集めてきてくれたら、レア琥珀と交換してやる」" },
+            { text: "カイン「レア琥珀？」" },
+            { text: "琥珀商「戦闘に有利な効果がある琥珀があるんだ。見てみるか？」" },
+            {
+                text: `交換一覧\n${exchangeSummary}`,
+                type: "system",
+                color: "#ffd166"
+            },
+            { text: "カイン（……うっ……かなり欲しいな。今の俺には特に必要なものばかりだ）" },
+            { text: "琥珀商「レア琥珀も引き取るが、交換した時と同じ数は返せないからな。こっちも商売だ。そこんとこよろしく」" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        explorationSystem.playDialogueLoop();
+    },
+
+    playAmberKnifeReturnAttempt: function () {
+        const flags = RPG.State.flags;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue([
+            "カイン「あんたのナイフ、最高に役に立ったよ」",
+            "カインはナイフを拭って、恭しく差し出した。",
+            "琥珀商はカインの顔を見た。",
+            "琥珀商「……よし、そのナイフ貸しておいてやる」",
+            "琥珀商「この森の異変には俺も参ってるんだ。珍しい琥珀があるって聞いてきたが、森は危険すぎて入れないしな」",
+            "琥珀商「あんた、この森に用事があるんだろ？　毎日入ってくもんな。ついでに、琥珀を見つけたら持ってきてくれ。それまで貸しといてやるよ」"
+        ], () => {
+            flags.amberKnifeReturnAttemptDone = true;
+            flags.amberMerchantMovePending = true;
+            uiControl.updateUI();
+        });
+        explorationSystem.playDialogueLoop();
+    },
+
+    showAmberMerchantMenu: function () {
+        this.ensureAmberState();
+        const storage = RPG.State.amberStorage;
+        this.showAmberActionMenu([
+            { label: `鑑定する（《？琥珀》${RPG.State.inventory.unknownAmber || 0}個）`, action: () => this.showAmberAppraisalMenu() },
+            { label: `交換する（キラキラ${storage.sparkling}個）`, action: () => this.showAmberExchangeMenu() },
+            { label: "レア琥珀を下取りに出す", action: () => this.showAmberTradeInMenu() },
+            { label: "預かり品を確認", action: () => this.showAmberStorage() },
+            {
+                label: "戻る",
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ]);
+    },
+
+    showAmberAppraisalMenu: function () {
+        const count = RPG.State.inventory.unknownAmber || 0;
+        const choices = [];
+        if (count > 0) {
+            choices.push({ label: "《？琥珀》1個を鑑定", action: () => this.appraiseAmber(1) });
+            if (count > 1) {
+                choices.push({ label: `${count}個をまとめて鑑定`, action: () => this.appraiseAmber(count) });
+            }
+        } else {
+            choices.push({ label: "鑑定する物がない", disabled: true, action: () => {} });
+        }
+        choices.push({ label: "鑑定せず戻る", action: () => this.showAmberMerchantMenu() });
+        this.showAmberActionMenu(choices);
+    },
+
+    rollAmberAppraisal: function () {
+        const roll = Math.random() * 100;
+        if (roll < RPG.Assets.AMBER_APPRAISAL.sparkling.weight) return "sparkling";
+        if (roll < RPG.Assets.AMBER_APPRAISAL.sparkling.weight + RPG.Assets.AMBER_APPRAISAL.junk.weight) return "junk";
+        return "insect";
+    },
+
+    appraiseAmber: function (requestedCount) {
+        this.ensureAmberState();
+        const count = Math.min(requestedCount, RPG.State.inventory.unknownAmber || 0);
+        if (count <= 0) {
+            this.showAmberAppraisalMenu();
+            return;
+        }
+
+        const resultCounts = { sparkling: 0, junk: 0, insect: 0 };
+        for (let i = 0; i < count; i++) {
+            resultCounts[this.rollAmberAppraisal()]++;
+        }
+
+        RPG.State.inventory.unknownAmber -= count;
+        Object.keys(resultCounts).forEach(type => {
+            RPG.State.amberStorage[type] += resultCounts[type];
+        });
+
+        const lines = [];
+        Object.entries(resultCounts).forEach(([type, amount]) => {
+            if (amount <= 0) return;
+            const data = RPG.Assets.AMBER_APPRAISAL[type];
+            const firstSeen = RPG.State.amberAppraisalSeen[type] !== true;
+            lines.push({
+                text: `${data.name}${amount > 1 ? ` ×${amount}` : ""}\n${firstSeen ? data.firstText : data.repeatText}`,
+                type: "marker",
+                color: "#ffd166"
+            });
+            RPG.State.amberAppraisalSeen[type] = true;
+        });
+
+        if (resultCounts.junk > 0) {
+            const previous = RPG.State.junkAmberDelivered;
+            RPG.State.junkAmberDelivered += resultCounts.junk;
+            if (previous === 0) {
+                lines.push({ text: "琥珀商「クズ琥珀でも引き取る。集めた分は覚えておいてやるよ」" });
+            }
+
+            if (previous < 3 && RPG.State.junkAmberDelivered >= 3 && RPG.State.flags.miningKnifeAwarded !== true) {
+                lines.push(
+                    { text: "琥珀商「クズでも三つ持ってきた努力賞だ。そのナイフ、もうあんたにやるよ」" },
+                    {
+                        text: "《借りたナイフ》が《採掘ナイフ》になった！\n性能は特に変わっていない。",
+                        type: "marker",
+                        color: "#ffd166",
+                        action: () => {
+                            RPG.State.inventory.borrowedMiningKnife = 0;
+                            RPG.State.inventory.miningKnife = 1;
+                            RPG.State.flags.miningKnifeAwarded = true;
+                        }
+                    }
+                );
+            } else if (RPG.State.junkAmberDelivered < 3) {
+                lines.push({
+                    text: `クズ琥珀の累積：${RPG.State.junkAmberDelivered}個\n努力賞まであと${3 - RPG.State.junkAmberDelivered}個。`,
+                    type: "system"
+                });
+            } else {
+                lines.push({ text: `クズ琥珀の累積：${RPG.State.junkAmberDelivered}個`, type: "system" });
+            }
+        }
+
+        lines.push({ text: null, action: () => this.showAmberMerchantMenu() });
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = lines;
+        uiControl.updateUI();
+        explorationSystem.playDialogueLoop();
+    },
+
+    showAmberStorage: function () {
+        this.ensureAmberState();
+        const storage = RPG.State.amberStorage;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            {
+                text: `琥珀商の預かり品\n《キラキラ琥珀》${storage.sparkling}個\n《クズ琥珀》${storage.junk}個\n《虫入り琥珀》${storage.insect}個`,
+                type: "system"
+            },
+            { text: null, action: () => this.showAmberMerchantMenu() }
+        ];
+        explorationSystem.playDialogueLoop();
+    },
+
+    showAmberExchangeMenu: function () {
+        this.ensureAmberState();
+        const sparkling = RPG.State.amberStorage.sparkling;
+        const choices = RPG.Assets.RARE_AMBER_CATALOG
+            .filter(item => item.exchangeable !== false)
+            .map(item => ({
+                label: `${item.name}：${item.cost}個\n${item.effect}`,
+                disabled: sparkling < item.cost,
+                action: () => {
+                    RPG.State.amberStorage.sparkling -= item.cost;
+                    RPG.State.inventory[item.id] = (RPG.State.inventory[item.id] || 0) + 1;
+                    uiControl.addLog(`${item.name}と交換した！`, "marker", "#ffd166");
+                    this.showAmberExchangeMenu();
+                }
+            }));
+        choices.push({ label: `戻る（キラキラ${sparkling}個）`, action: () => this.showAmberMerchantMenu() });
+        this.showAmberActionMenu(choices);
+    },
+
+    showAmberTradeInMenu: function () {
+        const choices = RPG.Assets.RARE_AMBER_CATALOG
+            .filter(item => (
+                (RPG.State.inventory[item.id] || 0) > 0 &&
+                (Number.isFinite(item.tradeInPrice) || Number.isFinite(item.cost))
+            ))
+            .map(item => {
+                const price = Number.isFinite(item.tradeInPrice)
+                    ? item.tradeInPrice
+                    : Math.max(1, item.cost - 2);
+                return {
+                    label: `${item.name} ×${RPG.State.inventory[item.id]} → キラキラ${price}個`,
+                    action: () => this.confirmAmberTradeIn(item, price)
+                };
+            });
+        if (choices.length === 0) {
+            choices.push({ label: "下取りできるレア琥珀がない", disabled: true, action: () => {} });
+        }
+        choices.push({ label: "戻る", action: () => this.showAmberMerchantMenu() });
+        this.showAmberActionMenu(choices);
+    },
+
+    confirmAmberTradeIn: function (item, price) {
+        if (item.oneTime === true) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                ["琥珀商「これはもう一度手に入るとは限らねえぞ。本当に手放すのか？」"],
+                () => this.showAmberActionMenu([
+                    { label: "手放す", action: () => this.completeAmberTradeIn(item, price) },
+                    { label: "やめる", action: () => this.showAmberTradeInMenu() }
+                ])
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+        this.completeAmberTradeIn(item, price);
+    },
+
+    completeAmberTradeIn: function (item, price) {
+        if ((RPG.State.inventory[item.id] || 0) <= 0) {
+            this.showAmberTradeInMenu();
+            return;
+        }
+        RPG.State.inventory[item.id]--;
+        RPG.State.amberStorage.sparkling += price;
+        uiControl.addLog(`${item.name}を下取りに出し、《キラキラ琥珀》${price}個を受け取った。`, "marker", "#ffd166");
+        this.showAmberTradeInMenu();
     },
 
     showPrologueDebtChoices: function () {
@@ -1238,7 +1609,10 @@ innSystem = {
             return;
         }
 
-        if (RPG.State.currentHP >= RPG.State.maxHP) {
+        if (
+            RPG.State.currentHP >= RPG.State.maxHP &&
+            RPG.State.flags.amberMerchantMovePending !== true
+        ) {
             uiControl.addLog("カイン「今はまだ休む必要はないな。」");
             return;
         }
@@ -1658,6 +2032,37 @@ innSystem = {
     // Build 6.3.6: Observe Button with Silver Coin Branching
     observe: function () {
         if (RPG.State.mode !== "base") return;
+
+        const amberFlags = RPG.State.flags;
+        const hasFirstCoin =
+            amberFlags.hasFoundFirstCoin === true ||
+            (RPG.State.silverCoins || 0) >= 1 ||
+            (RPG.State.inventory.silverCoin || 0) >= 1;
+        if (hasFirstCoin && amberFlags.amberMerchantRecognized !== true) {
+            this.interactWithAmberMerchant();
+            return;
+        }
+        if (
+            amberFlags.treeDefeated === true &&
+            amberFlags.borrowedMiningKnifeReceived !== true
+        ) {
+            this.interactWithAmberMerchant();
+            return;
+        }
+        if (
+            (RPG.State.inventory.unknownAmber || 0) > 0 &&
+            amberFlags.firstAmberAppraisalDone !== true
+        ) {
+            this.interactWithAmberMerchant();
+            return;
+        }
+        if (
+            amberFlags.firstAmberAppraisalDone === true &&
+            amberFlags.amberKnifeReturnAttemptDone !== true
+        ) {
+            this.interactWithAmberMerchant();
+            return;
+        }
 
         if (this.shouldUsePhase4FortuneRoute()) {
             uiControl.addSeparator();

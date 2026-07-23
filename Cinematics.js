@@ -207,9 +207,7 @@ const Cinematics = {
     // Build 14.2.0: Chapter 1 Finale - Night Event
     playChapter1FinaleNight: function () {
         if (typeof visualDirector !== "undefined") {
-            // The current stable art is an interior daytime scene. Keep this
-            // moonlit exterior scene black until its dedicated art arrives.
-            visualDirector.setInnScene("none");
+            visualDirector.setInnScene("stable-back-night");
         }
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [

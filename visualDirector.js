@@ -43,13 +43,59 @@ const visualDirector = {
         return this.innSceneOverride || "lobby";
     },
 
+    getActiveScene: function () {
+        const innScene = this.getInnScene();
+        if (innScene) return `inn-${innScene}`;
+
+        if (RPG.State.isAtInn === true) return null;
+
+        if (
+            RPG.State.location === "宿屋前" &&
+            RPG.State.isInDungeon !== true
+        ) {
+            return "inn-front";
+        }
+
+        if (RPG.State.explorationArea === "herbGarden") {
+            const distance = Number(RPG.State.currentDistance) || 0;
+            if (distance <= 0) return "herb-garden-entrance";
+            if (distance < 7) return "herb-garden-deep";
+            return "herb-garden";
+        }
+
+        if (RPG.State.location === "かつての街道") {
+            return "former-highway";
+        }
+
+        if (this.isAmberForestScene()) {
+            if (RPG.State.flags && RPG.State.flags.onWagon === true) return "wagon";
+
+            const distance = Number(RPG.State.currentDistance) || 0;
+            if (distance >= 10) return "forest-10m";
+            if (distance >= 7) {
+                return this.isNightTime() ? "forest-deep-night" : "forest-deep-day";
+            }
+            return "forest";
+        }
+
+        return null;
+    },
+
     isNightTime: function () {
         const threshold = RPG.Config.NIGHT_STEP_THRESHOLD || 20;
         return (Number(RPG.State.travelStepsSinceStay) || 0) >= threshold;
     },
 
     setInnScene: function (sceneName) {
-        const validScenes = ["lobby", "storage", "stable", "room", "none"];
+        const validScenes = [
+            "lobby",
+            "storage",
+            "stable",
+            "room",
+            "stable-back-day",
+            "stable-back-night",
+            "none"
+        ];
         this.innSceneOverride = validScenes.includes(sceneName) ? sceneName : null;
         this.syncScene();
     },
@@ -68,17 +114,38 @@ const visualDirector = {
         const body = document.body;
         if (!body || !RPG.State) return;
 
-        const innScene = this.getInnScene();
-        const isForest = this.isAmberForestScene();
+        const activeScene = this.getActiveScene();
+        const forestScenes = ["forest", "forest-deep-day", "forest-deep-night", "forest-10m"];
+        const innScenes = [
+            "inn-lobby",
+            "inn-storage",
+            "inn-stable",
+            "inn-room",
+            "inn-stable-back-day",
+            "inn-stable-back-night"
+        ];
+        const sceneClasses = [
+            ...forestScenes,
+            ...innScenes,
+            "inn-front",
+            "herb-garden-entrance",
+            "herb-garden",
+            "herb-garden-deep",
+            "wagon",
+            "former-highway"
+        ];
+        const isForest = forestScenes.includes(activeScene);
+        const isInn = innScenes.includes(activeScene);
         const showBattle = Boolean(RPG.State.isBattling && RPG.State.currentEnemy);
         const exploreUI = document.getElementById("exploreUI");
         const enemySymbolLabel = document.getElementById("enemySymbolLabel");
 
+        body.classList.toggle("scene-backdrop-active", Boolean(activeScene));
         body.classList.toggle("scene-forest", isForest);
-        body.classList.toggle("scene-inn", Boolean(innScene));
+        body.classList.toggle("scene-inn", isInn);
         body.classList.toggle("time-night", this.isNightTime());
-        ["lobby", "storage", "stable", "room"].forEach(sceneName => {
-            body.classList.toggle(`scene-inn-${sceneName}`, innScene === sceneName);
+        sceneClasses.forEach(sceneName => {
+            body.classList.toggle(`scene-${sceneName}`, activeScene === sceneName);
         });
         body.classList.toggle("scene-battle", showBattle);
 

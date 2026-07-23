@@ -313,6 +313,11 @@ const uiControl = {
             if (btnInnObserve) {
                 let observeLabel = "様子を見る";
                 if (
+                    RPG.State.flags.firstAmberAppraisalDone === true &&
+                    RPG.State.flags.amberKnifeReturnAttemptDone !== true
+                ) {
+                    observeLabel = "ナイフを返す";
+                } else if (
                     typeof innSystem !== "undefined" &&
                     innSystem.shouldUsePhase4FortuneRoute()
                 ) {
@@ -434,6 +439,19 @@ const uiControl = {
                 !RPG.State.flags.hasTreeEventOccurred &&
                 !RPG.State.flags.treeDefeated &&
                 !RPG.State.flags.isTreeRematch;
+            const isAmberMerchantAtForestEntrance =
+                RPG.State.explorationArea === "forest" &&
+                RPG.State.currentDistance === 0 &&
+                RPG.State.flags.amberMerchantMovedToForest === true;
+            const canMineAmberTreeCoin =
+                RPG.State.explorationArea === "forest" &&
+                RPG.State.currentDistance === 8 &&
+                RPG.State.flags.treeDefeated === true &&
+                RPG.State.flags.amberTreeCoinMined !== true &&
+                (
+                    (RPG.State.inventory.borrowedMiningKnife || 0) > 0 ||
+                    (RPG.State.inventory.miningKnife || 0) > 0
+                );
 
             if (!RPG.State.isInDungeon) {
                 if (btnEnterInn) btnEnterInn.style.display = 'flex';
@@ -501,7 +519,11 @@ const uiControl = {
                     btnTalk.textContent = "調べる";
                     btnTalk.onclick = () => explorationSystem.talk();
 
-                    if (hasUnfoundForestBrooch && isPhase6WagonDriverSpot) {
+                    if (isAmberMerchantAtForestEntrance) {
+                        btnTalk.textContent = "琥珀商";
+                    } else if (canMineAmberTreeCoin) {
+                        btnTalk.textContent = "埋まった銀貨を掘る";
+                    } else if (hasUnfoundForestBrooch && isPhase6WagonDriverSpot) {
                         btnTalk.textContent = "光るものを調べる";
                     } else if (isPhase6WagonSpot) {
                         const talkStep = RPG.State.flags.wagonDriverTalkStep || 0;

@@ -19,7 +19,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.4.0 (Amber Inn Scenes)", // Build 15.4.0: Lobby and inn-room presentation backgrounds
+    version: "15.5.0 (Amber Trade)", // Build 15.5.0: Chapter 1 amber appraisal, trade, and hardened enemies
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）
@@ -84,9 +84,31 @@ RPG.State = {
         nightMedicine: 0,
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
+        unknownAmber: 0,
+        borrowedMiningKnife: 0,
+        miningKnife: 0,
+        hatedAmber: 0,
+        sweetAmber: 0,
+        herbAmber: 0,
+        monsterAmber: 0,
+        milkAmber: 0,
+        blueAmber: 0,
+        beeAmber: 0,
+        ignoredAmber: 0,
         debug_poison: 10,
         debug_lvl10: 1
     },
+    amberStorage: {
+        sparkling: 0,
+        junk: 0,
+        insect: 0
+    },
+    amberAppraisalSeen: {
+        sparkling: false,
+        junk: false,
+        insect: false
+    },
+    junkAmberDelivered: 0,
     silverCoins: 0, // Currency tracking
     postTreeBattles: null, // Count battles after tree defeat
     searchCounter: 0, // Battle counter for finding the tree
@@ -151,6 +173,14 @@ RPG.State = {
         treeExitTalkDone: false, // Build 15.2.9: One-time inn-exit talk after first amber tree defeat
         treeVictoryTalkDone: false, // Build 15.2.11: One-time post-victory talk after defeating the hungry amber tree
         amberTreeFourHitSceneSeen: false, // Build 15.2.6: One-time amber tree battle dialogue gate
+        amberMerchantRecognized: false,
+        borrowedMiningKnifeReceived: false,
+        amberTreeCoinMined: false,
+        firstAmberAppraisalDone: false,
+        amberKnifeReturnAttemptDone: false,
+        amberMerchantMovePending: false,
+        amberMerchantMovedToForest: false,
+        miningKnifeAwarded: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
         glowCatRabbitPhase4EncounterSeen: false, // Build 15.2.59: Track the first rabbit encounter after phase 4 unlock

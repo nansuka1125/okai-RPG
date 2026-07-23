@@ -205,6 +205,25 @@ const battleSystem = {
         return [{ text, type: "ambient" }];
     },
 
+    maybeUseAmberizedVariant: function (template) {
+        const canAppear =
+            RPG.State.flags.metThiefBoy === true &&
+            RPG.State.isInDungeon === true &&
+            RPG.State.explorationArea === "forest" &&
+            RPG.State.location !== "かつての街道";
+        const provisionalReplacementRate = 0.25;
+        if (!canAppear || Math.random() >= provisionalReplacementRate) return template;
+
+        const variantIds = {
+            rat: "amber_rat",
+            weasel: "amber_weasel"
+        };
+        const variantId = variantIds[template && template.id];
+        return variantId
+            ? (RPG.Assets.ENEMIES.find(enemy => enemy.id === variantId) || template)
+            : template;
+    },
+
     startBattle: function (enemyId = null) {
         // Enemy Selection logic remains in engine as it processes data
         let template = null;
@@ -246,6 +265,8 @@ const battleSystem = {
                     break;
                 }
             }
+
+            template = this.maybeUseAmberizedVariant(template);
         }
 
         uiControl.addSeparator();
@@ -284,6 +305,7 @@ const battleSystem = {
         RPG.State.currentEnemy = {
             ...template,
             hp: template.maxHp,
+            armorHp: Number(template.armorMax) || 0,
             frozenTurns: 0,
             cainHitCount: 0,
             rabbitHitCount: 0,
@@ -318,7 +340,11 @@ const battleSystem = {
         uiControl.updateUI();
 
         // Keep pre-emptive handling for boss-style encounters only.
-        if (RPG.State.currentEnemy.isBoss === true && RPG.State.currentEnemy.preemptive && Math.random() < RPG.State.currentEnemy.preemptive) {
+        if (
+            (RPG.State.currentEnemy.isBoss === true || RPG.State.currentEnemy.forcePreemptive === true) &&
+            RPG.State.currentEnemy.preemptive &&
+            Math.random() < RPG.State.currentEnemy.preemptive
+        ) {
             const delay = RPG.State.debug.isSkipping ? 50 : 800;
             setTimeout(() => {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.intro.preemptive(RPG.State.currentEnemy.name));
@@ -528,6 +554,53 @@ const battleSystem = {
         setTimeout(callback, finalDelay);
     },
 
+    applyCainDamage: function (damage, isCritical = false) {
+        const enemy = RPG.State.currentEnemy;
+        if (!enemy) return;
+
+        const hasHardenedPart = (enemy.armorHp || 0) > 0;
+        uiControl.addLog("カインの攻撃！", "player-action");
+
+        if (hasHardenedPart && isCritical) {
+            uiControl.addLog(
+                RPG.Assets.BATTLE_TEXT.hardened.bypass(enemy.armorLabel),
+                "player-action",
+                "#ffd166"
+            );
+            enemy.hp -= damage;
+            uiControl.addLog(
+                `${enemy.name}に${damage}のダメージ！`,
+                "player-action"
+            );
+            return;
+        }
+
+        if (hasHardenedPart) {
+            const armorDamage = Math.min(enemy.armorHp, damage);
+            const overflowDamage = Math.max(0, damage - enemy.armorHp);
+            enemy.armorHp = Math.max(0, enemy.armorHp - damage);
+            uiControl.addLog(
+                RPG.Assets.BATTLE_TEXT.hardened.damage(enemy.armorLabel, armorDamage),
+                "player-action"
+            );
+
+            if (enemy.armorHp <= 0) {
+                uiControl.addLog(enemy.armorBreakText, "marker", "#ffd166");
+            }
+            if (overflowDamage > 0) {
+                enemy.hp -= overflowDamage;
+                uiControl.addLog(
+                    RPG.Assets.BATTLE_TEXT.hardened.bodyDamage(enemy.name, overflowDamage),
+                    "player-action"
+                );
+            }
+            return;
+        }
+
+        enemy.hp -= damage;
+        uiControl.addLog(`${enemy.name}に${damage}のダメージ！`, "player-action");
+    },
+
     processCainAction: function (next) {
         if (typeof visualDirector !== "undefined") {
             visualDirector.playBattleCue("cain-attack");
@@ -563,17 +636,13 @@ const battleSystem = {
         }
 
         let damage = RPG.State.attack;
-        let isCrit = Math.random() < 0.15;
+        const isCrit = Math.random() < 0.15;
         if (isCrit) {
             damage = Math.floor(damage * 1.5);
-            uiControl.addLog("カインの剣技が冴え渡る！");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.hardened.critical, "marker", "#ffd166");
         }
 
-        RPG.State.currentEnemy.hp -= damage;
-        uiControl.addLog(
-            `カインの攻撃！ ${RPG.State.currentEnemy.name}に${damage}のダメージ！`,
-            "player-action"
-        );
+        this.applyCainDamage(damage, isCrit);
         uiControl.updateUI();
 
         const isAmberTree = RPG.State.currentEnemy.id === 'hungry_amber_tree';
@@ -1362,6 +1431,14 @@ const battleSystem = {
         return false;
     },
 
+    grantGuaranteedEnemyDrop: function (enemy = RPG.State.currentEnemy) {
+        if (!enemy || !enemy.guaranteedDrop || enemy.guaranteedDropGranted === true) return;
+        const itemId = enemy.guaranteedDrop;
+        RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
+        enemy.guaranteedDropGranted = true;
+        uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`, "marker", "#ffd166");
+    },
+
     endBattle: function (playerWin, isDeathSave = false) {
         if (!RPG.State.defeatCounts) RPG.State.defeatCounts = {};
         if (!RPG.State.lastBlowBy) RPG.State.lastBlowBy = "Cain";
@@ -1399,6 +1476,7 @@ const battleSystem = {
             }
             RPG.State.defeatCounts[enemyId].owen++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
+            this.grantGuaranteedEnemyDrop();
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
@@ -1449,6 +1527,8 @@ const battleSystem = {
             uiControl.addLog(`${RPG.State.currentEnemy.name}を倒した！`);
         }
 
+        this.grantGuaranteedEnemyDrop();
+
         const shouldAdvanceForestSearchCounter =
             RPG.State.isInDungeon &&
             RPG.State.location !== "かつての街道";
@@ -1461,7 +1541,11 @@ const battleSystem = {
         let hasPostBattleEvent = false;
         const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
 
-        if (RPG.State.flags.treeDefeated && RPG.State.postTreeBattles !== "DONE") {
+        if (
+            RPG.State.flags.treeDefeated &&
+            RPG.State.flags.amberTreeCoinMined === true &&
+            RPG.State.postTreeBattles !== "DONE"
+        ) {
             if (RPG.State.postTreeBattles === null) RPG.State.postTreeBattles = 0;
             if (typeof RPG.State.postTreeBattles === 'number') {
                 RPG.State.postTreeBattles++;
@@ -1623,6 +1707,7 @@ const battleSystem = {
         RPG.State.flags.innRatEvent2BattleActive = false;
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
         RPG.State.mood = Math.max(0, RPG.State.mood - 20);
 
         innSystem.showDefeatSequence(defeatedEnemyId);

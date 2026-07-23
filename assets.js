@@ -28,6 +28,17 @@ RPG.Assets.CONFIG = {
         nightMedicine: "💊夜の薬",
         glowingBrooch: "💍光るブローチ",
         lightRabbitBrooch: "💍光兎のブローチ",
+        unknownAmber: "🔸《？琥珀》",
+        borrowedMiningKnife: "🔪《借りたナイフ》",
+        miningKnife: "🔪《採掘ナイフ》",
+        hatedAmber: "🔸《嫌われ琥珀》",
+        sweetAmber: "🔸《甘そうな琥珀》",
+        herbAmber: "🔸《薬草入り琥珀》",
+        monsterAmber: "🔸《魔物入り琥珀》",
+        milkAmber: "🔸《牛乳琥珀》",
+        blueAmber: "🔹《ブルーアンバー》",
+        beeAmber: "🔸《蜂入り琥珀》",
+        ignoredAmber: "🔸《無視入り琥珀》",
         debug_poison: "《デバッグ毒》"
     },
     ITEM_DESC: {
@@ -50,6 +61,17 @@ RPG.Assets.CONFIG = {
         nightMedicine: "寝る前に飲もう。",
         glowingBrooch: "小さく開く構造になっている。",
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
+        unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
+        borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
+        miningKnife: "琥珀を採掘するためのナイフ。借りた時から性能は変わっていない。",
+        hatedAmber: "装備すると通常の魔物と遭遇しにくくなるレア琥珀。",
+        sweetAmber: "装備するとオーエンが戦闘へ介入しやすくなるレア琥珀。",
+        herbAmber: "装備すると徐々に回復し、薬草の効果も高まるレア琥珀。",
+        monsterAmber: "装備すると戦闘で得られる経験値が増えるレア琥珀。",
+        milkAmber: "装備すると最大HPが大きく増えるレア琥珀。",
+        blueAmber: "装備すると剣技が発動しやすくなるレア琥珀。",
+        beeAmber: "最初の攻撃を強化し、最初に受ける攻撃を軽減するレア琥珀。",
+        ignoredAmber: "装備すると状態異常を受けなくなるレア琥珀。",
         debug_poison: "【テスト用】使うとHPが1になります。",
         debug_lvl10: "【デバッグ用】使うと一気にLv.10になります。"
     },
@@ -61,6 +83,82 @@ RPG.Assets.CONFIG = {
         RPG.Config.BATTLE_RATE = value;
     }
 };
+
+// Chapter 1 amber values. Equipment effects remain descriptive until the
+// amber-case rules are decided; exchange and trade-in can already use one source.
+RPG.Assets.AMBER_APPRAISAL = {
+    sparkling: {
+        name: "《キラキラ琥珀》",
+        weight: 70,
+        firstText: "光をよく反射する琥珀。レア琥珀との交換に使える。",
+        repeatText: "《キラキラ琥珀》と鑑定された。"
+    },
+    junk: {
+        name: "《クズ琥珀》",
+        weight: 15,
+        firstText: "商品価値の低い琥珀。琥珀商はこれも引き取ってくれる。",
+        repeatText: "《クズ琥珀》と鑑定された。"
+    },
+    insect: {
+        name: "《虫入り琥珀》",
+        weight: 15,
+        firstText: "小さな虫を閉じ込めた琥珀。琥珀商の預かり品になる。",
+        repeatText: "《虫入り琥珀》と鑑定された。"
+    }
+};
+
+RPG.Assets.RARE_AMBER_CATALOG = [
+    {
+        id: "hatedAmber",
+        name: "《嫌われ琥珀》",
+        cost: 2,
+        effect: "装備中、通常エンカウント率を30%から5%へ下げる。"
+    },
+    {
+        id: "sweetAmber",
+        name: "《甘そうな琥珀》",
+        cost: 3,
+        effect: "装備中、オーエンが戦闘へ介入しやすくなる。"
+    },
+    {
+        id: "herbAmber",
+        name: "《薬草入り琥珀》",
+        cost: 3,
+        effect: "装備中、徐々に回復し、薬草の効果も高まる。"
+    },
+    {
+        id: "monsterAmber",
+        name: "《魔物入り琥珀》",
+        cost: 4,
+        effect: "装備中、戦闘で得られる経験値が増える。"
+    },
+    {
+        id: "milkAmber",
+        name: "《牛乳琥珀》",
+        cost: 4,
+        effect: "装備中、最大HPが大きく増える。"
+    },
+    {
+        id: "blueAmber",
+        name: "《ブルーアンバー》",
+        cost: 5,
+        effect: "装備中、剣技が発動しやすくなる。"
+    },
+    {
+        id: "beeAmber",
+        name: "《蜂入り琥珀》",
+        exchangeable: false,
+        oneTime: true,
+        effect: "最初の攻撃を強化し、最初に受ける攻撃を軽減する。"
+    },
+    {
+        id: "ignoredAmber",
+        name: "《無視入り琥珀》",
+        exchangeable: false,
+        oneTime: true,
+        effect: "装備中、状態異常を受けなくなる。"
+    }
+];
 
 // Ambient Flavor Texts (1m-9m, excluding 5m)
 RPG.Assets.AMBIENT_TEXTS = {
@@ -207,14 +305,15 @@ RPG.Assets.GAME_TEXT = {
         1: {
             loop: 4,
             1: [
-                "行商人「宿屋の娘可愛いよなぁ」",
-                "行商人「お近づきになりたいな」",
-                "若い剣士「やめとけよこっぴどく振られるぞ」"
-            ],
-            2: [
+                "テーブルの上で、男たちが琥珀のかけらを並べている。",
                 "琥珀採り「これはどうだ？」",
                 "琥珀商「なんか気味の悪いものが入ってるから買えん」",
                 "琥珀採り「なんだこれ…髪の毛みたいな」"
+            ],
+            2: [
+                "行商人「宿屋の娘可愛いよなぁ」",
+                "行商人「お近づきになりたいな」",
+                "若い剣士「やめとけよこっぴどく振られるぞ」"
             ],
             3: [
                 "傭兵崩れ「南方は魔物が弱いって聞いたぞ」",
@@ -1734,7 +1833,9 @@ RPG.Assets.EVENT_DATA = [
             if (RPG.State.storyPhase < 2) {
                 RPG.State.storyPhase = 2;
             }
-            RPG.State.postTreeBattles = 0;
+            // The post-tree countdown begins only after the embedded second coin
+            // is actually mined. Winning the battle alone no longer awards it.
+            RPG.State.postTreeBattles = null;
 
             const dialogue = [
                 { text: "―― 勝利！ ――", type: "marker", color: "#ffff00" },
@@ -1744,30 +1845,17 @@ RPG.Assets.EVENT_DATA = [
 
             if (!RPG.State.flags.treeVictoryTalkDone) {
                 dialogue.push(
-                    { text: "カインは剣先で銀貨を抉り出した。", type: "talk" },
-                    { text: "カイン「悪いな、ちょっと貸してくれ。」", type: "talk" },
+                    { text: "カインは埋まった銀貨に手を伸ばすも、銀貨は琥珀に埋まっている。", type: "talk" },
+                    { text: "カイン「……かなりガッチリ固まってるな」", type: "talk" },
+                    { text: "近くの石で叩いてみるが、ビクともしない。", type: "talk" },
+                    { text: "オーエン「剣で取り出さないの？」", type: "talk", color: "#a020f0" },
+                    { text: "カイン「こういうことには使わない」", type: "talk" },
+                    { text: "オーエン「僕の目玉はその剣で抉ったのに」", type: "talk", color: "#a020f0" },
+                    { text: "カイン「……おまえの目玉は特別だった」", type: "talk" },
+                    { text: "オーエン「……ふうん」", type: "talk", color: "#a020f0" },
+                    { text: "オーエンは左目に触れ、目を細めた。", type: "talk" },
                     {
-                        text: "🪙銀貨を手に入れた！",
-                        type: "system",
-                        color: "#FFD700",
-                        action: () => {
-                            RPG.State.silverCoins += 1;
-                            RPG.State.inventory.silverCoin += 1;
-                            uiControl.updateUI();
-                        }
-                    },
-                    { text: "オーエン「僕の目玉もそうやって抉ったよね」", type: "talk", color: "#a020f0" },
-                    { text: "カイン「それは…！」", type: "talk" },
-                    { text: "オーエン｢痛かった。貸してくれとも言わなかったし」", type: "talk", color: "#a020f0" },
-                    { text: "カイン｢返すつもりがなかったから、言わなかった。奪うつもりで抉った。」", type: "talk" },
-                    { text: "オーエン｢へえ？正直だね」", type: "talk", color: "#a020f0" },
-                    { text: "カイン｢後悔するくらいなら、最初からそんなことやらないさ。俺のことを憎むなり殺すなり好きにすればいい」", type: "talk" },
-                    { text: "オーエン｢……ふうん」", type: "talk", color: "#a020f0" },
-                    { text: "カイン｢……銀貨はあと一枚か。もう少し森を探してみよう」", type: "talk" },
-                    { text: "オーエン｢気前のいい死体を？」", type: "talk", color: "#a020f0" },
-                    { text: "カイン｢銀貨を、だな」", type: "talk" },
-                    {
-                        text: "もう少しだけ森を歩いてみよう。",
+                        text: "カイン（何か、道具を借りてこよう）",
                         type: "system",
                         color: "#cccccc",
                         action: () => {
@@ -2284,6 +2372,15 @@ RPG.Assets.getJourneyMemo = function (state) {
     }
 
     if (flags.treeDefeated === true || phase >= 2) {
+        if (flags.amberTreeCoinMined !== true) {
+            if (flags.borrowedMiningKnifeReceived !== true) {
+                return "飢えた琥珀樹に埋まった銀貨を取るため、琥珀商から道具を借りる。";
+            }
+            return "借りたナイフを持って森の8mへ戻り、埋まった銀貨を掘る。";
+        }
+        if (flags.firstAmberAppraisalDone !== true && (inventory.unknownAmber || 0) > 0) {
+            return "入手した《？琥珀》を琥珀商に見せる。";
+        }
         return "琥珀樹から銀貨を得た。残りの銀貨を探す手掛かりを追う。";
     }
 

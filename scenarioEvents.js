@@ -53,14 +53,18 @@ const scenarioEvents = {
             const btnChoiceB = document.getElementById('btnChoiceB');
 
             if (btnChoiceA) {
+                btnChoiceA.style.display = "flex";
                 btnChoiceA.textContent = "銀貨を取る";
                 btnChoiceA.onclick = () => this.choiceTakeCoin();
                 btnChoiceA.style.background = ""; // Clear any boss styling
+                btnChoiceA.style.fontWeight = "";
             }
             if (btnChoiceB) {
+                btnChoiceB.style.display = "flex";
                 btnChoiceB.textContent = "やめておく";
                 btnChoiceB.onclick = () => this.choiceLeave();
                 btnChoiceB.style.background = "";
+                btnChoiceB.style.fontWeight = "";
             }
         },
 

@@ -1356,6 +1356,71 @@ const explorationSystem = {
         const dist = RPG.State.currentDistance;
         const flags = RPG.State.flags;
 
+        if (
+            dist === 0 &&
+            flags.amberMerchantMovedToForest === true &&
+            typeof innSystem !== "undefined"
+        ) {
+            innSystem.interactWithAmberMerchant();
+            return;
+        }
+
+        if (dist === 8 && flags.treeDefeated === true && flags.amberTreeCoinMined !== true) {
+            const hasMiningKnife =
+                (RPG.State.inventory.borrowedMiningKnife || 0) > 0 ||
+                (RPG.State.inventory.miningKnife || 0) > 0;
+
+            if (!hasMiningKnife) {
+                uiControl.addLog("カイン（宿屋で道具を借りれないか聞いてみよう）");
+                uiControl.updateUI();
+                return;
+            }
+
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "【埋まった銀貨を掘る】8m", type: "marker", color: "#f1e6c8" },
+                { text: "カイン「悪いな、ちょっと貸してくれ」" },
+                { text: "黒ずんだ遺体にこびりついた樹液の塊から、ナイフで銀貨を抉り出した。" },
+                { text: "オーエン「僕には、貸してくれって言わなかったよね」", color: "#a020f0" },
+                { text: "オーエンは返答を期待するようにカインを見ている。" },
+                { text: "ナイフを傷つけないように丁寧に、銀貨の周りの琥珀化した樹液を削っていく。" },
+                { text: "カリカリカリ……" },
+                { text: "カイン「……返すつもりがなかったから、言わなかった。最初から、奪うつもりで抉った」" },
+                { text: "オーエン「……へえ？」", color: "#a020f0" },
+                { text: "カリカリ……" },
+                { text: "オーエンは木にもたれて腕を組んでいる。" },
+                { text: "カイン「……よし、掘れた」" },
+                {
+                    text: "🪙銀貨を手に入れた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.silverCoins = (RPG.State.silverCoins || 0) + 1;
+                        RPG.State.inventory.silverCoin = (RPG.State.inventory.silverCoin || 0) + 1;
+                    }
+                },
+                { text: "カイン（周りの琥珀も採れたな）" },
+                {
+                    text: "🔸《？琥珀》を手に入れた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                        flags.amberTreeCoinMined = true;
+                        RPG.State.postTreeBattles = 0;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "カイン（銀貨はあと一枚か……）" },
+                { text: "オーエン「それで？」", color: "#a020f0" },
+                { text: "カイン「なんだ？」" },
+                { text: "オーエン「もっとその話をしようよ。僕の目玉を抉って、どうしたかったんだっけ？」", color: "#a020f0" },
+                { text: "カイン（……琥珀商に、ナイフを返さないとな）" }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
         const forestObservation = this.getForestObservation(dist);
         if (forestObservation) {
             uiControl.addLog(forestObservation, "ambient");

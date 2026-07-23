@@ -42,6 +42,12 @@ RPG.Assets.BATTLE_TEXT = {
     cain: {
         larvaResponse: "カイン「...毒が回るのを...っ 厄介だな」"
     },
+    hardened: {
+        critical: "クリティカル！",
+        bypass: (label) => `${label}の隙間を貫いた！`,
+        damage: (label, damage) => `${label}に${damage}のダメージ！`,
+        bodyDamage: (name, damage) => `${name}の本体に${damage}のダメージ！`
+    },
     hungry_amber_tree: {
         standardAttack: "鋭い枝がカインを襲う！",
         waiting: "琥珀樹は不気味にざわめいている…",
@@ -439,6 +445,20 @@ RPG.Assets.ENEMIES = [
         xp: 15,
         area: [1, 9], weight: 10
     },
+    {
+        id: "amber_rat",
+        name: "琥珀化ネズミ",
+        symbol: "◆",
+        maxHp: 40,
+        atk: 5,
+        xp: 15,
+        area: null,
+        armorMax: 20, // Provisional Chapter 1 balance value
+        armorLabel: "硬化した皮膚",
+        armorBreakText: "硬化した皮膚が砕け散った！",
+        guaranteedDrop: "unknownAmber",
+        msg: "硬い身体で体当たりしてきた！"
+    },
     // --- Build 14.2.2: Former Highway Enemies ---
     {
         id: 'hell_rat_swarm',
@@ -480,6 +500,22 @@ RPG.Assets.ENEMIES = [
         preemptive: 1.0, // Build 6.3: Guaranteed first strike
         drop: { id: "herb", rate: 0.2 }, // Build 8.51: Changed from silverCoin to herb
         msg: "カマで切り裂いてきた！"
+    },
+    {
+        id: "amber_weasel",
+        name: "琥珀化イタチ",
+        symbol: "◇",
+        maxHp: 50,
+        atk: 12,
+        xp: 22,
+        area: null,
+        preemptive: 1.0,
+        forcePreemptive: true,
+        armorMax: 30, // Provisional Chapter 1 balance value
+        armorLabel: "硬化した皮膚",
+        armorBreakText: "硬化した皮膚が砕け散った！",
+        guaranteedDrop: "unknownAmber",
+        msg: "硬いカマで切り裂いてきた！"
     },
     {
         id: "skull_bee",
@@ -551,6 +587,9 @@ RPG.Assets.ENEMIES = [
         atk: 13, // Adjusted for survival balance
         xp: 100,
         isBoss: true,
+        armorMax: 50, // Provisional Chapter 1 balance value
+        armorLabel: "硬化した樹皮",
+        armorBreakText: "硬化した樹皮はほとんど剥がれ落ちた！",
         onDeathEvent: "amber_tree_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
     },
     {

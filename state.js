@@ -52,10 +52,10 @@ RPG.State = {
     currentDistance: 0,
     travelStepsSinceStay: 0, // Valid forward/back field moves since the last overnight stay
     deathCount: 0, // Track number of defeats
-    cainLv: 1,
-    currentHP: 100,        // Unified HP variable
-    maxHP: 100,            // Unified max HP variable
-    attack: 10,
+    cainLv: 5,
+    currentHP: 140,        // Unified HP variable
+    maxHP: 140,            // Unified max HP variable
+    attack: 18,
     exp: 0,
 
     // Debug flags
@@ -162,8 +162,9 @@ RPG.State = {
         carnivorousVineStayCount: 0,
         firstInnSleep: false, // Build 15.2.50: One-time special inn sleep scene during story phase 1
         innRatEvent: false, // Build 15.2.51: One-time inn rat event on first observe during story phase 1
-        innRatEvent2: false, // Build 15.2.52: One-time inn rat event on first observe from story phase 3 onward
-        innRatEvent2BattleActive: false, // Build 15.2.52: Temporary routing flag for phase 3 inn rat post-battle dialogue
+        innRatEvent2: false, // Build 15.2.52: One-time second inn rat event
+        innRatEvent2StayCount: 0, // Completed inn stays after the first rat event, capped at one
+        innRatEvent2BattleActive: false, // Build 15.2.52: Temporary routing flag for the second inn rat post-battle dialogue
         hasTreeEventOccurred: false, // Hungry Amber Tree event at 8m
         treeDefeated: false, // Track if tree has been defeated
         isDebugEncountersOff: false, // Toggle random encounters

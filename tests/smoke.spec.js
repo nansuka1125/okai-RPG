@@ -102,7 +102,10 @@ test.describe('okai-RPG smoke test', () => {
   test('loads with the expected default state', async ({ page }) => {
     await page.goto('/chapter1.html');
     const state = await page.evaluate(() => window.RPG.State);
-    expect(state.currentHP).toBe(100);
+    expect(state.cainLv).toBe(5);
+    expect(state.currentHP).toBe(140);
+    expect(state.maxHP).toBe(140);
+    expect(state.attack).toBe(18);
     expect(state.location).toBe('宿屋《琥珀亭》');
     await expect(page.locator('#logContainer')).not.toBeEmpty();
   });
@@ -131,6 +134,91 @@ test.describe('okai-RPG smoke test', () => {
 
     await page.click('#btnInnTalk');
     await expect.poll(() => page.evaluate(() => window.RPG.State.mode)).toBe('event');
+  });
+
+  test('the innkeeper greeting requires silver delivery and an ordinary entrance', async ({ page }) => {
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof innSystem !== 'undefined' &&
+      typeof uiControl !== 'undefined'
+    ));
+
+    const result = await page.evaluate(() => {
+      const greeting = RPG.Assets.GAME_TEXT.inn.ownerGreeting;
+      const logContainer = document.getElementById('logContainer');
+      const enterAndReadLog = (silverDelivered, showGreeting) => {
+        if (logContainer) logContainer.innerHTML = '';
+        RPG.State.flags.silverDelivered = silverDelivered;
+        innSystem.enterInn(showGreeting, { skipEntryEvents: true });
+        return logContainer?.textContent || '';
+      };
+
+      return {
+        beforeDelivery: enterAndReadLog(false, true).includes(greeting),
+        ordinaryAfterDelivery: enterAndReadLog(true, true).includes(greeting),
+        defeatStyleAfterDelivery: enterAndReadLog(true, false).includes(greeting),
+      };
+    });
+
+    expect(result).toEqual({
+      beforeDelivery: false,
+      ordinaryAfterDelivery: true,
+      defeatStyleAfterDelivery: false,
+    });
+  });
+
+  test('the thief discovery starts only when opening inventory, without a stay', async ({ page }) => {
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof Cinematics !== 'undefined' &&
+      typeof innSystem !== 'undefined' &&
+      typeof uiControl !== 'undefined'
+    ));
+
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        isInDungeon: false,
+        currentDistance: 0,
+        location: '宿屋《琥珀亭》',
+        storyPhase: 3,
+      });
+      Object.assign(RPG.State.flags, {
+        metThiefBoy: true,
+        readyForThiefBoy: false,
+        thiefTrackActive: false,
+        thiefDiscoveryStatus: 0,
+        phase4TheftDiscovered: false,
+        hasSleptAfterThief: false,
+        giantLarvaDefeated: false,
+      });
+
+      innSystem.exitInn();
+      const discoveredAtInnFront = RPG.State.flags.phase4TheftDiscovered;
+
+      uiControl.closeModal();
+      const discoveredOnClose = RPG.State.flags.phase4TheftDiscovered;
+
+      uiControl.openModal();
+      return {
+        discoveredAtInnFront,
+        discoveredOnClose,
+        discoveredOnOpen: RPG.State.flags.phase4TheftDiscovered,
+        storyPhase: RPG.State.storyPhase,
+        mode: RPG.State.mode,
+        modalDisplay: document.getElementById('itemModal')?.style.display,
+      };
+    });
+
+    expect(result).toEqual({
+      discoveredAtInnFront: false,
+      discoveredOnClose: false,
+      discoveredOnOpen: true,
+      storyPhase: 4,
+      mode: 'event',
+      modalDisplay: 'none',
+    });
   });
 
   test('inn: exit to exploration and back', async ({ page }) => {

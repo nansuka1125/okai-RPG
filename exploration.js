@@ -1176,12 +1176,6 @@ const explorationSystem = {
 
         uiControl.updateUI();
 
-        // Build 8.57: Discovery Hook B
-        if (Cinematics.canPlayThiefDiscovery()) {
-            Cinematics.playThiefDiscovery();
-            return;
-        }
-
         const isMatamatabiFlavorActive =
             RPG.State.flags.matamatabiActive === true &&
             !isHighway &&

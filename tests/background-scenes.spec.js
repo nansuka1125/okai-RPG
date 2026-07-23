@@ -94,6 +94,34 @@ test.describe('Chapter 1 location backgrounds', () => {
     });
   });
 
+  test('shows the storage room as the current location only during its inn scene', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        isAtInn: true,
+        isInDungeon: false,
+        explorationArea: null,
+        location: '宿屋《琥珀亭》',
+      });
+
+      visualDirector.setInnScene('storage');
+      uiControl.updateUI();
+      const storageLocation = document.getElementById('currentLocationName')?.textContent;
+      const persistentLocation = RPG.State.location;
+
+      visualDirector.clearInnScene();
+      uiControl.updateUI();
+      const lobbyLocation = document.getElementById('currentLocationName')?.textContent;
+
+      return { storageLocation, persistentLocation, lobbyLocation };
+    });
+
+    expect(result).toEqual({
+      storageLocation: '物置',
+      persistentLocation: '宿屋《琥珀亭》',
+      lobbyLocation: '宿屋《琥珀亭》',
+    });
+  });
+
   test('uses the dedicated portrait herb entrance on desktop and phones', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {

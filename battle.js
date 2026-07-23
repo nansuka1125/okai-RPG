@@ -472,7 +472,19 @@ const battleSystem = {
 
     processOwenAction: function (callback) {
         // AI Logic Delegated to BATTLE_AI / OWEN_BEHAVIOR
-        if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === 'giant_larva') {
+        const isInnRatEventBattle =
+            RPG.State.currentEnemy &&
+            (
+                RPG.State.currentEnemy.id === 'normal_rat' ||
+                (
+                    RPG.State.currentEnemy.id === 'rat' &&
+                    RPG.State.flags.innRatEvent2BattleActive === true
+                )
+            );
+        if (
+            isInnRatEventBattle ||
+            (RPG.State.currentEnemy && RPG.State.currentEnemy.id === 'giant_larva')
+        ) {
             callback();
             return;
         }

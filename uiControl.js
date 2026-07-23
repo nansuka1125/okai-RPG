@@ -168,7 +168,15 @@ const uiControl = {
         const enemyNameLabel = document.getElementById('enemyNameLabel');
         const enemyTopHpFill = document.getElementById('enemyTopHpFill');
 
-        const currentLocationText = RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name;
+        const innScene = (
+            RPG.State.isAtInn === true &&
+            typeof visualDirector !== "undefined"
+        )
+            ? visualDirector.getInnScene()
+            : null;
+        const currentLocationText = innScene === "storage"
+            ? "物置"
+            : (RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name);
         const isHighway = currentLocationText === "かつての街道";
         const isHerbGarden = RPG.State.explorationArea === "herbGarden";
         const shouldShowLocationBar = RPG.State.isInDungeon === true && RPG.State.isAtInn !== true;
@@ -365,6 +373,14 @@ const uiControl = {
                         }
                     }
 
+                }
+                if (
+                    observeLabel === "様子を見る" &&
+                    typeof innSystem !== "undefined" &&
+                    !innSystem.shouldUseAmberMerchantObserveRoute() &&
+                    innSystem.canTriggerInnRatEvent2()
+                ) {
+                    observeLabel = "チューチュー❗️";
                 }
                 btnInnObserve.textContent = observeLabel;
             }
@@ -576,6 +592,12 @@ const uiControl = {
 
     openModal: function () {
         if (RPG.State.mode !== "base") return;
+
+        if (Cinematics.canPlayThiefDiscoveryFromInventory()) {
+            Cinematics.playThiefDiscovery();
+            return;
+        }
+
         const modal = document.getElementById('itemModal');
         const list = document.getElementById('itemList');
         const detail = document.getElementById('itemDetailArea');
@@ -641,11 +663,6 @@ const uiControl = {
     closeModal: function () {
         const modal = document.getElementById('itemModal');
         if (modal) modal.style.display = 'none';
-
-        // Build 8.55: Discovery Hook A (Inventory Close)
-        if (Cinematics.canPlayThiefDiscoveryFromModal()) {
-            Cinematics.playThiefDiscovery();
-        }
     },
 
     // Build 15.3.1: Inn journal and safe one-slot suspend saves.

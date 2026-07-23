@@ -333,6 +333,122 @@ test.describe('Chapter 1 amber system', () => {
     await expect(page.locator('#action-buttons button')).toHaveCount(5);
   });
 
+  test('pending knife loan keeps priority over the unlocked second rat label', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+      });
+      Object.assign(RPG.State.flags, {
+        innRatEvent: true,
+        innRatEvent2: false,
+        innRatEvent2StayCount: 1,
+        treeDefeated: true,
+        amberMerchantRecognized: true,
+        borrowedMiningKnifeReceived: false,
+        firstAmberAppraisalDone: false,
+      });
+      RPG.State.inventory.unknownAmber = 0;
+      uiControl.updateUI();
+      return {
+        observeLabel: document.getElementById('btnInnObserve')?.textContent,
+        usesMerchantRoute: innSystem.shouldUseAmberMerchantObserveRoute(),
+        ratUnlocked: innSystem.canTriggerInnRatEvent2(),
+      };
+    });
+
+    expect(result).toEqual({
+      observeLabel: '様子を見る',
+      usesMerchantRoute: true,
+      ratUnlocked: true,
+    });
+
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+    const ending = await page.evaluate(() => ({
+      knifeReceived: RPG.State.flags.borrowedMiningKnifeReceived,
+      ratTriggered: RPG.State.flags.innRatEvent2,
+      observeLabel: document.getElementById('btnInnObserve')?.textContent,
+    }));
+    expect(ending).toEqual({
+      knifeReceived: true,
+      ratTriggered: false,
+      observeLabel: 'チューチュー❗️',
+    });
+  });
+
+  test('one completed stay unlocks the second inn rat event', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State.flags, {
+        innRatEvent: true,
+        innRatEvent2: false,
+        innRatEvent2StayCount: 0,
+      });
+
+      innSystem.refreshHerbGardenHarvestsAfterStay();
+      const afterFirstStay = {
+        stayCount: RPG.State.flags.innRatEvent2StayCount,
+        ratUnlocked: innSystem.canTriggerInnRatEvent2(),
+      };
+
+      innSystem.refreshHerbGardenHarvestsAfterStay();
+      return {
+        afterFirstStay,
+        cappedStayCount: RPG.State.flags.innRatEvent2StayCount,
+      };
+    });
+
+    expect(result).toEqual({
+      afterFirstStay: {
+        stayCount: 1,
+        ratUnlocked: true,
+      },
+      cappedStayCount: 1,
+    });
+  });
+
+  test('Owen skips both inn rat event battles', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const originalShouldIntervene = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene;
+      const originalDecideAction = RPG.Assets.OWEN_BEHAVIOR.decideAction;
+      RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = () => true;
+      RPG.Assets.OWEN_BEHAVIOR.decideAction = () => 'kill';
+
+      let firstCallbackRan = false;
+      RPG.State.currentEnemy = { id: 'normal_rat', name: '普通のネズミ', hp: 1 };
+      RPG.State.hasOwenIntervened = false;
+      battleSystem.processOwenAction(() => {
+        firstCallbackRan = true;
+      });
+      const firstIntervened = RPG.State.hasOwenIntervened;
+
+      let secondCallbackRan = false;
+      RPG.State.currentEnemy = { id: 'rat', name: '魔界のネズミ', hp: 40 };
+      RPG.State.flags.innRatEvent2BattleActive = true;
+      RPG.State.hasOwenIntervened = false;
+      battleSystem.processOwenAction(() => {
+        secondCallbackRan = true;
+      });
+      const secondIntervened = RPG.State.hasOwenIntervened;
+
+      RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = originalShouldIntervene;
+      RPG.Assets.OWEN_BEHAVIOR.decideAction = originalDecideAction;
+      return {
+        firstCallbackRan,
+        firstIntervened,
+        secondCallbackRan,
+        secondIntervened,
+      };
+    });
+
+    expect(result).toEqual({
+      firstCallbackRan: true,
+      firstIntervened: false,
+      secondCallbackRan: true,
+      secondIntervened: false,
+    });
+  });
+
   test('three junk appraisals turn the borrowed knife into the mining knife', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';

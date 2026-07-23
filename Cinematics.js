@@ -1,29 +1,11 @@
 // 🚩ーー【演出・シネマティクス管理】ーー
 const Cinematics = {
-    canPlayThiefDiscoveryFromModal: function () {
+    canPlayThiefDiscoveryFromInventory: function () {
         return (
             RPG.State.flags.metThiefBoy === true &&
             RPG.State.flags.phase4TheftDiscovered !== true &&
             RPG.State.flags.thiefDiscoveryStatus === 0 &&
             RPG.State.isAtInn === false &&
-            !RPG.State.flags.giantLarvaDefeated
-        );
-    },
-
-    canPlayThiefDiscovery: function () {
-        const isOutsideAtInnFront =
-            RPG.State.isAtInn === false &&
-            (
-                RPG.State.location === "宿屋前" ||
-                RPG.State.currentDistance === 0
-            );
-
-        return (
-            RPG.State.flags.metThiefBoy === true &&
-            RPG.State.flags.phase4TheftDiscovered !== true &&
-            RPG.State.flags.thiefDiscoveryStatus === 0 &&
-            RPG.State.flags.hasSleptAfterThief === true &&
-            isOutsideAtInnFront &&
             !RPG.State.flags.giantLarvaDefeated
         );
     },

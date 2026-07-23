@@ -148,6 +148,16 @@ innSystem = {
 
         RPG.State.flags.herbGardenHerb1Available = true;
 
+        if (
+            RPG.State.flags.innRatEvent === true &&
+            RPG.State.flags.innRatEvent2 !== true
+        ) {
+            RPG.State.flags.innRatEvent2StayCount = Math.min(
+                1,
+                (RPG.State.flags.innRatEvent2StayCount || 0) + 1
+            );
+        }
+
         if (RPG.State.flags.amberMerchantMovePending === true) {
             RPG.State.flags.amberMerchantMovePending = false;
             RPG.State.flags.amberMerchantMovedToForest = true;
@@ -162,6 +172,34 @@ innSystem = {
                 RPG.State.flags.carnivorousVineRegrown = true;
             }
         }
+    },
+
+    canTriggerInnRatEvent2: function () {
+        return (
+            RPG.State.flags.innRatEvent === true &&
+            RPG.State.flags.innRatEvent2 !== true &&
+            (RPG.State.flags.innRatEvent2StayCount || 0) >= 1
+        );
+    },
+
+    shouldUseAmberMerchantObserveRoute: function () {
+        const flags = RPG.State.flags;
+        const hasFirstCoin =
+            flags.hasFoundFirstCoin === true ||
+            (RPG.State.silverCoins || 0) >= 1 ||
+            (RPG.State.inventory.silverCoin || 0) >= 1;
+        return (
+            (hasFirstCoin && flags.amberMerchantRecognized !== true) ||
+            (flags.treeDefeated === true && flags.borrowedMiningKnifeReceived !== true) ||
+            (
+                (RPG.State.inventory.unknownAmber || 0) > 0 &&
+                flags.firstAmberAppraisalDone !== true
+            ) ||
+            (
+                flags.firstAmberAppraisalDone === true &&
+                flags.amberKnifeReturnAttemptDone !== true
+            )
+        );
     },
 
     shouldUsePhase4FortuneRoute: function () {
@@ -1051,7 +1089,7 @@ innSystem = {
         RPG.State.location = "宿屋《琥珀亭》";
         uiControl.addLog(RPG.Assets.GAME_TEXT.inn.welcome, "marker");
 
-        if (showGreeting) {
+        if (showGreeting && RPG.State.flags.silverDelivered === true) {
             uiControl.addLog(RPG.Assets.GAME_TEXT.inn.ownerGreeting);
         }
 
@@ -1175,11 +1213,6 @@ innSystem = {
                 }
             ];
             explorationSystem.playDialogueLoop();
-            return;
-        }
-
-        if (Cinematics.canPlayThiefDiscovery()) {
-            Cinematics.playThiefDiscovery();
             return;
         }
 
@@ -1812,11 +1845,6 @@ innSystem = {
 
                     uiControl.addLog(`HPが ${recoveryAmount} 回復した。`);
 
-                    // Build 8.58: Mark that player has slept after meeting thief
-                    if (RPG.State.flags.metThiefBoy === true) {
-                        RPG.State.flags.hasSleptAfterThief = true;
-                    }
-
                     if (this.canScheduleMorningTraining3()) {
                         RPG.State.flags.morningTraining3Pending = true;
                     }
@@ -1927,7 +1955,7 @@ innSystem = {
             action: () => {
                 this.showInnScene("room");
                 // Defeat recovery is not a normal inn entrance: preserve the dialogue lock.
-                this.enterInn(true, { preserveEventMode: true, skipEntryEvents: true });
+                this.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
                 // 宿屋についてからHPを10%にする
                 RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                 RPG.State.isPoisoned = false;
@@ -2033,33 +2061,7 @@ innSystem = {
     observe: function () {
         if (RPG.State.mode !== "base") return;
 
-        const amberFlags = RPG.State.flags;
-        const hasFirstCoin =
-            amberFlags.hasFoundFirstCoin === true ||
-            (RPG.State.silverCoins || 0) >= 1 ||
-            (RPG.State.inventory.silverCoin || 0) >= 1;
-        if (hasFirstCoin && amberFlags.amberMerchantRecognized !== true) {
-            this.interactWithAmberMerchant();
-            return;
-        }
-        if (
-            amberFlags.treeDefeated === true &&
-            amberFlags.borrowedMiningKnifeReceived !== true
-        ) {
-            this.interactWithAmberMerchant();
-            return;
-        }
-        if (
-            (RPG.State.inventory.unknownAmber || 0) > 0 &&
-            amberFlags.firstAmberAppraisalDone !== true
-        ) {
-            this.interactWithAmberMerchant();
-            return;
-        }
-        if (
-            amberFlags.firstAmberAppraisalDone === true &&
-            amberFlags.amberKnifeReturnAttemptDone !== true
-        ) {
+        if (this.shouldUseAmberMerchantObserveRoute()) {
             this.interactWithAmberMerchant();
             return;
         }
@@ -2232,11 +2234,7 @@ innSystem = {
             return;
         }
 
-        const shouldPlayInnRatEvent2 =
-            RPG.State.storyPhase >= 3 &&
-            RPG.State.flags.innRatEvent2 === false;
-
-        if (shouldPlayInnRatEvent2) {
+        if (this.canTriggerInnRatEvent2()) {
             uiControl.addSeparator();
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [

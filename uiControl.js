@@ -315,7 +315,8 @@ const uiControl = {
 
             const btnInnObserve = document.getElementById('btnInnObserve');
             const btnInnTalk = document.getElementById('btnInnTalk');
-            const btnInnDeliver = document.getElementById('btnInnDeliver');
+            const btnInnStay = document.getElementById('btnInnStay');
+            const btnInnNotebook = document.getElementById('btnInnNotebook');
             const canDeliver = (RPG.State.silverCoins >= 3 && !RPG.State.flags.silverDelivered && mode === 'base');
 
             if (btnInnObserve) {
@@ -392,11 +393,20 @@ const uiControl = {
                 btnInnTalk.textContent = talkLabel;
             }
 
-            if (btnInnDeliver) {
-                btnInnDeliver.style.display = canDeliver ? 'flex' : 'none';
+            if (btnInnStay) {
                 if (canDeliver) {
-                    btnInnDeliver.onclick = () => Cinematics.playSilverDeliveryEvent();
+                    btnInnStay.textContent = "銀貨を納品";
+                    btnInnStay.onclick = () => Cinematics.playSilverDeliveryEvent();
+                    btnInnStay.classList.add('btn-accent');
+                } else {
+                    btnInnStay.textContent = "泊まる";
+                    btnInnStay.onclick = () => innSystem.stay();
+                    btnInnStay.classList.remove('btn-accent');
                 }
+            }
+
+            if (btnInnNotebook) {
+                btnInnNotebook.style.display = RPG.State.flags.notebookUnlocked === true ? 'flex' : 'none';
             }
 
             if (mode === "base" && RPG.State.flags.introDebtTalkPending === true) {
@@ -826,6 +836,90 @@ const uiControl = {
         const modal = document.getElementById("saveModal");
         if (modal) modal.style.display = "none";
         this.resetOverwriteConfirmation();
+    },
+
+    // Build 15.5.1: 討伐ノート (bounty notebook) modal
+    getNotebookRowDisplay: function (actualKills, tiers) {
+        const isClaimed = tier => !!tier.claimedFlag && RPG.State.flags[tier.claimedFlag] === true;
+        const activeTier = tiers.find(t => !isClaimed(t)) || tiers[tiers.length - 1];
+        const displayCount = Math.min(actualKills, activeTier.target ?? actualKills);
+        const markers = tiers.map(tier => {
+            if (!tier.claimedFlag) return '○';
+            if (isClaimed(tier)) return '✓';
+            return actualKills >= tier.target ? '！' : '○';
+        });
+        return { displayCount, displayTarget: activeTier.target, markers };
+    },
+
+    getNotebookRows: function () {
+        return [
+            {
+                id: 'rat', enemyId: 'rat', name: '魔界のネズミ',
+                tiers: [
+                    { label: '10', target: 10, claimedFlag: 'ratBounty10Received' },
+                    { label: '20', target: 20, claimedFlag: null },
+                    { label: 'ALL', target: null, claimedFlag: null }
+                ]
+            },
+            {
+                id: 'weasel', enemyId: 'weasel', name: '魔界のイタチ',
+                tiers: [
+                    { label: '10', target: 10, claimedFlag: null },
+                    { label: '20', target: 20, claimedFlag: null },
+                    { label: 'ALL', target: null, claimedFlag: null }
+                ]
+            },
+            {
+                id: 'unknown1', enemyId: null, name: '？？？',
+                tiers: [
+                    { label: '10', target: null, claimedFlag: null },
+                    { label: '20', target: null, claimedFlag: null },
+                    { label: 'ALL', target: null, claimedFlag: null }
+                ]
+            },
+            {
+                id: 'unknown2', enemyId: null, name: '？？？',
+                tiers: [
+                    { label: '10', target: null, claimedFlag: null },
+                    { label: 'ALL', target: null, claimedFlag: null }
+                ]
+            },
+            {
+                id: 'unknown3', enemyId: null, name: '？？？',
+                tiers: [
+                    { label: '10', target: null, claimedFlag: null },
+                    { label: 'ALL', target: null, claimedFlag: null }
+                ]
+            }
+        ];
+    },
+
+    openNotebookModal: function () {
+        if (RPG.State.mode !== "base") return;
+        this.refreshNotebookModal();
+        const modal = document.getElementById('notebookModal');
+        if (modal) modal.style.display = 'flex';
+    },
+
+    refreshNotebookModal: function () {
+        this.getNotebookRows().forEach(row => {
+            const actualKills = row.enemyId ? innSystem.getEnemyKillCount(row.enemyId) : 0;
+            const { displayCount, displayTarget, markers } = this.getNotebookRowDisplay(actualKills, row.tiers);
+            const countEl = document.getElementById(`notebookRow_${row.id}_count`);
+            if (countEl) countEl.textContent = `${displayCount}/${displayTarget ?? '-'}`;
+            row.tiers.forEach((tier, i) => {
+                const tierEl = document.getElementById(`notebookRow_${row.id}_tier${i}`);
+                if (tierEl) tierEl.textContent = `${markers[i]}${tier.label}`;
+            });
+        });
+
+        const claimBtn = document.getElementById('btnNotebookClaim');
+        if (claimBtn) claimBtn.disabled = !innSystem.hasAnyClaimableNotebookReward();
+    },
+
+    closeNotebookModal: function () {
+        const modal = document.getElementById('notebookModal');
+        if (modal) modal.style.display = 'none';
     },
 
     saveGame: function (slot) {

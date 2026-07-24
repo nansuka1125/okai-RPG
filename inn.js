@@ -1446,6 +1446,10 @@ innSystem = {
     stay: function () {
         if (RPG.State.mode !== "base") return;
 
+        const hpWasBelowMaxBeforeStay = RPG.State.currentHP < RPG.State.maxHP;
+        const shouldPlayNotebookIntro =
+            hpWasBelowMaxBeforeStay && RPG.State.flags.notebookUnlocked !== true;
+
         const hasThreeUndeliveredCoins =
             RPG.State.flags.silverDelivered !== true &&
             (RPG.State.silverCoins >= 3 || RPG.State.inventory.silverCoin >= 3);
@@ -1732,6 +1736,10 @@ innSystem = {
                 }
             );
 
+            if (shouldPlayNotebookIntro) {
+                RPG.State.dialogueQueue.push(...this.buildNotebookIntroQueue());
+            }
+
             explorationSystem.playDialogueLoop();
             return;
         }
@@ -1860,7 +1868,92 @@ innSystem = {
             });
         }
 
+        if (shouldPlayNotebookIntro) {
+            RPG.State.dialogueQueue.push(...this.buildNotebookIntroQueue());
+        }
+
         // START EXECUTION (exactly like showDefeatSequence line 216)
+        explorationSystem.playDialogueLoop();
+    },
+
+    // Build 15.5.1: 討伐ノート (bounty notebook) intro scene and rat-10 reward claim
+    buildNotebookIntroQueue: function () {
+        return [
+            {
+                text: null,
+                action: () => {
+                    this.showInnScene("lobby");
+                }
+            },
+            { text: "娘「おはようございます」" },
+            { text: "カイン「ああ、おはよう！」" },
+            { text: "娘「昨日、森から戻ってきた時、ずいぶん怪我してましたよね。これ、持っていってください」" },
+            {
+                text: "《🌿薬草を3個もらった》",
+                type: "marker",
+                color: "#f1e6c8",
+                action: () => {
+                    RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 3;
+                    uiControl.updateUI();
+                }
+            },
+            { text: "カイン「いいのか？　助かるよ」" },
+            { text: "娘「それと……森で魔物を倒したら、数を教えてもらえませんか？　最近、宿の近くまで出るようになって」" },
+            { text: "カイン「魔物なら、もう何匹か倒したな」" },
+            { text: "娘「本当ですか？　じゃあ、その分も書いておきますね。帳場にノートを置いておきます」" },
+            { text: "娘「数が減ったら、宿からお礼もします」" },
+            { text: "カイン「わかった。見かけたら倒しておくよ」" },
+            {
+                text: "《宿の帳場に【討伐ノート】が追加された》",
+                type: "marker",
+                color: "#f1e6c8",
+                action: () => {
+                    RPG.State.flags.notebookUnlocked = true;
+                    uiControl.updateUI();
+                }
+            }
+        ];
+    },
+
+    getEnemyKillCount: function (enemyId) {
+        const counts = RPG.State.defeatCounts && RPG.State.defeatCounts[enemyId];
+        return counts ? (counts.cain || 0) + (counts.owen || 0) : 0;
+    },
+
+    getRatBounty10Reward: function () {
+        if (RPG.State.flags.ratBounty10Received === true) return null;
+        if (this.getEnemyKillCount("rat") < 10) return null;
+        return { itemId: "herb", qty: 3, flag: "ratBounty10Received" };
+    },
+
+    hasAnyClaimableNotebookReward: function () {
+        return this.getRatBounty10Reward() !== null;
+    },
+
+    buildRatBounty10ClaimQueue: function () {
+        return [
+            { text: "娘「ネズミ、もう10匹も倒してくれたんですか？　ありがとうございます。これ、持っていってください」" },
+            {
+                text: "《🌿薬草を3個もらった》",
+                type: "marker",
+                color: "#f1e6c8",
+                action: () => {
+                    RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 3;
+                    RPG.State.flags.ratBounty10Received = true;
+                    uiControl.updateUI();
+                }
+            }
+        ];
+    },
+
+    claimNotebookRewards: function () {
+        if (RPG.State.mode !== "base") return;
+        if (!this.hasAnyClaimableNotebookReward()) return;
+
+        uiControl.closeNotebookModal();
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [...this.buildRatBounty10ClaimQueue()];
         explorationSystem.playDialogueLoop();
     },
 

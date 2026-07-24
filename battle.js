@@ -520,6 +520,17 @@ const battleSystem = {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
                 break;
             case "kill":
+                if (
+                    RPG.State.flags.matamatabiActive === true &&
+                    RPG.State.currentEnemy &&
+                    RPG.State.currentEnemy.id === "weasel"
+                ) {
+                    uiControl.addLog("オーエンはイタチを遠くへ吹き飛ばした！", "", "#a333c8");
+                    uiControl.addLog("魔界のイタチは逃げ出した！", "");
+                    const escapeDelay = RPG.State.debug.isSkipping ? 50 : 1500;
+                    setTimeout(() => this.endWeaselEscapeBattle(), escapeDelay);
+                    return;
+                }
                 if (RPG.State.flags.matamatabiActive === true && (!RPG.State.currentEnemy || RPG.State.currentEnemy.id !== "glowing_cat_rabbit")) {
                     uiControl.addLog("オーエンは一瞬で敵を吹き飛ばした！", "", "#a333c8");
                 } else {
@@ -1175,6 +1186,20 @@ const battleSystem = {
             explorationSystem.playDialogueLoop();
             return;
         }
+
+        RPG.State.mode = "base";
+        uiControl.updateUI();
+    },
+
+    // Build 15.5.1: Weasel scared off while matamatabi is active - not a real kill,
+    // so this bypasses endBattle()/executeStandardVictory() entirely (no defeatCounts/EXP/drop).
+    endWeaselEscapeBattle: function () {
+        this.advanceHerbGardenHarvestCooldowns();
+        uiControl.addSeparator();
+
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
 
         RPG.State.mode = "base";
         uiControl.updateUI();

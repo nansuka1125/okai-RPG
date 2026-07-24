@@ -80,11 +80,11 @@
         </div>
 
         <div id="innUI" class="btn-grid" style="display:none;">
-            <button id="btnInnTalk" class="btn" onclick="innSystem.talk()">話す</button>
-            <button id="btnInnStay" class="btn" onclick="innSystem.stay()">泊まる</button>
-            <button id="btnInnObserve" class="btn" onclick="innSystem.observe()">様子を見る</button>
-            <button id="btnInnJournal" class="btn btn-journal" onclick="uiControl.openSaveModal()">旅の記録</button>
-            <button id="btnInnDeliver" class="btn btn-accent" onclick="innSystem.deliver()">銀貨を納品</button>
+            <button id="btnInnTalk" class="btn btn-primary-row" onclick="innSystem.talk()">話す</button>
+            <button id="btnInnObserve" class="btn btn-primary-row" onclick="innSystem.observe()">様子を見る</button>
+            <button id="btnInnStay" class="btn btn-primary-row" onclick="innSystem.stay()">泊まる</button>
+            <button id="btnInnJournal" class="btn btn-journal btn-secondary-row btn-compact" onclick="uiControl.openSaveModal()">旅の記録</button>
+            <button id="btnInnNotebook" class="btn btn-journal btn-secondary-row btn-compact" onclick="uiControl.openNotebookModal()" style="display:none;">討伐ノート</button>
             <button id="btnInnExit" class="btn btn-full" onclick="innSystem.exitInn()">外に出る</button>
         </div>
 
@@ -166,6 +166,59 @@
                 </div>
             </div>
             <button class="btn save-modal-close" onclick="uiControl.closeSaveModal()">宿帳を閉じる</button>
+        </div>
+    </div>
+
+    <div id="notebookModal">
+        <div class="notebook-modal-content">
+            <div class="notebook-modal-title"><span>討伐ノート</span></div>
+            <div id="notebookRowList" class="notebook-row-list">
+                <div class="notebook-row">
+                    <div class="notebook-row-name">魔界のネズミ</div>
+                    <div class="notebook-row-progress" id="notebookRow_rat_count">0/10</div>
+                    <div class="notebook-row-tiers">
+                        <span class="notebook-tier" id="notebookRow_rat_tier0">○10</span>
+                        <span class="notebook-tier" id="notebookRow_rat_tier1">○20</span>
+                        <span class="notebook-tier" id="notebookRow_rat_tier2">○ALL</span>
+                    </div>
+                </div>
+                <div class="notebook-row">
+                    <div class="notebook-row-name">魔界のイタチ</div>
+                    <div class="notebook-row-progress" id="notebookRow_weasel_count">0/10</div>
+                    <div class="notebook-row-tiers">
+                        <span class="notebook-tier" id="notebookRow_weasel_tier0">○10</span>
+                        <span class="notebook-tier" id="notebookRow_weasel_tier1">○20</span>
+                        <span class="notebook-tier" id="notebookRow_weasel_tier2">○ALL</span>
+                    </div>
+                </div>
+                <div class="notebook-row">
+                    <div class="notebook-row-name">？？？</div>
+                    <div class="notebook-row-progress" id="notebookRow_unknown1_count">0/-</div>
+                    <div class="notebook-row-tiers">
+                        <span class="notebook-tier" id="notebookRow_unknown1_tier0">○10</span>
+                        <span class="notebook-tier" id="notebookRow_unknown1_tier1">○20</span>
+                        <span class="notebook-tier" id="notebookRow_unknown1_tier2">○ALL</span>
+                    </div>
+                </div>
+                <div class="notebook-row">
+                    <div class="notebook-row-name">？？？</div>
+                    <div class="notebook-row-progress" id="notebookRow_unknown2_count">0/-</div>
+                    <div class="notebook-row-tiers">
+                        <span class="notebook-tier" id="notebookRow_unknown2_tier0">○10</span>
+                        <span class="notebook-tier" id="notebookRow_unknown2_tier1">○ALL</span>
+                    </div>
+                </div>
+                <div class="notebook-row">
+                    <div class="notebook-row-name">？？？</div>
+                    <div class="notebook-row-progress" id="notebookRow_unknown3_count">0/-</div>
+                    <div class="notebook-row-tiers">
+                        <span class="notebook-tier" id="notebookRow_unknown3_tier0">○10</span>
+                        <span class="notebook-tier" id="notebookRow_unknown3_tier1">○ALL</span>
+                    </div>
+                </div>
+            </div>
+            <button id="btnNotebookClaim" class="btn notebook-claim-btn" style="margin:10px 10px 0;" onclick="innSystem.claimNotebookRewards()">【報酬を受け取る】</button>
+            <button class="btn" style="margin:10px;" onclick="uiControl.closeNotebookModal()">閉じる</button>
         </div>
     </div>
 

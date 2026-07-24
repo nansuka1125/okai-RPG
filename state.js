@@ -232,7 +232,9 @@ RPG.State = {
         scentPouchHandedToDriver: false, // Build 15.2.112: The pouch now hangs by the wagon reins on the Former Highway
         phase7DepartureNightSeen: false, // Build 15.2.111: One-time departure-eve scene after the scent pouch is tested
         phase7DepartureMorningTalkPending: false, // Play the herb banter on the next inn-front exit after departure night
-        wagonReadyForDeparture: false // Build 15.2.68: Allow the moved departure-night scene only after the wagon preparation quest is complete
+        wagonReadyForDeparture: false, // Build 15.2.68: Allow the moved departure-night scene only after the wagon preparation quest is complete
+        notebookUnlocked: false, // Build 15.5.1: One-time daughter scene unlocks the inn's 討伐ノート command
+        ratBounty10Received: false // Build 15.5.1: Prevent duplicate rat-10-kill bounty reward from the 討伐ノート
     },
 
     // 一時フラグ

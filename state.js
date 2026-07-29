@@ -27,7 +27,7 @@ RPG.Config = {
 
 RPG.State = {
     // Build version tracking
-    version: "15.5.0 (Amber Trade)", // Build 15.5.0: Chapter 1 amber appraisal, trade, and hardened enemies
+    version: "15.6.0 (Chapter 1 Complete)", // Build 15.6.0: Complete Chapter 1 flow, retreat/retry support, and preserved side events
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
     mood: 50,              // 気分値（デバッグ用表示あり）

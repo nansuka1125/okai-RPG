@@ -12,7 +12,15 @@ RPG.Config = {
     BATTLE_RATE: 0.6,    // エンカウント率（60%）
     NIGHT_STEP_THRESHOLD: 20, // Valid field moves after staying before night falls
     HEAL_ON_LEVEL_UP: false, // Build 15.2.47: Toggle full HP recovery on level up
-    LEVEL_UP_TALK_BATTLE_ONLY: true // Build 15.2.49: Reserve milestone level-up talks for battle victories only
+    LEVEL_UP_TALK_BATTLE_ONLY: true, // Build 15.2.49: Reserve milestone level-up talks for battle victories only
+    FAKE_WOUND_MEDICINE_HEAL_RATE: 0.3,
+    SMOKE_BOMB_STEP_COUNT: 10,
+    MIKAWASHI_STEP_COUNT: 3,
+    EVASION_RATE: {
+        normal: 0.1,
+        nightMedicine: 0.5,
+        mikawashiFeather: 0.5
+    }
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする
@@ -71,6 +79,11 @@ RPG.State = {
         antidoteHerb: 0,
         berry: 0,
         charm: 0,
+        fakeWoundMedicine: 0,
+        smokeBomb: 0,
+        hardBottle: 0,
+        gratefulTalisman: 0,
+        mikawashiFeather: 0,
         edibleHerb: 0,
         mintFlower: 0,
         boneMeal: 0,
@@ -87,6 +100,7 @@ RPG.State = {
         unknownAmber: 0,
         borrowedMiningKnife: 0,
         miningKnife: 0,
+        amberTreeTimber: 0,
         hatedAmber: 0,
         sweetAmber: 0,
         herbAmber: 0,
@@ -233,8 +247,20 @@ RPG.State = {
         phase7DepartureNightSeen: false, // Build 15.2.111: One-time departure-eve scene after the scent pouch is tested
         phase7DepartureMorningTalkPending: false, // Play the herb banter on the next inn-front exit after departure night
         wagonReadyForDeparture: false, // Build 15.2.68: Allow the moved departure-night scene only after the wagon preparation quest is complete
+        chapter1Cleared: false, // Chapter 1 is complete only after the final victory scene has fully finished
         notebookUnlocked: false, // Build 15.5.1: One-time daughter scene unlocks the inn's 討伐ノート command
-        ratBounty10Received: false // Build 15.5.1: Prevent duplicate rat-10-kill bounty reward from the 討伐ノート
+        ratBounty10Received: false, // Build 15.5.1: Prevent duplicate rat-10-kill bounty reward from the 討伐ノート
+        innRepairConsultSeen: false, // Build 15.5.3: One-time innkeeper consultation after both inn rat battles, introducing the inn-repair thread
+        ratBounty20Received: false, // Build 15.5.3: Rat-20 bounty from the 討伐ノート; also signals the inn-repair thread's next stage is unlocked
+        ratEvent2BattleFought: false, // Build 15.5.4: One ordinary battle victory after inn rat event 1, required before the チューチュー❗️ trigger for inn rat event 2
+        repairConsultBattleFought: false, // Build 15.5.4: One ordinary battle victory after inn rat event 2, required before the innkeeper repair consult
+        innRepairInspectionUnlocked: false, // Build 15.5.5: Silently unlocked once innRepairConsultSeen and ratBounty20Received are both true; cleared once innRepairInspectionReported
+        innRepairHoleInspected: false, // Build 15.5.5: Inn-front outer wall hole inspection done
+        innRepairDroppingsInspected: false, // Build 15.5.5: Forest-entrance rat droppings inspection done
+        innRepairPillarInspected: false, // Build 15.5.5: Inn lobby gnawed pillar inspection done
+        innRepairInspectionReported: false, // Build 15.5.5: One-time report to the innkeeper after all three inspections
+        innRepairTimberSearchUnlocked: false, // Build 15.5.5: Set alongside the report; gates the forest-8m timber retrieval event
+        innRepairTimberObtained: false // Build 15.5.6: One-time amber tree timber retrieval at forest 8m, once the damage report has unlocked the search
     },
 
     // 一時フラグ
@@ -247,6 +273,8 @@ RPG.State = {
     defeatCounts: {}, // Track kills by ID
     glowCatRabbitDefeatCount: 0, // Build 15.2.57: Track how many glowing cat rabbits have been defeated
     nightMedicineEvasionBattlesRemaining: 0, // Build 15.2.106: 50% evasion for the next five battles
+    smokeBombStepsRemaining: 0,
+    mikawashiStepsRemaining: 0,
     playerTookCoin: null, // Track choice at tree event (true/false/null)
     matamatabiStepsRemaining: 0, // Build 15.2.64: Remaining forest steps before the activated branch effect fades
 };

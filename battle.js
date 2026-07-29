@@ -91,16 +91,93 @@ const battleSystem = {
         return RPG.State.battleState?.nightMedicineEvasionActive === true;
     },
 
-    tryNightMedicineDodge: function () {
-        if (!this.hasNightMedicineEvasion() || Math.random() >= 0.5) return false;
+    hasMikawashiEvasion: function () {
+        return RPG.State.battleState?.mikawashiEvasionActive === true;
+    },
 
-        uiControl.addLog("カインは薬の余韻に導かれるように攻撃を避けた！", "", "#f1e6c8");
+    getActiveEvasionEffect: function (options = {}) {
+        if (this.hasMikawashiEvasion()) {
+            return {
+                chance: RPG.Config.EVASION_RATE.mikawashiFeather,
+                log: "ミカワシ羽の力で、カインは攻撃をかわした！",
+                color: "#f1e6c8"
+            };
+        }
+
+        if (this.hasNightMedicineEvasion()) {
+            return {
+                chance: RPG.Config.EVASION_RATE.nightMedicine,
+                log: "カインは薬の余韻に導かれるように攻撃を避けた！",
+                color: "#f1e6c8"
+            };
+        }
+
+        if (options.allowNormalEvasion === true) {
+            return {
+                chance: RPG.Config.EVASION_RATE.normal,
+                log: "カインは攻撃を剣で受け流した！",
+                color: null
+            };
+        }
+
+        return null;
+    },
+
+    tryEnemyAttackDodge: function (options = {}) {
+        const effect = this.getActiveEvasionEffect(options);
+        if (!effect) return false;
+
+        const chance = Number.isFinite(options.chanceCap)
+            ? Math.min(effect.chance, options.chanceCap)
+            : effect.chance;
+        if (Math.random() >= chance) return false;
+
+        uiControl.addLog(effect.log, "", effect.color);
         return true;
+    },
+
+    tryNightMedicineDodge: function (options = {}) {
+        return this.tryEnemyAttackDodge(options);
+    },
+
+    clearGratefulTalismanSurvivalOnDamage: function () {
+        if (RPG.State.battleState) {
+            RPG.State.battleState.gratefulTalismanSurvivalActive = false;
+        }
+    },
+
+    applyEnemyDirectDamage: function (damage) {
+        const normalizedDamage = Math.max(0, Number(damage) || 0);
+        this.clearGratefulTalismanSurvivalOnDamage();
+        const nextHP = RPG.State.currentHP - normalizedDamage;
+
+        if (
+            nextHP <= 0 &&
+            (RPG.State.inventory.gratefulTalisman || 0) > 0
+        ) {
+            RPG.State.inventory.gratefulTalisman -= 1;
+            RPG.State.currentHP = 1;
+            if (!RPG.State.battleState) RPG.State.battleState = {};
+            RPG.State.battleState.gratefulTalismanSurvivalActive = true;
+            this.markPlayerTookDamage(normalizedDamage);
+            uiControl.addLog("🧧ありがた〜い札が光った！", "marker", "#f1e6c8");
+            uiControl.addLog("カインはHP1で踏みとどまった！");
+            uiControl.updateUI();
+            return { talismanActivated: true, lethal: true };
+        }
+
+        RPG.State.currentHP = Math.max(0, nextHP);
+        this.markPlayerTookDamage(normalizedDamage);
+        return {
+            talismanActivated: false,
+            lethal: RPG.State.currentHP <= 0
+        };
     },
 
     applyPoisonTick: function () {
         if (!RPG.State.isPoisoned) return false;
 
+        this.clearGratefulTalismanSurvivalOnDamage();
         if (!Number.isFinite(RPG.State.poisonDamageRemaining) || RPG.State.poisonDamageRemaining <= 0) {
             RPG.State.poisonDamageRemaining = Math.max(1, Math.floor(RPG.State.maxHP / 3));
         }
@@ -224,7 +301,158 @@ const battleSystem = {
             : template;
     },
 
-    startBattle: function (enemyId = null) {
+    getHighwayFixedBattleSpec: function (distance) {
+        const specs = {
+            2: {
+                enemyId: "hell_rat_swarm",
+                requiredWins: 2,
+                victoryEventIds: ["highway_2m_rats_intro", "highway_2m_rats_interlude"],
+                interludeEventId: "highway_2m_rats_interlude"
+            },
+            4: {
+                enemyId: "eye_eating_crow",
+                requiredWins: 2,
+                victoryEventIds: ["highway_4m_crows_intro", "highway_4m_crows_interlude"],
+                interludeEventId: "highway_4m_crows_interlude",
+                finishEventId: "highway_4m_crows_outro"
+            },
+            6: {
+                enemyId: "eye_eating_crow",
+                requiredWins: 1,
+                victoryEventIds: []
+            },
+            8: {
+                enemyId: "hell_rat_swarm",
+                requiredWins: 1,
+                victoryEventIds: ["highway_8m_escalation"]
+            },
+            10: {
+                enemyId: "amber_husk_giant_larva",
+                requiredWins: 1,
+                victoryEventIds: ["highway_10m_boss_arrival"]
+            }
+        };
+        return specs[Number(distance)] || null;
+    },
+
+    isHighwayBattleContext: function () {
+        return (
+            RPG.State.storyPhase === 9 &&
+            RPG.State.flags.onWagon === true &&
+            (
+                RPG.State.explorationArea === "highway" ||
+                RPG.State.location === "かつての街道"
+            )
+        );
+    },
+
+    startHighwayFixedBattle: function (distance, enemyId, options = {}) {
+        const spec = this.getHighwayFixedBattleSpec(distance);
+        if (!spec || spec.enemyId !== enemyId) return;
+        this.startBattle(enemyId, {
+            ...options,
+            highwayFixedDistance: Number(distance)
+        });
+    },
+
+    recordHighwayFixedBattleVictory: function (enemyId) {
+        const battleState = RPG.State.battleState;
+        const distance = Number(battleState?.highwayFixedDistance);
+        const spec = this.getHighwayFixedBattleSpec(distance);
+        if (
+            !battleState ||
+            battleState.highwayFixedVictoryRecorded === true ||
+            !this.isHighwayBattleContext() ||
+            !spec ||
+            spec.enemyId !== enemyId
+        ) {
+            return { handled: false, postBattleEventId: null };
+        }
+
+        battleState.highwayFixedVictoryRecorded = true;
+        if (!RPG.State.highwayBattleCount || typeof RPG.State.highwayBattleCount !== "object") {
+            RPG.State.highwayBattleCount = {};
+        }
+        if (!Array.isArray(RPG.State.completedEvents)) {
+            RPG.State.completedEvents = [];
+        }
+
+        const previousWins = Math.max(
+            0,
+            Math.min(spec.requiredWins, Number(RPG.State.highwayBattleCount[distance]) || 0)
+        );
+        const completedWins = Math.min(spec.requiredWins, previousWins + 1);
+        RPG.State.highwayBattleCount[distance] = completedWins;
+
+        const completedBattleEventId = spec.victoryEventIds[previousWins];
+        if (
+            completedBattleEventId &&
+            !RPG.State.completedEvents.includes(completedBattleEventId)
+        ) {
+            RPG.State.completedEvents.push(completedBattleEventId);
+        }
+
+        let postBattleEventId = null;
+        let completePostBattleEvent = false;
+        if (completedWins < spec.requiredWins) {
+            postBattleEventId = spec.interludeEventId || null;
+        } else if (spec.finishEventId) {
+            postBattleEventId = spec.finishEventId;
+            completePostBattleEvent = true;
+        }
+
+        return {
+            handled: true,
+            distance,
+            completedWins,
+            postBattleEventId,
+            completePostBattleEvent
+        };
+    },
+
+    buildHighwayPostBattleQueue: function (victoryResult) {
+        if (!victoryResult?.postBattleEventId) return [];
+        const event = RPG.Assets.EVENT_DATA.find(
+            candidate => candidate.id === victoryResult.postBattleEventId
+        );
+        if (!event) return [];
+
+        RPG.State.dialogueQueue = [];
+        event.action(RPG.State);
+        const queue = Array.isArray(RPG.State.dialogueQueue)
+            ? [...RPG.State.dialogueQueue]
+            : [];
+
+        if (
+            victoryResult.completePostBattleEvent === true &&
+            !RPG.State.completedEvents.includes(event.id)
+        ) {
+            RPG.State.completedEvents.push(event.id);
+        }
+        return queue;
+    },
+
+    startBattle: function (enemyId = null, options = {}) {
+        if (RPG.State.flags.chapter1Cleared === true) return;
+        const pendingMoveEligibility =
+            typeof explorationSystem !== "undefined" &&
+            typeof explorationSystem.consumeMikawashiMoveBattleEligibility === "function"
+                ? explorationSystem.consumeMikawashiMoveBattleEligibility()
+                : false;
+        const hasExplicitMikawashiState = Object.prototype.hasOwnProperty.call(
+            options,
+            "mikawashiEvasionActive"
+        );
+        const mikawashiEvasionActive = hasExplicitMikawashiState
+            ? options.mikawashiEvasionActive === true
+            : (
+                pendingMoveEligibility ||
+                Math.max(0, Number(RPG.State.mikawashiStepsRemaining) || 0) > 0
+            );
+        const highwayFixedDistance = Number.isFinite(Number(options.highwayFixedDistance))
+            ? Number(options.highwayFixedDistance)
+            : null;
+
         // Enemy Selection logic remains in engine as it processes data
         let template = null;
         if (enemyId) {
@@ -279,7 +507,10 @@ const battleSystem = {
                 {
                     text: null,
                     action: () => {
-                        this.beginBattle(template);
+                        this.beginBattle(template, {
+                            mikawashiEvasionActive,
+                            highwayFixedDistance
+                        });
                     }
                 }
             ];
@@ -287,10 +518,13 @@ const battleSystem = {
             return;
         }
 
-        this.beginBattle(template);
+        this.beginBattle(template, {
+            mikawashiEvasionActive,
+            highwayFixedDistance
+        });
     },
 
-    beginBattle: function (template) {
+    beginBattle: function (template, options = {}) {
         RPG.State.mode = "battle";
         const isPhase4FirstRabbitEncounter =
             template.id === "glowing_cat_rabbit" &&
@@ -316,10 +550,19 @@ const battleSystem = {
         const usesNightMedicineEvasion =
             (RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0 &&
             !(template.id === "glowing_cat_rabbit" && template.rabbitLevel === 88);
+        const usesMikawashiEvasion =
+            options.mikawashiEvasionActive === true &&
+            !(template.id === "glowing_cat_rabbit" && template.rabbitLevel === 88);
         RPG.State.battleState = {
             skippedTurns: 0,
             playerTookDamage: false,
-            nightMedicineEvasionActive: usesNightMedicineEvasion
+            nightMedicineEvasionActive: usesNightMedicineEvasion,
+            mikawashiEvasionActive: usesMikawashiEvasion,
+            gratefulTalismanSurvivalActive: false,
+            highwayFixedDistance: Number.isFinite(options.highwayFixedDistance)
+                ? options.highwayFixedDistance
+                : null,
+            highwayFixedVictoryRecorded: false
         };
         if (usesNightMedicineEvasion) {
             RPG.State.nightMedicineEvasionBattlesRemaining--;
@@ -714,39 +957,13 @@ const battleSystem = {
             visualDirector.playBattleCue("enemy-attack");
         }
 
-        const dodgeChance = this.hasNightMedicineEvasion() ? 0.5 : 0.1;
-        if (Math.random() < dodgeChance) {
-            uiControl.addLog(
-                this.hasNightMedicineEvasion()
-                    ? "カインは薬の余韻に導かれるように攻撃を避けた！"
-                    : "カインは攻撃を剣で受け流した！",
-                "",
-                this.hasNightMedicineEvasion() ? "#f1e6c8" : null
-            );
+        if (this.tryEnemyAttackDodge({ allowNormalEvasion: true })) {
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(onComplete, delay);
             return;
         }
 
         let dmg = RPG.State.currentEnemy.atk;
-        const newHP = RPG.State.currentHP - dmg;
-
-        if (newHP <= 0 && !RPG.State.hasOwenSavedLife) {
-            RPG.State.hasOwenSavedLife = true;
-            this.markPlayerTookDamage(dmg);
-            uiControl.addLog(`${RPG.State.currentEnemy.name}が${RPG.State.currentEnemy.msg || "攻撃してきた！"}`);
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
-            RPG.State.currentHP = 1;
-            uiControl.updateUI();
-            const delay = RPG.State.debug.isSkipping ? 50 : 1500;
-            setTimeout(() => this.endBattle(false, true), delay);
-            return;
-        }
-
-        RPG.State.currentHP = Math.max(0, newHP);
-        this.markPlayerTookDamage(dmg);
-
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
         if (RPG.State.currentEnemy.id === "weasel") {
             msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
@@ -756,6 +973,24 @@ const battleSystem = {
             `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
             "enemy-action"
         );
+
+        const damageResult = this.applyEnemyDirectDamage(dmg);
+        if (damageResult.talismanActivated) {
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(onComplete, delay);
+            return;
+        }
+
+        if (damageResult.lethal && !RPG.State.hasOwenSavedLife) {
+            RPG.State.hasOwenSavedLife = true;
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
+            RPG.State.currentHP = 1;
+            uiControl.updateUI();
+            const delay = RPG.State.debug.isSkipping ? 50 : 1500;
+            setTimeout(() => this.endBattle(false, true), delay);
+            return;
+        }
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
             if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
@@ -1384,40 +1619,13 @@ const battleSystem = {
         }
 
         // Standard Enemy Logic (Others)
-        const dodgeChance = this.hasNightMedicineEvasion() ? 0.5 : 0.1;
-        if (!isPreemptive && Math.random() < dodgeChance) {
-            uiControl.addLog(
-                this.hasNightMedicineEvasion()
-                    ? "カインは薬の余韻に導かれるように攻撃を避けた！"
-                    : "カインは攻撃を剣で受け流した！",
-                "",
-                this.hasNightMedicineEvasion() ? "#f1e6c8" : null
-            );
+        if (!isPreemptive && this.tryEnemyAttackDodge({ allowNormalEvasion: true })) {
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(() => this.runBattleLoop(), delay);
             return;
         }
 
         let dmg = RPG.State.currentEnemy.atk;
-        const newHP = RPG.State.currentHP - dmg;
-
-        // Death Save
-        if (newHP <= 0 && !RPG.State.hasOwenSavedLife) {
-            RPG.State.hasOwenSavedLife = true;
-            this.markPlayerTookDamage(dmg);
-            uiControl.addLog(`${RPG.State.currentEnemy.name}が${RPG.State.currentEnemy.msg || "攻撃してきた！"}`);
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
-            RPG.State.currentHP = 1;
-            uiControl.updateUI();
-            const delay = RPG.State.debug.isSkipping ? 50 : 1500;
-            setTimeout(() => this.endBattle(false, true), delay);
-            return;
-        }
-
-        RPG.State.currentHP = Math.max(0, newHP);
-        this.markPlayerTookDamage(dmg);
-
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
         // Build 6.3.2: Weasel Logic (Specific case kept inline for simplicity as it's minor)
         if (RPG.State.currentEnemy.id === "weasel") {
@@ -1428,6 +1636,25 @@ const battleSystem = {
             `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
             "enemy-action"
         );
+
+        const damageResult = this.applyEnemyDirectDamage(dmg);
+        if (damageResult.talismanActivated) {
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(() => this.runBattleLoop(), delay);
+            return;
+        }
+
+        // Death Save
+        if (damageResult.lethal && !RPG.State.hasOwenSavedLife) {
+            RPG.State.hasOwenSavedLife = true;
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
+            RPG.State.currentHP = 1;
+            uiControl.updateUI();
+            const delay = RPG.State.debug.isSkipping ? 50 : 1500;
+            setTimeout(() => this.endBattle(false, true), delay);
+            return;
+        }
 
         if (RPG.State.currentEnemy.poison && !RPG.State.isPoisoned) {
             if (Math.random() < (RPG.State.currentEnemy.poisonRate || 0.2)) {
@@ -1449,7 +1676,19 @@ const battleSystem = {
             this.endBattle(true);
             return true;
         }
+        if (
+            RPG.State.currentHP >= 2 &&
+            RPG.State.battleState?.gratefulTalismanSurvivalActive === true
+        ) {
+            RPG.State.battleState.gratefulTalismanSurvivalActive = false;
+        }
         if (RPG.State.currentHP <= 1) {
+            if (
+                RPG.State.currentHP === 1 &&
+                RPG.State.battleState?.gratefulTalismanSurvivalActive === true
+            ) {
+                return false;
+            }
             if ((RPG.State.inventory.charm || 0) > 0) {
                 RPG.State.inventory.charm -= 1;
                 RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.5);
@@ -1492,6 +1731,17 @@ const battleSystem = {
 
         uiControl.addSeparator();
 
+        // On the highway, Owen's one-time rescue must not let a mandatory
+        // encounter be skipped. Treat that escape as the same retry state as
+        // any other defeat, while preserving the legacy rescue elsewhere.
+        if (isDeathSave && this.isHighwayBattleContext()) {
+            if (typeof explorationSystem !== "undefined") {
+                explorationSystem.clearTemporaryItemEffects();
+            }
+            this.resolveHighwayDefeat();
+            return;
+        }
+
         // Giant Larva Death Spasm
         // Giant Larva Death Spasm (Cinematic)
         if (RPG.State.currentEnemy.id === 'giant_larva' && playerWin) {
@@ -1501,6 +1751,8 @@ const battleSystem = {
 
         const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
         let hasPostBattleEvent = false;
+        let postBattleStarted = false;
+        let highwayPostBattleQueue = [];
 
         if (isDeathSave) {
             uiControl.addLog("戦闘から離脱した。");
@@ -1514,6 +1766,23 @@ const battleSystem = {
             RPG.State.defeatCounts[enemyId].owen++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
             this.grantGuaranteedEnemyDrop();
+            const highwayVictory = this.recordHighwayFixedBattleVictory(enemyId);
+            highwayPostBattleQueue = this.buildHighwayPostBattleQueue(highwayVictory);
+            if (highwayPostBattleQueue.length > 0) {
+                hasPostBattleEvent = true;
+            } else if (highwayVictory.handled) {
+                const defeatedEnemy = RPG.Assets.ENEMIES.find(enemy => enemy.id === enemyId);
+                if (defeatedEnemy?.onDeathEvent) {
+                    const victoryEvent = RPG.Assets.EVENT_DATA.find(
+                        event => event.id === defeatedEnemy.onDeathEvent
+                    );
+                    if (victoryEvent) {
+                        victoryEvent.action(RPG.State);
+                        hasPostBattleEvent = true;
+                        postBattleStarted = true;
+                    }
+                }
+            }
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
@@ -1526,9 +1795,16 @@ const battleSystem = {
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
 
+        if (postBattleStarted) {
+            return;
+        }
+
         if (hasPostBattleEvent) {
             RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...matamatabiActivationQueue];
+            RPG.State.dialogueQueue = [
+                ...highwayPostBattleQueue,
+                ...matamatabiActivationQueue
+            ];
             uiControl.updateUI();
             explorationSystem.playDialogueLoop();
             return;
@@ -1565,6 +1841,7 @@ const battleSystem = {
         }
 
         this.grantGuaranteedEnemyDrop();
+        const highwayVictory = this.recordHighwayFixedBattleVictory(enemyId);
 
         const shouldAdvanceForestSearchCounter =
             RPG.State.isInDungeon &&
@@ -1596,6 +1873,27 @@ const battleSystem = {
                     }
                 }
             }
+        }
+
+        // Build 15.5.7: Ordinary-battle pacing gates for inn rat event 2 and the innkeeper repair
+        // consult. Each gate must exclude the scripted inn rat battle that unlocked it, so a
+        // separate later battle is genuinely required (not the same win that set innRatEvent/2).
+        if (
+            RPG.State.flags.innRatEvent === true &&
+            RPG.State.flags.innRatEvent2 !== true &&
+            RPG.State.flags.ratEvent2BattleFought !== true &&
+            enemyId !== 'normal_rat'
+        ) {
+            RPG.State.flags.ratEvent2BattleFought = true;
+        }
+
+        if (
+            RPG.State.flags.innRatEvent2 === true &&
+            RPG.State.flags.innRepairConsultSeen !== true &&
+            RPG.State.flags.repairConsultBattleFought !== true &&
+            RPG.State.flags.innRatEvent2BattleActive !== true
+        ) {
+            RPG.State.flags.repairConsultBattleFought = true;
         }
 
         if (RPG.State.currentEnemy.gold > 0) {
@@ -1690,7 +1988,29 @@ const battleSystem = {
             hasPostBattleEvent = true;
         }
 
-        if (!hasPostBattleEvent && RPG.Assets.BATTLE_EVENTS[enemyId] && RPG.Assets.BATTLE_EVENTS[enemyId][count]) {
+        if (
+            !hasPostBattleEvent &&
+            highwayVictory.handled &&
+            highwayVictory.postBattleEventId
+        ) {
+            const eventDialogues = this.buildHighwayPostBattleQueue(highwayVictory);
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                ...levelUpTalkQueue,
+                ...eventDialogues,
+                ...matamatabiActivationQueue
+            ];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
+        if (
+            !hasPostBattleEvent &&
+            !highwayVictory.handled &&
+            RPG.Assets.BATTLE_EVENTS[enemyId] &&
+            RPG.Assets.BATTLE_EVENTS[enemyId][count]
+        ) {
             const eventDialogues = RPG.Assets.BATTLE_EVENTS[enemyId][count];
             uiControl.addLog("---");
             RPG.State.mode = "event";
@@ -1739,6 +2059,43 @@ const battleSystem = {
         }
     },
 
+    resolveHighwayDefeat: function () {
+        uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
+
+        RPG.State.currentHP = RPG.State.maxHP;
+        RPG.State.isPoisoned = false;
+        RPG.State.poisonDamageRemaining = 0;
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        RPG.State.lastBlowBy = null;
+        RPG.State.battleTurn = 0;
+        RPG.State.hasOwenIntervened = false;
+        RPG.State.hasOwenSavedLife = false;
+
+        if (!Array.isArray(RPG.State.completedEvents)) {
+            RPG.State.completedEvents = [];
+        }
+        if (!RPG.State.completedEvents.includes("phase8_wagon_journey_completed")) {
+            RPG.State.completedEvents.push("phase8_wagon_journey_completed");
+        }
+
+        RPG.State.storyPhase = 7;
+        RPG.State.flags.onWagon = false;
+        RPG.State.isAtInn = false;
+        RPG.State.isInDungeon = false;
+        RPG.State.explorationArea = null;
+        RPG.State.location = "宿屋前";
+        RPG.State.currentDistance = 0;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "荷馬車は琥珀亭まで引き返した。", type: "marker" }
+        ];
+
+        uiControl.updateUI();
+        explorationSystem.playDialogueLoop();
+    },
+
     finalizeStandardDefeat: function (defeatedEnemyId = null) {
         uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
         RPG.State.flags.innRatEvent2BattleActive = false;
@@ -1752,6 +2109,9 @@ const battleSystem = {
 
     resolveDefeat: function () {
         uiControl.addSeparator();
+        if (typeof explorationSystem !== "undefined") {
+            explorationSystem.clearTemporaryItemEffects();
+        }
 
         if (
             RPG.State.isBattling &&
@@ -1759,6 +2119,11 @@ const battleSystem = {
             typeof visualDirector !== "undefined"
         ) {
             visualDirector.playBattleCue("party-defeated");
+        }
+
+        if (this.isHighwayBattleContext()) {
+            this.resolveHighwayDefeat();
+            return;
         }
 
         // Build 14.1.5: Special Boss Defeat

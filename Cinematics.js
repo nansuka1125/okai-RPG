@@ -44,7 +44,7 @@ const Cinematics = {
         return false;
     },
 
-    sceneTransition: function (text) {
+    sceneTransition: function (text, trailingQueue = []) {
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [
             {
@@ -66,9 +66,37 @@ const Cinematics = {
                     }
                     uiControl.addLog(text, "marker", "#f1e6c8", "24px");
                 }
-            }
+            },
+            ...trailingQueue
         ];
         explorationSystem.playDialogueLoop();
+    },
+
+    playChapter1Clear: function () {
+        this.sceneTransition("第1章クリア", [
+            {
+                text: "第一章　銀貨と宿屋",
+                type: "marker",
+                color: "#f1e6c8",
+                fontSize: "24px"
+            },
+            {
+                text: "――終――",
+                type: "marker",
+                color: "#f1e6c8"
+            },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.flags.chapter1Cleared = true;
+                    RPG.State.isBattling = false;
+                    RPG.State.currentEnemy = null;
+                    RPG.State.battleState = null;
+                    RPG.State.mode = "chapterClear";
+                    uiControl.updateUI();
+                }
+            }
+        ]);
     },
 
     playGiantLarvaDeath: function (sys, enemyId) {

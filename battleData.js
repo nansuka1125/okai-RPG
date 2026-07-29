@@ -118,9 +118,8 @@ RPG.Assets.BATTLE_AI = {
                     finishTurn();
                     return;
                 }
-                RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
-                sys.markPlayerTookDamage(damage);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage", color);
+                sys.applyEnemyDirectDamage(damage);
                 uiControl.updateUI();
                 finishTurn();
             };
@@ -159,7 +158,23 @@ RPG.Assets.BATTLE_AI = {
             const enemy = RPG.State.currentEnemy;
             const bossDelay = 1000;
 
-            // Priority 1: Swallow (HP <= 50%)
+            // Priority 1: Turn 1 Poison
+            if (RPG.State.battleTurn === 1) {
+                uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.poisonFog, "enemy-action");
+                setTimeout(() => {
+                    if (!RPG.State.isPoisoned) {
+                        sys.inflictPoison();
+                        uiControl.addLog("カインは猛毒に侵された！", "damage", "#ff4d4d");
+                    } else {
+                        uiControl.addLog("霧がカインの体を包み込む……", "ambient");
+                    }
+                    RPG.State.battleTurn++;
+                    setTimeout(() => sys.runBattleLoop(), 1200);
+                }, bossDelay);
+                return;
+            }
+
+            // Priority 2: Swallow (HP <= 50%)
             if (!enemy.swallowUsed && RPG.State.currentHP <= RPG.State.maxHP * 0.5) {
                 enemy.swallowUsed = true;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.swallow, "enemy-action");
@@ -173,7 +188,7 @@ RPG.Assets.BATTLE_AI = {
                 return;
             }
 
-            // Priority 1.5: Digestion (While Swallowed)
+            // Priority 2.5: Digestion (While Swallowed)
             // Note: sys.runBattleLoop handles the player skip, but if we are here, it's enemy turn.
             // We check skippedTurns > 0 to see if player is still trapped.
             if (RPG.State.battleState && RPG.State.battleState.skippedTurns > 0) {
@@ -191,24 +206,8 @@ RPG.Assets.BATTLE_AI = {
                 return;
             }
 
-            // Priority 2: Turn 1 Poison
-            if (RPG.State.battleTurn === 1) {
-                uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.poisonFog, "enemy-action");
-                setTimeout(() => {
-                    if (!RPG.State.isPoisoned) {
-                        sys.inflictPoison();
-                        uiControl.addLog("カインは猛毒に侵された！", "damage", "#ff4d4d");
-                    } else {
-                        uiControl.addLog("霧がカインの体を包み込む……", "ambient");
-                    }
-                    RPG.State.battleTurn++;
-                    setTimeout(() => sys.runBattleLoop(), 1200);
-                }, bossDelay);
-                return;
-            }
-
             // Priority 3: Waiting Move (Dynamic Probability)
-            let observationChance = RPG.State.currentHP <= RPG.State.maxHP * 0.5 ? 0.8 : 0.4;
+            const observationChance = RPG.State.currentHP <= RPG.State.maxHP * 0.5 ? 0.65 : 0.4;
 
             if (RPG.State.battleTurn > 1 && Math.random() < observationChance) {
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.waiting, "ambient");
@@ -238,14 +237,13 @@ RPG.Assets.BATTLE_AI = {
 
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.bodySlam, "enemy-action");
             setTimeout(() => {
-                if (sys.tryNightMedicineDodge()) {
+                if (sys.tryNightMedicineDodge({ chanceCap: 0.25 })) {
                     RPG.State.battleTurn++;
                     setTimeout(() => sys.runBattleLoop(), 1200);
                     return;
                 }
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
-                RPG.State.currentHP -= damage;
-                sys.markPlayerTookDamage(damage);
+                sys.applyEnemyDirectDamage(damage);
                 uiControl.updateUI();
 
                 if (sys.checkBattleEnd()) return;
@@ -282,8 +280,7 @@ RPG.Assets.BATTLE_AI = {
                         return;
                     }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
-                    RPG.State.currentHP -= damage;
-                    sys.markPlayerTookDamage(damage);
+                    sys.applyEnemyDirectDamage(damage);
                     uiControl.updateUI();
                     if (sys.checkBattleEnd()) return;
                     RPG.State.battleTurn++;
@@ -301,8 +298,7 @@ RPG.Assets.BATTLE_AI = {
                         return;
                     }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
-                    RPG.State.currentHP -= damage;
-                    sys.markPlayerTookDamage(damage);
+                    sys.applyEnemyDirectDamage(damage);
                     uiControl.updateUI();
                     if (sys.checkBattleEnd()) return;
                     RPG.State.battleTurn++;
@@ -375,9 +371,8 @@ RPG.Assets.BATTLE_AI = {
                     setTimeout(() => sys.runBattleLoop(), loopDelay);
                     return;
                 }
-                RPG.State.currentHP -= damage;
-                sys.markPlayerTookDamage(damage);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
+                sys.applyEnemyDirectDamage(damage);
 
                 if (enemy.hp <= maxHp * 0.6 && Math.random() < 0.25) {
                     uiControl.screenShake();
@@ -556,7 +551,7 @@ RPG.Assets.ENEMIES = [
     {
         id: "giant_larva", name: "泥這う大幼蟲", symbol: "≋",
         maxHp: 100, // Dynamic: Atk * 12 (Build 9.1)
-        atk: 15,
+        atk: 12,
         area: null, // Build 12.0.6: Boss only summoned by event
         xp: 130,
         isBoss: true,

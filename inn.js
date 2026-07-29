@@ -174,11 +174,80 @@ innSystem = {
         }
     },
 
+    canTriggerInnRatEvent1: function () {
+        const state = RPG.State;
+        const flags = state.flags;
+        const hasFoundFirstCoin =
+            flags.hasFoundFirstCoin === true ||
+            (state.silverCoins || 0) >= 1 ||
+            (state.inventory.silverCoin || 0) >= 1;
+
+        return (
+            hasFoundFirstCoin &&
+            flags.innRatEvent !== true &&
+            flags.chapter1Cleared !== true &&
+            state.storyPhase >= 1 &&
+            state.storyPhase <= 7 &&
+            flags.onWagon !== true
+        );
+    },
+
     canTriggerInnRatEvent2: function () {
         return (
             RPG.State.flags.innRatEvent === true &&
             RPG.State.flags.innRatEvent2 !== true &&
-            (RPG.State.flags.innRatEvent2StayCount || 0) >= 1
+            (RPG.State.flags.innRatEvent2StayCount || 0) >= 1 &&
+            RPG.State.flags.ratEvent2BattleFought === true
+        );
+    },
+
+    // Build 15.5.3: One-time innkeeper consultation once both inn rat battles are done,
+    // introducing the (not-yet-implemented) inn-repair thread.
+    // Build 15.5.4: Gated behind one ordinary battle victory after inn rat event 2, so it
+    // doesn't fire the instant the second battle ends.
+    shouldPlayInnkeeperRepairConsult: function () {
+        return (
+            RPG.State.flags.innRatEvent === true &&
+            RPG.State.flags.innRatEvent2 === true &&
+            RPG.State.flags.innRepairConsultSeen !== true &&
+            RPG.State.flags.repairConsultBattleFought === true
+        );
+    },
+
+    // Build 15.5.5: Damage-inspection stage of the inn-repair thread. Unlock is order-independent -
+    // it only needs both the consult and the rat-20 bounty to be done, whichever finished last calls
+    // this from its own completion action. Idempotent: safe to call any number of times.
+    tryUnlockInnRepairInspection: function () {
+        if (RPG.State.flags.innRepairInspectionUnlocked === true) return;
+        if (RPG.State.flags.innRepairInspectionReported === true) return;
+        if (
+            RPG.State.flags.innRepairConsultSeen === true &&
+            RPG.State.flags.ratBounty20Received === true &&
+            RPG.State.flags.amberTreeCoinMined === true
+        ) {
+            RPG.State.flags.innRepairInspectionUnlocked = true;
+        }
+    },
+
+    hasCompletedInnRepairInspection: function () {
+        return (
+            RPG.State.flags.innRepairHoleInspected === true &&
+            RPG.State.flags.innRepairDroppingsInspected === true &&
+            RPG.State.flags.innRepairPillarInspected === true
+        );
+    },
+
+    shouldInspectInnRepairPillar: function () {
+        return (
+            RPG.State.flags.innRepairInspectionUnlocked === true &&
+            RPG.State.flags.innRepairPillarInspected !== true
+        );
+    },
+
+    shouldPlayInnRepairReport: function () {
+        return (
+            this.hasCompletedInnRepairInspection() &&
+            RPG.State.flags.innRepairInspectionReported !== true
         );
     },
 
@@ -1080,6 +1149,9 @@ innSystem = {
         // Build 12.1.0: Delegated to scenarioEvents
         if (!skipEntryEvents && scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
 
+        if (typeof explorationSystem !== "undefined") {
+            explorationSystem.clearTemporaryItemEffects();
+        }
         RPG.State.isAtInn = true;
         RPG.State.isInDungeon = false;
         RPG.State.explorationArea = null;
@@ -1926,8 +1998,14 @@ innSystem = {
         return { itemId: "herb", qty: 3, flag: "ratBounty10Received" };
     },
 
+    getRatBounty20Reward: function () {
+        if (RPG.State.flags.ratBounty20Received === true) return null;
+        if (this.getEnemyKillCount("rat") < 20) return null;
+        return { itemId: "fakeWoundMedicine", qty: 5, flag: "ratBounty20Received" };
+    },
+
     hasAnyClaimableNotebookReward: function () {
-        return this.getRatBounty10Reward() !== null;
+        return this.getRatBounty10Reward() !== null || this.getRatBounty20Reward() !== null;
     },
 
     buildRatBounty10ClaimQueue: function () {
@@ -1946,14 +2024,36 @@ innSystem = {
         ];
     },
 
+    buildRatBounty20ClaimQueue: function () {
+        return [
+            ...RPG.Assets.GAME_TEXT.events.ratBounty20Claim.map(text => ({ text })),
+            {
+                text: "《傷薬もどき》を5個手に入れた！",
+                type: "marker",
+                color: "#f1e6c8",
+                action: () => {
+                    RPG.State.inventory.fakeWoundMedicine = (RPG.State.inventory.fakeWoundMedicine || 0) + 5;
+                    RPG.State.flags.ratBounty20Received = true;
+                    this.tryUnlockInnRepairInspection();
+                    uiControl.updateUI();
+                }
+            }
+        ];
+    },
+
     claimNotebookRewards: function () {
         if (RPG.State.mode !== "base") return;
-        if (!this.hasAnyClaimableNotebookReward()) return;
+
+        const rat10Reward = this.getRatBounty10Reward();
+        const rat20Reward = this.getRatBounty20Reward();
+        if (!rat10Reward && !rat20Reward) return;
 
         uiControl.closeNotebookModal();
         uiControl.addSeparator();
         RPG.State.mode = "event";
-        RPG.State.dialogueQueue = [...this.buildRatBounty10ClaimQueue()];
+        RPG.State.dialogueQueue = rat10Reward
+            ? [...this.buildRatBounty10ClaimQueue()]
+            : [...this.buildRatBounty20ClaimQueue()];
         explorationSystem.playDialogueLoop();
     },
 
@@ -2303,11 +2403,30 @@ innSystem = {
             return;
         }
 
-        const shouldPlayInnRatEvent =
-            RPG.State.storyPhase === 1 &&
-            RPG.State.flags.innRatEvent === false;
+        if (this.shouldPlayInnkeeperRepairConsult()) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                [
+                    "店主「ちょっと相談があるんだが」",
+                    "カイン「どうした？」",
+                    "店主「見ての通り、ここもだいぶボロがきててな。隙間から魔物まで入り込んでくる」",
+                    "カイン「板で塞ぐか？　木材なら森でなんとかなりそうだが」",
+                    "店主「それだけじゃ、あのでかいネズミにまた壊される。まず宿の周りの化け物ネズミをもう少し減らして、それから、とびきり頑丈な板でちゃんと直したいところだな」",
+                    "カイン「わかった。なるべくたくさん倒しておくよ」",
+                    "（魔界のネズミをもっと減らそう）"
+                ],
+                () => {
+                    RPG.State.flags.innRepairConsultSeen = true;
+                    this.tryUnlockInnRepairInspection();
+                    uiControl.updateUI();
+                }
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
 
-        if (shouldPlayInnRatEvent) {
+        if (this.canTriggerInnRatEvent1()) {
             uiControl.addSeparator();
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
@@ -2349,6 +2468,40 @@ innSystem = {
                     }
                 }
             ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        // Build 15.5.5: Inn-repair report and pillar inspection. Both require
+        // innRepairInspectionUnlocked, which is only ever set after shouldPlayInnkeeperRepairConsult()
+        // has already resolved (innRepairConsultSeen is a precondition), so these never contend with
+        // the two branches above for the same click.
+        if (this.shouldPlayInnRepairReport()) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.innRepairReport,
+                () => {
+                    RPG.State.flags.innRepairInspectionReported = true;
+                    RPG.State.flags.innRepairTimberSearchUnlocked = true;
+                    RPG.State.flags.innRepairInspectionUnlocked = false;
+                    uiControl.updateUI();
+                }
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        if (this.shouldInspectInnRepairPillar()) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.innRepairPillarInspect,
+                () => {
+                    RPG.State.flags.innRepairPillarInspected = true;
+                    uiControl.updateUI();
+                }
+            );
             explorationSystem.playDialogueLoop();
             return;
         }

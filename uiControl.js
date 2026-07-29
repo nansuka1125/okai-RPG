@@ -130,6 +130,10 @@ const uiControl = {
         if ((RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0) {
             statusTags.push(`夜の薬 ${RPG.State.nightMedicineEvasionBattlesRemaining}戦`);
         }
+        const smokeBombSteps = Math.max(0, Number(RPG.State.smokeBombStepsRemaining) || 0);
+        const mikawashiSteps = Math.max(0, Number(RPG.State.mikawashiStepsRemaining) || 0);
+        if (smokeBombSteps > 0) statusTags.push(`煙玉 ${smokeBombSteps}歩`);
+        if (mikawashiSteps > 0) statusTags.push(`ミカワシ ${mikawashiSteps}歩`);
         const statusSuffix = statusTags.length > 0 ? ` 【${statusTags.join(" / ")}】` : "";
         if (statusInfo) statusInfo.textContent = `カイン Lv.${RPG.State.cainLv}${statusSuffix}`;
 
@@ -234,7 +238,10 @@ const uiControl = {
             document.body.appendChild(saveBtn);
         }
         const canSuspend = this.canWriteSuspendSave();
-        const showInnLoadAccess = RPG.State.isAtInn === true && RPG.State.mode === 'event';
+        const showInnLoadAccess =
+            RPG.State.flags.chapter1Cleared !== true &&
+            RPG.State.isAtInn === true &&
+            RPG.State.mode === 'event';
         if (saveBtn) {
             saveBtn.style.display = (canSuspend || showInnLoadAccess) ? 'block' : 'none';
             saveBtn.textContent = canSuspend ? '中断' : '宿帳';
@@ -248,6 +255,23 @@ const uiControl = {
             visualDirector.syncScene();
         }
         this.updateControlPanels(loc);
+    },
+
+    showChapter1ClearControls: function () {
+        const container = document.getElementById('action-buttons');
+        if (!container) return null;
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const button = document.createElement('button');
+        button.id = 'btnChapter1Title';
+        button.className = 'btn btn-full btn-accent';
+        button.textContent = 'タイトルへ戻る';
+        button.style.width = '100%';
+        button.onclick = () => window.location.assign('index.html');
+        container.appendChild(button);
+        return button;
     },
 
     // --- updateControlPanels: RPG.State.modeに基づくボタン制御 ---
@@ -271,6 +295,22 @@ const uiControl = {
             btn.style.opacity = "1";
             btn.style.pointerEvents = "auto";
         });
+
+        if (RPG.State.flags.chapter1Cleared === true) {
+            const titleButton = this.showChapter1ClearControls();
+            const miniSaveButton = document.getElementById('miniSaveButton');
+            const battleButton = document.getElementById('btnStartBattle');
+            if (miniSaveButton) miniSaveButton.style.display = 'none';
+            if (battleButton) battleButton.style.display = 'none';
+
+            document.querySelectorAll('button').forEach(btn => {
+                const isTitleButton = btn === titleButton;
+                btn.disabled = !isTitleButton;
+                btn.style.opacity = isTitleButton ? "1" : "0.5";
+                btn.style.pointerEvents = isTitleButton ? "auto" : "none";
+            });
+            return;
+        }
 
         const mode = RPG.State.mode;
 
@@ -382,6 +422,27 @@ const uiControl = {
                     innSystem.canTriggerInnRatEvent2()
                 ) {
                     observeLabel = "チューチュー❗️";
+                } else if (
+                    observeLabel === "様子を見る" &&
+                    typeof innSystem !== "undefined" &&
+                    !innSystem.shouldUseAmberMerchantObserveRoute() &&
+                    innSystem.shouldPlayInnkeeperRepairConsult()
+                ) {
+                    observeLabel = "店主の相談";
+                } else if (
+                    observeLabel === "様子を見る" &&
+                    typeof innSystem !== "undefined" &&
+                    !innSystem.shouldUseAmberMerchantObserveRoute() &&
+                    innSystem.shouldPlayInnRepairReport()
+                ) {
+                    observeLabel = "報告する";
+                } else if (
+                    observeLabel === "様子を見る" &&
+                    typeof innSystem !== "undefined" &&
+                    !innSystem.shouldUseAmberMerchantObserveRoute() &&
+                    innSystem.shouldInspectInnRepairPillar()
+                ) {
+                    observeLabel = "齧られた柱";
                 }
                 btnInnObserve.textContent = observeLabel;
             }
@@ -469,6 +530,11 @@ const uiControl = {
                 RPG.State.explorationArea === "forest" &&
                 RPG.State.currentDistance === 0 &&
                 RPG.State.flags.amberMerchantMovedToForest === true;
+            const needsDroppingsInspect =
+                RPG.State.explorationArea === "forest" &&
+                RPG.State.currentDistance === 0 &&
+                RPG.State.flags.innRepairInspectionUnlocked === true &&
+                RPG.State.flags.innRepairDroppingsInspected !== true;
             const canMineAmberTreeCoin =
                 RPG.State.explorationArea === "forest" &&
                 RPG.State.currentDistance === 8 &&
@@ -490,6 +556,12 @@ const uiControl = {
                     btnMoveForward.onclick = () => explorationSystem.enterDungeon();
                 }
                 if (btnMoveBack) btnMoveBack.style.display = 'none';
+                if (btnTalk) {
+                    const needsHoleInspect =
+                        RPG.State.flags.innRepairInspectionUnlocked === true &&
+                        RPG.State.flags.innRepairHoleInspected !== true;
+                    btnTalk.textContent = needsHoleInspect ? "外壁の大穴" : "調べる";
+                }
             } else {
                 if (btnEnterInn) btnEnterInn.style.display = 'none';
                 if (btnEnterHerbGarden) btnEnterHerbGarden.style.display = 'none';
@@ -545,7 +617,9 @@ const uiControl = {
                     btnTalk.textContent = "調べる";
                     btnTalk.onclick = () => explorationSystem.talk();
 
-                    if (isAmberMerchantAtForestEntrance) {
+                    if (needsDroppingsInspect) {
+                        btnTalk.textContent = "ネズミの糞";
+                    } else if (isAmberMerchantAtForestEntrance) {
                         btnTalk.textContent = "琥珀商";
                     } else if (canMineAmberTreeCoin) {
                         btnTalk.textContent = "埋まった銀貨を掘る";
@@ -650,6 +724,18 @@ const uiControl = {
                 explorationSystem.canUseScentPouchAtWagon() ||
                 explorationSystem.canUseScentPouchOnHighway()
             );
+        const canUseFakeWoundMedicine =
+            key === 'fakeWoundMedicine' &&
+            typeof explorationSystem !== 'undefined' &&
+            explorationSystem.canUseFakeWoundMedicine();
+        const canUseSmokeBomb =
+            key === 'smokeBomb' &&
+            typeof explorationSystem !== 'undefined' &&
+            explorationSystem.canUseSmokeBomb();
+        const canUseMikawashiFeather =
+            key === 'mikawashiFeather' &&
+            typeof explorationSystem !== 'undefined' &&
+            explorationSystem.canUseMikawashiFeather();
         if (
             key === 'herb' ||
             key === 'highHerb' ||
@@ -662,7 +748,10 @@ const uiControl = {
             key === 'glowingBunnyEars' ||
             key === 'nightMedicine' ||
             canUseEmptyBottle ||
-            canUseScentPouch
+            canUseScentPouch ||
+            canUseFakeWoundMedicine ||
+            canUseSmokeBomb ||
+            canUseMikawashiFeather
         ) {
             html += `<br><button class="btn" style="height:35px;margin:10px auto 0;width:120px;" onclick="explorationSystem.useItem('${key}')">${RPG.Assets.GAME_TEXT.buttons.useItem}</button>`;
         }
@@ -686,6 +775,7 @@ const uiControl = {
 
     canWriteSuspendSave: function () {
         return (
+            RPG.State.flags.chapter1Cleared !== true &&
             RPG.State.isAtInn !== true &&
             RPG.State.mode === "base" &&
             RPG.State.isBattling !== true
@@ -857,7 +947,7 @@ const uiControl = {
                 id: 'rat', enemyId: 'rat', name: '魔界のネズミ',
                 tiers: [
                     { label: '10', target: 10, claimedFlag: 'ratBounty10Received' },
-                    { label: '20', target: 20, claimedFlag: null },
+                    { label: '20', target: 20, claimedFlag: 'ratBounty20Received' },
                     { label: 'ALL', target: null, claimedFlag: null }
                 ]
             },

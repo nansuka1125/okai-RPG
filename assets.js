@@ -15,6 +15,11 @@ RPG.Assets.CONFIG = {
         antidoteHerb: "🌼毒消し草",
         berry: "甘い木の実",
         charm: "🧧お守り袋",
+        fakeWoundMedicine: "🩹傷薬もどき",
+        smokeBomb: "💨煙玉",
+        hardBottle: "🫙やみくもにかたい瓶",
+        gratefulTalisman: "🧧ありがた〜い札",
+        mikawashiFeather: "🪶ミカワシ羽",
         edibleHerb: "🌱食用ハーブ",
         matamatabiBranch: "🌿マタマタビの枝",
         mintFlower: "🪻薄荷草",
@@ -31,6 +36,7 @@ RPG.Assets.CONFIG = {
         unknownAmber: "🔸《？琥珀》",
         borrowedMiningKnife: "🔪《借りたナイフ》",
         miningKnife: "🔪《採掘ナイフ》",
+        amberTreeTimber: "《🪵琥珀樹の木材》",
         hatedAmber: "🔸《嫌われ琥珀》",
         sweetAmber: "🔸《甘そうな琥珀》",
         herbAmber: "🔸《薬草入り琥珀》",
@@ -48,6 +54,11 @@ RPG.Assets.CONFIG = {
         antidoteHerb: "毒を解除する薬草。HPは回復しない。",
         berry: "魔界の植物の実。甘くて美味しい。",
         charm: "旅の無事を願うお守り袋。",
+        fakeWoundMedicine: "戦闘中の怪我を誤魔化せる。HP回復。",
+        smokeBomb: "割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。",
+        hardBottle: "対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。",
+        gratefulTalisman: "『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。",
+        mikawashiFeather: "三歩の間だけ、戦闘中の身のこなしが軽くなる羽根。ミカワシという鷲の羽らしい。",
         edibleHerb: "料理に使える種類のハーブ。",
         matamatabiBranch: "獣っぽい魔物を妙に引き寄せるらしい、不思議な枝。",
         mintFlower: "触れるとひんやりする青い花。",
@@ -64,6 +75,7 @@ RPG.Assets.CONFIG = {
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
         borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
         miningKnife: "琥珀を採掘するためのナイフ。借りた時から性能は変わっていない。",
+        amberTreeTimber: "表面が琥珀化した、硬く丈夫な木材。",
         hatedAmber: "装備すると通常の魔物と遭遇しにくくなるレア琥珀。",
         sweetAmber: "装備するとオーエンが戦闘へ介入しやすくなるレア琥珀。",
         herbAmber: "装備すると徐々に回復し、薬草の効果も高まるレア琥珀。",
@@ -1232,6 +1244,61 @@ RPG.Assets.GAME_TEXT = {
             "オーエン｢…はは」",
             "カイン（香草袋の材料は揃った。御者に見せにいこう）"
         ],
+        // Build 15.5.5: Inn-repair damage inspection (three spots + report to the innkeeper).
+        ratBounty20Claim: [
+            "娘「おかげさまで、宿屋の周りには魔界のネズミが出なくなりました」",
+            "娘「こちら、お礼です。どうぞ」"
+        ],
+        innRepairHoleInspect: [
+            "外壁の根元が、大きく齧られている。",
+            "削られた板の間に、穴が開いていた。",
+            "カイン（思ったよりでかい穴だ。普通のネズミなら入り放題だし、イタチももうすぐ入れそうだ）"
+        ],
+        innRepairDroppingsInspect: [
+            "道の端に、大きなネズミの糞が残っている。",
+            "カイン「一応埋めておくか。臭いでこっちに来ないように」",
+            "カインは木の枝で穴を掘って、糞を埋めた。",
+            "カイン（これでよし）"
+        ],
+        innRepairPillarInspect: [
+            "入口近くの柱にはネズミの歯形がたくさんついている。触れると、木片がぱらぱらと落ちた。",
+            "カイン（外からの侵入には関係ないが、一応報告しておこう）"
+        ],
+        innRepairReport: [
+            "店主に、見回りの結果を報告した！",
+            "店主「なるほどな。だいたいわかった。一番問題なのは外壁の穴だな」",
+            "カイン「まとまった量の板が必要そうだ」",
+            "店主「頑丈な木材があれば俺が板にする。…この森にあるか？」",
+            "カイン「探して来るよ」",
+            "（とびきり丈夫な木材、心当たりがあるような…？）"
+        ],
+        innRepairTimberObtain: [
+            "大きな琥珀樹が倒れている。",
+            "カイン「しまった。ナタを借りて来るべきだった」",
+            "オーエン「……ナタ？」",
+            "カインは、樹液がこびりついた樹皮を見た。",
+            "カイン「ナイフじゃ切れないだろ。硬い表面はもうだいぶ削れてるが、ナタでも切れなければ、ピカピカ油を塗って……」",
+            "オーエン「さっきから面倒くさいよ。何がしたいわけ？」",
+            "カイン「宿屋を直したい」",
+            "オーエン「なんのために？」",
+            "カイン「安心して眠れる方がいいだろ」",
+            "オーエン「安全なところなんて、どこにもないのに」",
+            "カイン「だから直すんだ」",
+            "オーエンはため息をつき、片手を振り上げた。",
+            "カイン「……ッ！？」",
+            "カインが身構える。",
+            "ズババババッ！！！",
+            "琥珀樹は、何かの力に切り裂かれた。",
+            "カイン（……なんだ？　今のは）",
+            "《🪵琥珀樹の木材》を手に入れた！",
+            "オーエンが、黒い遺体を爪先で蹴っている。",
+            "オーエン「これは何かに使えない？」",
+            "「これ」とは、黒い遺体のことだろう。",
+            "カイン「何かにって、何にだ？」",
+            "オーエン「看板とか」",
+            "カイン（冗談なのか、判断に迷うな）",
+            "宿屋に戻ろう。"
+        ],
         phase6HerbGardenNoBottle: [
             "カイン（そうだ、空き瓶についてきかないと）"
         ],
@@ -1619,7 +1686,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_2m_rats_intro",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 2 && !state.completedEvents.includes("highway_2m_rats_intro"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 2 &&
+            (Number(state.highwayBattleCount[2]) || 0) === 0
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "石畳の隙間に溜まった琥珀の粉塵が、車輪に弾かれて舞い上がる。", delay: 1800 },
@@ -1631,7 +1703,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('hell_rat_swarm');
+                        battleSystem.startHighwayFixedBattle(2, 'hell_rat_swarm');
                     }
                 }
             ];
@@ -1639,7 +1711,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_2m_rats_interlude",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 2 && state.highwayBattleCount[2] === 1 && !state.completedEvents.includes("highway_2m_rats_interlude"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 2 &&
+            (Number(state.highwayBattleCount[2]) || 0) === 1
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "カイン「あの黒い影、全部ネズミか…！？」", delay: 1500 },
@@ -1650,7 +1727,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('hell_rat_swarm');
+                        battleSystem.startHighwayFixedBattle(2, 'hell_rat_swarm');
                     }
                 }
             ];
@@ -1665,7 +1742,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_4m_crows_intro",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 4 && !state.completedEvents.includes("highway_4m_crows_intro"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 4 &&
+            (Number(state.highwayBattleCount[4]) || 0) === 0
+        ),
         action: (state) => {
             state.mode = "event";
             state.dialogueQueue = [
@@ -1673,7 +1755,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('eye_eating_crow');
+                        battleSystem.startHighwayFixedBattle(4, 'eye_eating_crow');
                     }
                 }
             ];
@@ -1681,7 +1763,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_4m_crows_interlude",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 4 && state.highwayBattleCount[4] === 1 && !state.completedEvents.includes("highway_4m_crows_interlude"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 4 &&
+            (Number(state.highwayBattleCount[4]) || 0) === 1
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "カイン「くそ、ネズミは下から、カラスは上から！」", delay: 1500 },
@@ -1691,7 +1778,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('eye_eating_crow');
+                        battleSystem.startHighwayFixedBattle(4, 'eye_eating_crow');
                     }
                 }
             ];
@@ -1699,7 +1786,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_4m_crows_outro",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 4 && state.highwayBattleCount[4] === 2 && !state.completedEvents.includes("highway_4m_crows_outro"),
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 4 &&
+            (Number(state.highwayBattleCount[4]) || 0) >= 2 &&
+            !state.completedEvents.includes("highway_4m_crows_outro")
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "カイン「こいつら…っ、こっちの目ばっかり狙ってくる」", delay: 1500 },
@@ -1733,7 +1825,12 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_8m_escalation",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 8 && !state.completedEvents.includes("highway_8m_escalation"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 8 &&
+            (Number(state.highwayBattleCount[8]) || 0) === 0
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "街道を覆う琥珀の侵食がひどくなっている。石畳は隆起し、馬車は今にもひっくり返りそうなほど左右に激しく傾いた。", delay: 2500 },
@@ -1741,7 +1838,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('hell_rat_swarm');
+                        battleSystem.startHighwayFixedBattle(8, 'hell_rat_swarm');
                     }
                 }
             ];
@@ -1761,7 +1858,13 @@ RPG.Assets.EVENT_DATA = [
     },
     {
         id: "highway_10m_boss_arrival",
-        condition: (state) => state.location === "かつての街道" && state.currentDistance === 10 && !state.completedEvents.includes("highway_10m_boss_arrival"),
+        repeatable: true,
+        condition: (state) => (
+            state.location === "かつての街道" &&
+            state.currentDistance === 10 &&
+            state.flags.chapter1Cleared !== true &&
+            (Number(state.highwayBattleCount[10]) || 0) === 0
+        ),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "等間隔に並んだ琥珀街路樹の列が、ついに途切れる。", delay: 2000 },
@@ -1778,7 +1881,7 @@ RPG.Assets.EVENT_DATA = [
                     text: null,
                     delay: 0,
                     action: () => {
-                        battleSystem.startBattle('amber_husk_giant_larva');
+                        battleSystem.startHighwayFixedBattle(10, 'amber_husk_giant_larva');
                     }
                 }
             ];
@@ -1811,7 +1914,7 @@ RPG.Assets.EVENT_DATA = [
                 {
                     text: null,
                     action: () => {
-                        Cinematics.sceneTransition("第1章クリア");
+                        Cinematics.playChapter1Clear();
                     }
                 }
             ];

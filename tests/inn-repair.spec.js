@@ -1,0 +1,1487 @@
+// @ts-check
+const { test, expect } = require('@playwright/test');
+
+async function advanceUntilInteractive(page, maxTaps = 100) {
+  await page.evaluate(() => {
+    window.RPG.State.debug.isSkipping = true;
+  });
+  for (let i = 0; i < maxTaps; i++) {
+    const state = await page.evaluate(() => ({
+      mode: window.RPG.State.mode,
+      debtPending: window.RPG.State.flags.introDebtTalkPending,
+    }));
+    if (state.mode === 'base' && state.debtPending) {
+      await page.evaluate(() => innSystem.talk());
+    } else if (state.mode === 'choice') {
+      await page.click('#btnChoiceA');
+    } else if (state.mode === 'event') {
+      await page.evaluate(() => uiControl.handlePlayerInput());
+    } else {
+      await page.evaluate(() => {
+        window.RPG.State.debug.isSkipping = false;
+      });
+      return;
+    }
+    await page.waitForTimeout(50);
+  }
+  throw new Error('game did not become interactive');
+}
+
+async function drainDialogue(page, maxTaps = 200) {
+  await page.evaluate(() => {
+    window.RPG.State.debug.isSkipping = true;
+  });
+  for (let i = 0; i < maxTaps; i++) {
+    const mode = await page.evaluate(() => window.RPG.State.mode);
+    if (mode !== 'event') {
+      await page.evaluate(() => {
+        window.RPG.State.debug.isSkipping = false;
+      });
+      return mode;
+    }
+    await page.evaluate(() => uiControl.handlePlayerInput());
+    await page.waitForTimeout(50);
+  }
+  throw new Error('dialogue did not finish');
+}
+
+// Sets a baseline that keeps every higher-priority observe() route (amber merchant,
+// phase4 fortune, phase6 herb garden) inactive, so tests exercise only the innkeeper
+// consult / rat-bounty logic under test.
+async function setCleanInnBaseline(page, overrides = {}) {
+  await page.evaluate((ov) => {
+    Object.assign(RPG.State, {
+      mode: 'base',
+      isAtInn: true,
+      storyPhase: 2,
+      silverCoins: 0,
+      ...ov.state,
+    });
+    Object.assign(RPG.State.flags, {
+      hasFoundFirstCoin: false,
+      amberMerchantRecognized: false,
+      treeDefeated: false,
+      borrowedMiningKnifeReceived: false,
+      firstAmberAppraisalDone: false,
+      amberKnifeReturnAttemptDone: false,
+      phase4TheftDiscovered: false,
+      herbGardenFortuneConsultUnlocked: false,
+      innRatEvent: false,
+      innRatEvent2: false,
+      innRatEvent2StayCount: 0,
+      innRepairConsultSeen: false,
+      ratBounty10Received: false,
+      ratBounty20Received: false,
+      ratEvent2BattleFought: false,
+      repairConsultBattleFought: false,
+      innRepairInspectionUnlocked: false,
+      innRepairHoleInspected: false,
+      innRepairDroppingsInspected: false,
+      innRepairPillarInspected: false,
+      innRepairInspectionReported: false,
+      innRepairTimberSearchUnlocked: false,
+      ...ov.flags,
+    });
+    RPG.State.inventory.unknownAmber = 0;
+    RPG.State.inventory.silverCoin = 0;
+    RPG.State.defeatCounts.rat = ov.defeatCountsRat || { cain: 0, owen: 0 };
+    // Clear any battle residue left over from a previous test/section so a fresh
+    // observe() call isn't silently blocked by a stale isBattling/currentEnemy state.
+    RPG.State.isBattling = false;
+    RPG.State.currentEnemy = null;
+    RPG.State.battleState = null;
+    RPG.State.hasOwenIntervened = false;
+    uiControl.updateUI();
+  }, overrides);
+}
+
+test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bounty)', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof uiControl !== 'undefined' &&
+      typeof innSystem !== 'undefined' &&
+      typeof explorationSystem !== 'undefined'
+    ));
+    await advanceUntilInteractive(page);
+  });
+
+  test('0a. the first inn rat event remains available from phase 1 through phase 7', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State.flags, {
+        hasFoundFirstCoin: true,
+        innRatEvent: false,
+        chapter1Cleared: false,
+        onWagon: false,
+      });
+      RPG.State.silverCoins = 1;
+      RPG.State.inventory.silverCoin = 1;
+
+      return [1, 2, 4, 6, 7].map(phase => {
+        RPG.State.storyPhase = phase;
+        return innSystem.canTriggerInnRatEvent1();
+      });
+    });
+
+    expect(result).toEqual([true, true, true, true, true]);
+  });
+
+  test('0b. the first inn rat event stays blocked outside its intended state window', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const canTrigger = overrides => {
+        Object.assign(RPG.State, {
+          storyPhase: 2,
+          silverCoins: 1,
+          ...overrides.state,
+        });
+        Object.assign(RPG.State.flags, {
+          hasFoundFirstCoin: true,
+          innRatEvent: false,
+          chapter1Cleared: false,
+          onWagon: false,
+          ...overrides.flags,
+        });
+        RPG.State.inventory.silverCoin = overrides.inventoryCoin ?? 1;
+        return innSystem.canTriggerInnRatEvent1();
+      };
+
+      return {
+        beforeFirstCoin: canTrigger({
+          state: { silverCoins: 0 },
+          flags: { hasFoundFirstCoin: false },
+          inventoryCoin: 0,
+        }),
+        phaseZero: canTrigger({ state: { storyPhase: 0 } }),
+        phaseEight: canTrigger({ state: { storyPhase: 8 } }),
+        alreadyOccurred: canTrigger({ flags: { innRatEvent: true } }),
+        chapterCleared: canTrigger({ flags: { chapter1Cleared: true } }),
+        onWagon: canTrigger({ flags: { onWagon: true } }),
+      };
+    });
+
+    expect(result).toEqual({
+      beforeFirstCoin: false,
+      phaseZero: false,
+      phaseEight: false,
+      alreadyOccurred: false,
+      chapterCleared: false,
+      onWagon: false,
+    });
+  });
+
+  test('0c. the amber merchant keeps priority, then the first rat event starts on the next observe', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 2, silverCoins: 1 },
+      flags: {
+        hasFoundFirstCoin: true,
+        amberMerchantRecognized: false,
+        innRatEvent: false,
+      },
+    });
+
+    const afterMerchant = await page.evaluate(() => {
+      RPG.State.inventory.silverCoin = 1;
+      innSystem.observe();
+      return {
+        recognized: RPG.State.flags.amberMerchantRecognized,
+        ratStarted: RPG.State.flags.innRatEvent,
+      };
+    });
+    expect(afterMerchant).toEqual({ recognized: true, ratStarted: false });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => {
+      const originalStartBattle = battleSystem.startBattle;
+      let startedWith = null;
+      battleSystem.startBattle = enemyId => {
+        startedWith = enemyId;
+        RPG.State.mode = 'battle';
+      };
+
+      try {
+        innSystem.observe();
+        for (let i = 0; i < 10 && RPG.State.mode === 'event'; i++) {
+          uiControl.handlePlayerInput();
+        }
+        return {
+          ratStarted: RPG.State.flags.innRatEvent,
+          startedWith,
+        };
+      } finally {
+        battleSystem.startBattle = originalStartBattle;
+      }
+    });
+
+    expect(result).toEqual({ ratStarted: true, startedWith: 'normal_rat' });
+  });
+
+  test('0d. a phase-7 retreat can still start the first rat event only once', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 7, silverCoins: 0 },
+      flags: {
+        hasFoundFirstCoin: true,
+        amberMerchantRecognized: true,
+        innRatEvent: false,
+        chapter1Cleared: false,
+        onWagon: false,
+      },
+    });
+
+    const result = await page.evaluate(() => {
+      const originalStartBattle = battleSystem.startBattle;
+      const startedWith = [];
+      battleSystem.startBattle = enemyId => {
+        startedWith.push(enemyId);
+        RPG.State.mode = 'base';
+      };
+
+      try {
+        innSystem.observe();
+        for (let i = 0; i < 10 && RPG.State.mode === 'event'; i++) {
+          uiControl.handlePlayerInput();
+        }
+        innSystem.observe();
+        return {
+          ratStarted: RPG.State.flags.innRatEvent,
+          startedWith,
+        };
+      } finally {
+        battleSystem.startBattle = originalStartBattle;
+      }
+    });
+
+    expect(result).toEqual({ ratStarted: true, startedWith: ['normal_rat'] });
+  });
+
+  test('0e. the playable rat-event chain still reaches the innkeeper repair consult', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 2, silverCoins: 0 },
+      flags: {
+        hasFoundFirstCoin: true,
+        amberMerchantRecognized: true,
+        innRatEvent: false,
+        innRatEvent2: false,
+        chapter1Cleared: false,
+        onWagon: false,
+      },
+    });
+
+    const firstRat = await page.evaluate(() => {
+      const originalStartBattle = battleSystem.startBattle;
+      let startedWith = null;
+      battleSystem.startBattle = enemyId => {
+        startedWith = enemyId;
+        RPG.State.mode = 'base';
+      };
+      try {
+        innSystem.observe();
+        for (let i = 0; i < 10 && RPG.State.mode === 'event'; i++) {
+          uiControl.handlePlayerInput();
+        }
+        return {
+          occurred: RPG.State.flags.innRatEvent,
+          startedWith,
+        };
+      } finally {
+        battleSystem.startBattle = originalStartBattle;
+      }
+    });
+    expect(firstRat).toEqual({ occurred: true, startedWith: 'normal_rat' });
+
+    await page.evaluate(() => {
+      innSystem.refreshHerbGardenHarvestsAfterStay();
+      RPG.State.currentEnemy = {
+        ...RPG.Assets.ENEMIES.find(enemy => enemy.id === 'eye_eating_crow'),
+      };
+      RPG.State.isBattling = true;
+      RPG.State.mode = 'battle';
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+
+    const secondRat = await page.evaluate(() => {
+      const originalStartBattle = battleSystem.startBattle;
+      let startedWith = null;
+      battleSystem.startBattle = enemyId => {
+        startedWith = enemyId;
+        RPG.State.mode = 'base';
+      };
+      try {
+        innSystem.observe();
+        for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) {
+          uiControl.handlePlayerInput();
+        }
+        return {
+          occurred: RPG.State.flags.innRatEvent2,
+          active: RPG.State.flags.innRatEvent2BattleActive,
+          startedWith,
+        };
+      } finally {
+        battleSystem.startBattle = originalStartBattle;
+      }
+    });
+    expect(secondRat).toEqual({ occurred: true, active: true, startedWith: 'rat' });
+
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = {
+        ...RPG.Assets.ENEMIES.find(enemy => enemy.id === 'rat'),
+      };
+      RPG.State.isBattling = true;
+      RPG.State.mode = 'battle';
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = {
+        ...RPG.Assets.ENEMIES.find(enemy => enemy.id === 'eye_eating_crow'),
+      };
+      RPG.State.isBattling = true;
+      RPG.State.mode = 'battle';
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => {
+      RPG.State.isAtInn = true;
+      RPG.State.mode = 'base';
+      uiControl.updateUI();
+      return {
+        firstRat: RPG.State.flags.innRatEvent,
+        secondRat: RPG.State.flags.innRatEvent2,
+        stayCount: RPG.State.flags.innRatEvent2StayCount,
+        firstWildBattle: RPG.State.flags.ratEvent2BattleFought,
+        secondWildBattle: RPG.State.flags.repairConsultBattleFought,
+        secondRatBattleActive: RPG.State.flags.innRatEvent2BattleActive,
+        consultAvailable: innSystem.shouldPlayInnkeeperRepairConsult(),
+        label: document.getElementById('btnInnObserve')?.textContent,
+      };
+    });
+
+    expect(result).toEqual({
+      firstRat: true,
+      secondRat: true,
+      stayCount: 1,
+      firstWildBattle: true,
+      secondWildBattle: true,
+      secondRatBattleActive: false,
+      consultAvailable: true,
+      label: '店主の相談',
+    });
+  });
+
+  test('1. the innkeeper consult stays hidden after only the first inn rat battle', async ({ page }) => {
+    await setCleanInnBaseline(page, { flags: { innRatEvent: true, innRatEvent2: false } });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('店主の相談');
+  });
+
+  test('1b. inn rat event 2 (チューチュー❗️) needs a stay AND an ordinary battle win, not just one of them', async ({ page }) => {
+    const labels = await page.evaluate(async () => {
+      const read = () => {
+        uiControl.updateUI();
+        return document.getElementById('btnInnObserve')?.textContent;
+      };
+
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        innRatEvent: true,
+        innRatEvent2: false,
+        innRatEvent2StayCount: 0,
+        ratEvent2BattleFought: false,
+      });
+      const beforeEither = read();
+
+      RPG.State.flags.innRatEvent2StayCount = 1;
+      const stayOnly = read();
+
+      RPG.State.flags.innRatEvent2StayCount = 0;
+      RPG.State.flags.ratEvent2BattleFought = true;
+      const battleOnly = read();
+
+      RPG.State.flags.innRatEvent2StayCount = 1;
+      const both = read();
+
+      return { beforeEither, stayOnly, battleOnly, both };
+    });
+
+    expect(labels.beforeEither).not.toBe('チューチュー❗️');
+    expect(labels.stayOnly).not.toBe('チューチュー❗️');
+    expect(labels.battleOnly).not.toBe('チューチュー❗️');
+    expect(labels.both).toBe('チューチュー❗️');
+  });
+
+  test('2. after both inn rat battles and one ordinary battle win, observe becomes the innkeeper consult', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).toBe('店主の相談');
+  });
+
+  test('2b. both inn rat battles done but no ordinary battle won yet keeps the consult hidden', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: false },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('店主の相談');
+  });
+
+  test('2c. winning the scripted inn rat battle 1 (normal_rat) does not itself satisfy its own ordinary-battle gate', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: false, ratEvent2BattleFought: false },
+    });
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'normal_rat') };
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.isBattling = true;
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+    const flag = await page.evaluate(() => RPG.State.flags.ratEvent2BattleFought);
+    expect(flag).toBe(false);
+  });
+
+  test('2d. winning a genuinely separate ordinary battle after inn rat battle 1 does satisfy the gate', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: false, ratEvent2BattleFought: false },
+    });
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'eye_eating_crow') };
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.isBattling = true;
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+    const flag = await page.evaluate(() => RPG.State.flags.ratEvent2BattleFought);
+    expect(flag).toBe(true);
+  });
+
+  test('2e. winning the scripted inn rat battle 2 (rat, event-2-active) does not itself satisfy its own ordinary-battle gate', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, innRatEvent2BattleActive: true,
+        innRepairConsultSeen: false, repairConsultBattleFought: false,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'rat') };
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.isBattling = true;
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+    const flag = await page.evaluate(() => RPG.State.flags.repairConsultBattleFought);
+    expect(flag).toBe(false);
+  });
+
+  test('2f. winning a later, genuinely separate wild rat battle (event-2 no longer active) does satisfy the consult gate', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, innRatEvent2BattleActive: false,
+        innRepairConsultSeen: false, repairConsultBattleFought: false,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'rat') };
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.isBattling = true;
+      battleSystem.endBattle(true);
+    });
+    await drainDialogue(page);
+    const flag = await page.evaluate(() => RPG.State.flags.repairConsultBattleFought);
+    expect(flag).toBe(true);
+  });
+
+  test('3. choosing the innkeeper consult plays the specified dialogue once', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true },
+    });
+
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      seen: RPG.State.flags.innRepairConsultSeen,
+      mode: RPG.State.mode,
+      logHasFirstLine: document.getElementById('logContainer')?.textContent.includes('店主「ちょっと相談があるんだが」'),
+      logHasLastLine: document.getElementById('logContainer')?.textContent.includes('魔界のネズミをもっと減らそう'),
+    }));
+    expect(result).toEqual({ seen: true, mode: 'base', logHasFirstLine: true, logHasLastLine: true });
+
+    // A second observe() call must not replay the consult (it already fell through to normal observe).
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+    const occurrences = await page.evaluate(() => {
+      const text = document.getElementById('logContainer')?.textContent || '';
+      return text.split('店主「ちょっと相談があるんだが」').length - 1;
+    });
+    expect(occurrences).toBe(1);
+  });
+
+  test('4. after the dialogue ends, the observe label returns to normal', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true },
+    });
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('店主の相談');
+  });
+
+  test('5. the consult-seen state survives a save/reload', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairConsultSeen = true;
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_repair_consult_test', JSON.stringify(snapshot));
+
+      RPG.State.flags.innRepairConsultSeen = false;
+      uiControl.loadFromStorage('okai_rpg_repair_consult_test', 'テスト');
+
+      return RPG.State.flags.innRepairConsultSeen;
+    });
+    expect(result).toBe(true);
+  });
+
+  test('6. the innkeeper consult stays hidden during the phase4 fortune route', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        innRatEvent: true,
+        innRatEvent2: true,
+        repairConsultBattleFought: true,
+        phase4TheftDiscovered: true,
+        thiefDiscoveryStatus: 0,
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('店主の相談');
+  });
+
+  test('7. the innkeeper consult reappears once the priority route resolves', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        innRatEvent: true,
+        innRatEvent2: true,
+        repairConsultBattleFought: true,
+        phase4TheftDiscovered: true,
+        thiefDiscoveryStatus: 1, // fortune route no longer active (requires === 0)
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).toBe('店主の相談');
+  });
+
+  test('8. rat kill counts are preserved regardless of consult state', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRatEvent: false, innRatEvent2: false },
+      defeatCountsRat: { cain: 12, owen: 9 },
+    });
+    const before = await page.evaluate(() => ({ ...RPG.State.defeatCounts.rat }));
+    await page.evaluate(() => uiControl.updateUI());
+    const after = await page.evaluate(() => ({ ...RPG.State.defeatCounts.rat }));
+    expect(after).toEqual(before);
+    expect(after.cain + after.owen).toBe(21);
+  });
+
+  test('9. reaching 20 cumulative rat kills alone does not unlock the repair next stage', async ({ page }) => {
+    await setCleanInnBaseline(page, { defeatCountsRat: { cain: 20, owen: 0 } });
+    const result = await page.evaluate(() => RPG.State.flags.ratBounty20Received);
+    expect(result).toBe(false);
+  });
+
+  test('10. claiming the rat-20 reward to completion unlocks the repair next stage', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { ratBounty10Received: true }, // so claimNotebookRewards() picks the rat-20 branch
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      ratBounty20Received: RPG.State.flags.ratBounty20Received,
+      logHasLine: document.getElementById('logContainer')?.textContent.includes('おかげさまで、宿屋の周りには魔界のネズミが出なくなりました'),
+      logHasItemLine: document.getElementById('logContainer')?.textContent.includes('《傷薬もどき》を5個手に入れた！'),
+      fakeWoundMedicine: RPG.State.inventory.fakeWoundMedicine,
+      mode: RPG.State.mode,
+    }));
+    expect(result).toEqual({
+      ratBounty20Received: true, logHasLine: true, logHasItemLine: true, fakeWoundMedicine: 5, mode: 'base',
+    });
+  });
+
+  test('11. the repair-unlock state holds even when the consult is seen after the reward', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { ratBounty10Received: true },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const unlockedBeforeConsult = await page.evaluate(() => RPG.State.flags.ratBounty20Received);
+    expect(unlockedBeforeConsult).toBe(true);
+
+    await page.evaluate(() => {
+      RPG.State.flags.innRatEvent = true;
+      RPG.State.flags.innRatEvent2 = true;
+      RPG.State.flags.repairConsultBattleFought = true;
+    });
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      consultSeen: RPG.State.flags.innRepairConsultSeen,
+      unlocked: RPG.State.flags.ratBounty20Received,
+    }));
+    expect(result).toEqual({ consultSeen: true, unlocked: true });
+  });
+
+  test('12. no new repair command or cleaning event is introduced by this change', async ({ page }) => {
+    const result = await page.evaluate(() => ({
+      hasCleanupButton: !!document.getElementById('btnInnCleanup'),
+      innUiButtonCount: document.querySelectorAll('#innUI button').length,
+      hasCleanupFn: typeof innSystem.playInnRepairCleanup === 'function',
+    }));
+    expect(result).toEqual({ hasCleanupButton: false, innUiButtonCount: 6, hasCleanupFn: false });
+  });
+
+  test('13. regression - rat-10 reward, stay, defeat return, fortune route, and both inn rat battles still work', async ({ page }) => {
+    // Rat-10 reward still claimable independently of the new rat-20 tier.
+    await setCleanInnBaseline(page, { defeatCountsRat: { cain: 6, owen: 4 } });
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const rat10 = await page.evaluate(() => ({
+      herb: RPG.State.inventory.herb,
+      received: RPG.State.flags.ratBounty10Received,
+    }));
+    expect(rat10.received).toBe(true);
+    expect(rat10.herb).toBeGreaterThanOrEqual(3);
+
+    // First and second inn rat battle triggers still flip their flags via observe().
+    // startBattle() is stubbed so this only verifies the dispatch/flag wiring, not the
+    // full battle engine (which schedules its own async turn timers we don't want
+    // dangling into the next section of this test).
+    const battleTriggerResult = await page.evaluate(() => {
+      const originalStartBattle = battleSystem.startBattle;
+      const startedWith = [];
+      battleSystem.startBattle = (enemyId) => { startedWith.push(enemyId); };
+
+      Object.assign(RPG.State, { mode: 'base', storyPhase: 1, silverCoins: 1 });
+      Object.assign(RPG.State.flags, {
+        hasFoundFirstCoin: true,
+        amberMerchantRecognized: true,
+        innRatEvent: false,
+        innRatEvent2: false,
+        innRatEvent2StayCount: 0,
+      });
+      RPG.State.inventory.silverCoin = 1;
+      RPG.State.isBattling = false;
+      RPG.State.currentEnemy = null;
+
+      innSystem.observe(); // queues the first-rat dialogue, ending in the action below
+      // Plain-text entries advance on tap; the trailing action-only entry runs without one.
+      for (let i = 0; i < 10 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+
+      const afterFirst = { innRatEvent: RPG.State.flags.innRatEvent, startedWith: [...startedWith] };
+
+      RPG.State.mode = 'base';
+      RPG.State.isBattling = false;
+      RPG.State.currentEnemy = null;
+      RPG.State.flags.innRatEvent2StayCount = 1;
+      RPG.State.flags.ratEvent2BattleFought = true;
+
+      innSystem.observe();
+      for (let i = 0; i < 10 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+
+      const afterSecond = {
+        innRatEvent2: RPG.State.flags.innRatEvent2,
+        innRatEvent2BattleActive: RPG.State.flags.innRatEvent2BattleActive,
+        startedWith: [...startedWith],
+      };
+
+      battleSystem.startBattle = originalStartBattle;
+      RPG.State.isBattling = false;
+      RPG.State.currentEnemy = null;
+      RPG.State.mode = 'base';
+
+      return { afterFirst, afterSecond };
+    });
+
+    expect(battleTriggerResult.afterFirst.innRatEvent).toBe(true);
+    expect(battleTriggerResult.afterFirst.startedWith).toContain('normal_rat');
+    expect(battleTriggerResult.afterSecond.innRatEvent2).toBe(true);
+    expect(battleTriggerResult.afterSecond.innRatEvent2BattleActive).toBe(true);
+    expect(battleTriggerResult.afterSecond.startedWith).toContain('rat');
+
+    // Phase4 fortune route still takes priority over everything else.
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        innRatEvent: true,
+        innRatEvent2: true,
+        phase4TheftDiscovered: true,
+        thiefDiscoveryStatus: 0,
+        phase4FortuneConsultDone: false,
+      },
+    });
+    const fortuneLabel = await page.locator('#btnInnObserve').textContent();
+    expect(fortuneLabel).not.toBe('店主の相談');
+    expect(fortuneLabel).not.toBe('様子を見る');
+  });
+
+  // --- 被害点検 (damage inspection) ---
+
+  test('14. rat-20 bounty is not claimable at 19 rat kills', async ({ page }) => {
+    await setCleanInnBaseline(page, { defeatCountsRat: { cain: 10, owen: 9 } });
+    const result = await page.evaluate(() => innSystem.getRatBounty20Reward());
+    expect(result).toBeNull();
+  });
+
+  test('15. the rat-20 bounty grants exactly 5 fakeWoundMedicine', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { ratBounty10Received: true }, // force claimNotebookRewards() onto the rat-20 branch
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => { RPG.State.inventory.fakeWoundMedicine = 0; });
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const result = await page.evaluate(() => RPG.State.inventory.fakeWoundMedicine);
+    expect(result).toBe(5);
+  });
+
+  test('16. the rat-20 bounty cannot be claimed twice', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { ratBounty10Received: true },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => { RPG.State.inventory.fakeWoundMedicine = 0; });
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const firstAmount = await page.evaluate(() => RPG.State.inventory.fakeWoundMedicine);
+
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const secondAmount = await page.evaluate(() => RPG.State.inventory.fakeWoundMedicine);
+
+    expect(firstAmount).toBe(5);
+    expect(secondAmount).toBe(5);
+  });
+
+  test('17. reaching 20 rat kills alone does not unlock the inspection', async ({ page }) => {
+    await setCleanInnBaseline(page, { defeatCountsRat: { cain: 20, owen: 0 } });
+    const result = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(result).toBe(false);
+  });
+
+  test('17b. consult + bounty done but the second silver coin not yet mined keeps the inspection locked', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true,
+        ratBounty10Received: true, amberTreeCoinMined: false,
+      },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => innSystem.observe()); // plays the consult
+    await drainDialogue(page);
+    await page.evaluate(() => innSystem.claimNotebookRewards()); // claims the rat-20 bounty
+    await drainDialogue(page);
+    const result = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(result).toBe(false);
+  });
+
+  test('17c. mining the second silver coin last unlocks the inspection once the consult and bounty are already done', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true,
+        ratBounty10Received: true, amberTreeCoinMined: false,
+        treeDefeated: true, borrowedMiningKnifeReceived: true,
+      },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => innSystem.observe()); // plays the consult
+    await drainDialogue(page);
+    await page.evaluate(() => innSystem.claimNotebookRewards()); // claims the rat-20 bounty
+    await drainDialogue(page);
+    const beforeMining = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(beforeMining).toBe(false);
+
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      RPG.State.inventory.borrowedMiningKnife = 1;
+      uiControl.updateUI();
+      explorationSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const afterMining = await page.evaluate(() => ({
+      unlocked: RPG.State.flags.innRepairInspectionUnlocked,
+      mined: RPG.State.flags.amberTreeCoinMined,
+    }));
+    expect(afterMining).toEqual({ unlocked: true, mined: true });
+  });
+
+  test('18. consult done + rat-20 bounty claimed unlocks the inspection', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true,
+        ratBounty10Received: true, amberTreeCoinMined: true,
+      },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+
+    await page.evaluate(() => innSystem.observe()); // plays the consult
+    await drainDialogue(page);
+    const afterConsult = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(afterConsult).toBe(false);
+
+    await page.evaluate(() => innSystem.claimNotebookRewards()); // claims the rat-20 bounty
+    await drainDialogue(page);
+    const afterReward = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(afterReward).toBe(true);
+  });
+
+  test('19. reversing the achievement order (reward before consult) still unlocks the inspection', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true,
+        ratBounty10Received: true, amberTreeCoinMined: true,
+      },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    const afterReward = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(afterReward).toBe(false);
+
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+    const afterConsult = await page.evaluate(() => RPG.State.flags.innRepairInspectionUnlocked);
+    expect(afterConsult).toBe(true);
+  });
+
+  test('20. unlocking the inspection produces no extra dialogue beyond the triggering event', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true,
+        ratBounty10Received: true, amberTreeCoinMined: true,
+      },
+      defeatCountsRat: { cain: 20, owen: 0 },
+    });
+    await page.evaluate(() => innSystem.claimNotebookRewards());
+    await drainDialogue(page);
+    await page.evaluate(() => { document.getElementById('logContainer').innerHTML = ''; });
+
+    await page.evaluate(() => innSystem.observe()); // this call both plays the consult and unlocks inspection
+    await drainDialogue(page);
+    const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(logText).toContain('店主「ちょっと相談があるんだが」');
+    expect(logText).not.toContain('解禁');
+    expect(logText).not.toContain('点検');
+  });
+
+  test('21. the inn front shows 外壁の大穴 when unlocked and uninspected', async ({ page }) => {
+    const label = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: false, isInDungeon: false });
+      Object.assign(RPG.State.flags, { innRepairInspectionUnlocked: true, innRepairHoleInspected: false });
+      uiControl.updateUI();
+      return document.getElementById('btnTalk')?.textContent;
+    });
+    expect(label).toBe('外壁の大穴');
+  });
+
+  test('22. the forest entrance shows ネズミの糞 when unlocked and uninspected', async ({ page }) => {
+    const label = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 0,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionUnlocked: true, innRepairDroppingsInspected: false, amberMerchantMovedToForest: false,
+      });
+      uiControl.updateUI();
+      return document.getElementById('btnTalk')?.textContent;
+    });
+    expect(label).toBe('ネズミの糞');
+  });
+
+  test('23. rat droppings take priority over the amber merchant while uninspected', async ({ page }) => {
+    const label = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 0,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionUnlocked: true, innRepairDroppingsInspected: false, amberMerchantMovedToForest: true,
+      });
+      uiControl.updateUI();
+      return document.getElementById('btnTalk')?.textContent;
+    });
+    expect(label).toBe('ネズミの糞');
+  });
+
+  test('24. after the droppings inspection, the forest entrance label returns to 琥珀商', async ({ page }) => {
+    const before = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 0,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionUnlocked: true, innRepairDroppingsInspected: false, amberMerchantMovedToForest: true,
+      });
+      uiControl.updateUI();
+      const label = document.getElementById('btnTalk')?.textContent;
+      explorationSystem.talk();
+      return { label, mode: RPG.State.mode };
+    });
+    expect(before.label).toBe('ネズミの糞');
+    expect(before.mode).toBe('event');
+
+    await drainDialogue(page);
+
+    const after = await page.evaluate(() => ({
+      inspected: RPG.State.flags.innRepairDroppingsInspected,
+      label: document.getElementById('btnTalk')?.textContent,
+      mode: RPG.State.mode,
+    }));
+    expect(after).toEqual({ inspected: true, label: '琥珀商', mode: 'base' });
+  });
+
+  test('25. the inn shows 齧られた柱 when unlocked and the pillar is uninspected', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: { innRepairInspectionUnlocked: true, innRepairPillarInspected: false },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).toBe('齧られた柱');
+  });
+
+  test('26. all three inspections can be completed in any order', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      // Pillar first (inn).
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true, isInDungeon: false });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: false,
+        innRepairDroppingsInspected: false,
+        innRepairPillarInspected: false,
+        hasFoundFirstCoin: false, amberMerchantRecognized: false, treeDefeated: false,
+        firstAmberAppraisalDone: false, phase4TheftDiscovered: false, herbGardenFortuneConsultUnlocked: false,
+        innRatEvent: true, innRatEvent2: true, innRepairConsultSeen: true, repairConsultBattleFought: true,
+      });
+      uiControl.updateUI();
+      innSystem.observe();
+      for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+      const pillarDone = RPG.State.flags.innRepairPillarInspected;
+
+      // Hole second (inn front).
+      RPG.State.mode = 'base';
+      RPG.State.isAtInn = false;
+      RPG.State.isInDungeon = false;
+      uiControl.updateUI();
+      explorationSystem.talk();
+      for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+      const holeDone = RPG.State.flags.innRepairHoleInspected;
+
+      // Droppings third (forest entrance).
+      RPG.State.mode = 'base';
+      RPG.State.isInDungeon = true;
+      RPG.State.explorationArea = 'forest';
+      RPG.State.currentDistance = 0;
+      uiControl.updateUI();
+      explorationSystem.talk();
+      for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+      const droppingsDone = RPG.State.flags.innRepairDroppingsInspected;
+
+      return { pillarDone, holeDone, droppingsDone, allDone: innSystem.hasCompletedInnRepairInspection() };
+    });
+    expect(result).toEqual({ pillarDone: true, holeDone: true, droppingsDone: true, allDone: true });
+  });
+
+  test('27. each inspection only fires once', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true, isInDungeon: false });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionUnlocked: true, innRepairPillarInspected: false,
+        hasFoundFirstCoin: false, amberMerchantRecognized: false, treeDefeated: false,
+        firstAmberAppraisalDone: false, phase4TheftDiscovered: false, herbGardenFortuneConsultUnlocked: false,
+        innRatEvent: true, innRatEvent2: true, innRepairConsultSeen: true, repairConsultBattleFought: true,
+      });
+      uiControl.updateUI();
+      innSystem.observe();
+      for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+      const firstLog = document.getElementById('logContainer')?.textContent || '';
+      const occurrencesFirst = firstLog.split('入口近くの柱にはネズミの歯形').length - 1;
+
+      RPG.State.mode = 'base';
+      uiControl.updateUI();
+      const labelAfter = document.getElementById('btnInnObserve')?.textContent;
+      innSystem.observe(); // should not replay the pillar scene
+      for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+      const secondLog = document.getElementById('logContainer')?.textContent || '';
+      const occurrencesSecond = secondLog.split('入口近くの柱にはネズミの歯形').length - 1;
+
+      return { occurrencesFirst, labelAfter, occurrencesSecond };
+    });
+    expect(result.occurrencesFirst).toBe(1);
+    expect(result.labelAfter).not.toBe('齧られた柱');
+    expect(result.occurrencesSecond).toBe(1);
+  });
+
+  test('28. progress after one or two completed inspections survives save/reload', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionUnlocked = true;
+      RPG.State.flags.innRepairHoleInspected = true;
+      RPG.State.flags.innRepairDroppingsInspected = false;
+      RPG.State.flags.innRepairPillarInspected = false;
+      const snapshot1 = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_inspect_test_1', JSON.stringify(snapshot1));
+
+      RPG.State.flags.innRepairDroppingsInspected = true;
+      const snapshot2 = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_inspect_test_2', JSON.stringify(snapshot2));
+
+      RPG.State.flags.innRepairHoleInspected = false;
+      RPG.State.flags.innRepairDroppingsInspected = false;
+      uiControl.loadFromStorage('okai_rpg_inspect_test_1', 'テスト1');
+      const afterLoad1 = {
+        hole: RPG.State.flags.innRepairHoleInspected,
+        droppings: RPG.State.flags.innRepairDroppingsInspected,
+        pillar: RPG.State.flags.innRepairPillarInspected,
+      };
+
+      RPG.State.flags.innRepairHoleInspected = false;
+      RPG.State.flags.innRepairDroppingsInspected = false;
+      uiControl.loadFromStorage('okai_rpg_inspect_test_2', 'テスト2');
+      const afterLoad2 = {
+        hole: RPG.State.flags.innRepairHoleInspected,
+        droppings: RPG.State.flags.innRepairDroppingsInspected,
+        pillar: RPG.State.flags.innRepairPillarInspected,
+      };
+
+      return { afterLoad1, afterLoad2 };
+    });
+    expect(result.afterLoad1).toEqual({ hole: true, droppings: false, pillar: false });
+    expect(result.afterLoad2).toEqual({ hole: true, droppings: true, pillar: false });
+  });
+
+  test('29. after all three inspections, the inn shows 報告する', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: true,
+        innRepairDroppingsInspected: true,
+        innRepairPillarInspected: true,
+        innRepairInspectionReported: false,
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).toBe('報告する');
+  });
+
+  test('30. existing high-priority inn events still take precedence over 齧られた柱/報告する', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: true, innRepairDroppingsInspected: true, innRepairPillarInspected: true,
+        innRepairInspectionReported: false,
+        phase4TheftDiscovered: true, thiefDiscoveryStatus: 0,
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('報告する');
+    expect(label).not.toBe('齧られた柱');
+  });
+
+  test('31. once the priority route resolves, 報告する reappears', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: true, innRepairDroppingsInspected: true, innRepairPillarInspected: true,
+        innRepairInspectionReported: false,
+        phase4TheftDiscovered: true, thiefDiscoveryStatus: 1, // fortune route resolved
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).toBe('報告する');
+  });
+
+  test('32. after reporting, the inn observe label returns to normal', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: true, innRepairDroppingsInspected: true, innRepairPillarInspected: true,
+        innRepairInspectionReported: false,
+      },
+    });
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('報告する');
+    expect(label).not.toBe('齧られた柱');
+  });
+
+  test('33. reporting sets the timber-search-unlocked flag and re-locks the inspection stage', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionUnlocked: true,
+        innRepairHoleInspected: true, innRepairDroppingsInspected: true, innRepairPillarInspected: true,
+        innRepairInspectionReported: false, innRepairTimberSearchUnlocked: false,
+      },
+    });
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+    const result = await page.evaluate(() => ({
+      reported: RPG.State.flags.innRepairInspectionReported,
+      timberUnlocked: RPG.State.flags.innRepairTimberSearchUnlocked,
+      inspectionUnlocked: RPG.State.flags.innRepairInspectionUnlocked,
+    }));
+    expect(result).toEqual({ reported: true, timberUnlocked: true, inspectionUnlocked: false });
+  });
+
+  // --- 木材取得 (amber tree timber retrieval) ---
+
+  test('34. after the report, forest 8m examine triggers the timber-retrieval event (label stays 調べる)', async ({ page }) => {
+    const before = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true,
+        innRepairTimberSearchUnlocked: true,
+        innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      return document.getElementById('btnTalk')?.textContent;
+    });
+    expect(before).toBe('調べる');
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+
+    const after = await page.evaluate(() => ({
+      obtained: RPG.State.flags.innRepairTimberObtained,
+      timber: RPG.State.inventory.amberTreeTimber,
+      mode: RPG.State.mode,
+      label: document.getElementById('btnTalk')?.textContent,
+    }));
+    expect(after).toEqual({ obtained: true, timber: 1, mode: 'base', label: '調べる' });
+  });
+
+  test('35. the timber event does not trigger before the repair report is completed', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: false,
+        innRepairTimberSearchUnlocked: false,
+        innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      uiControl.updateUI();
+      explorationSystem.talk();
+      return {
+        mode: RPG.State.mode,
+        obtained: RPG.State.flags.innRepairTimberObtained,
+        logHasLine: document.getElementById('logContainer')?.textContent.includes('大きな琥珀樹が倒れている'),
+      };
+    });
+    expect(result).toEqual({ mode: 'base', obtained: false, logHasLine: false });
+  });
+
+  test('36. an unfinished silver-coin mining event still takes priority over the timber event at 8m', async ({ page }) => {
+    const beforeLabel = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true,
+        innRepairTimberSearchUnlocked: true,
+        innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: false,
+      });
+      RPG.State.inventory.borrowedMiningKnife = 1;
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      return document.getElementById('btnTalk')?.textContent;
+    });
+    expect(beforeLabel).toBe('埋まった銀貨を掘る');
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+
+    const afterMining = await page.evaluate(() => ({
+      amberTreeCoinMined: RPG.State.flags.amberTreeCoinMined,
+      timberObtained: RPG.State.flags.innRepairTimberObtained,
+      logHasMiningLine: document.getElementById('logContainer')?.textContent.includes('🪙銀貨を手に入れた'),
+      logHasTimberLine: document.getElementById('logContainer')?.textContent.includes('大きな琥珀樹が倒れている'),
+    }));
+    expect(afterMining).toEqual({
+      amberTreeCoinMined: true, timberObtained: false, logHasMiningLine: true, logHasTimberLine: false,
+    });
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+
+    const afterTimber = await page.evaluate(() => ({
+      timberObtained: RPG.State.flags.innRepairTimberObtained,
+      timber: RPG.State.inventory.amberTreeTimber,
+      logHasTimberLine: document.getElementById('logContainer')?.textContent.includes('大きな琥珀樹が倒れている'),
+    }));
+    expect(afterTimber).toEqual({ timberObtained: true, timber: 1, logHasTimberLine: true });
+  });
+
+  test('36b. the timber event does not fire on the former highway, which reuses currentDistance 8', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, location: 'かつての街道', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true,
+        innRepairTimberSearchUnlocked: true,
+        innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      explorationSystem.talk();
+      return {
+        mode: RPG.State.mode,
+        obtained: RPG.State.flags.innRepairTimberObtained,
+        timber: RPG.State.inventory.amberTreeTimber,
+        logHasTimberLine: document.getElementById('logContainer')?.textContent.includes('大きな琥珀樹が倒れている'),
+      };
+    });
+    expect(result).toEqual({ mode: 'base', obtained: false, timber: 0, logHasTimberLine: false });
+  });
+
+  test('37. the timber event plays the specified lines in order', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true, innRepairTimberSearchUnlocked: true, innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      explorationSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    const anchors = [
+      '大きな琥珀樹が倒れている。',
+      'カイン「しまった。ナタを借りて来るべきだった」',
+      'オーエン「……ナタ？」',
+      'カイン「宿屋を直したい」',
+      'オーエン「安全なところなんて、どこにもないのに」',
+      'オーエンはため息をつき、片手を振り上げた。',
+      'ズババババッ！！！',
+      '琥珀樹は、何かの力に切り裂かれた。',
+      '《🪵琥珀樹の木材》を手に入れた！',
+      'オーエン「これは何かに使えない？」',
+      'オーエン「看板とか」',
+      'カイン（冗談なのか、判断に迷うな）',
+      '宿屋に戻ろう。',
+    ];
+    let lastIndex = -1;
+    for (const line of anchors) {
+      const index = logText.indexOf(line);
+      expect(index).toBeGreaterThan(lastIndex);
+      lastIndex = index;
+    }
+  });
+
+  test('38. exactly one amber-tree timber is granted, using its proper item name', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true, innRepairTimberSearchUnlocked: true, innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      explorationSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      timber: RPG.State.inventory.amberTreeTimber,
+      itemName: RPG.Assets.CONFIG.ITEM_NAME.amberTreeTimber,
+    }));
+    expect(result.timber).toBe(1);
+    expect(result.itemName).toContain('琥珀樹の木材');
+    expect(result.itemName).not.toContain('頑丈な木材');
+  });
+
+  test('39. the timber event does not replay or double-grant the item', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true, innRepairTimberSearchUnlocked: true, innRepairTimberObtained: false,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.updateUI();
+      explorationSystem.talk();
+      // Rapid re-click while the event is already playing must be a no-op.
+      explorationSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const afterFirst = await page.evaluate(() => RPG.State.inventory.amberTreeTimber);
+    expect(afterFirst).toBe(1);
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => {
+      const text = document.getElementById('logContainer')?.textContent || '';
+      return {
+        timber: RPG.State.inventory.amberTreeTimber,
+        occurrences: text.split('大きな琥珀樹が倒れている。').length - 1,
+      };
+    });
+    expect(result.timber).toBe(1);
+    expect(result.occurrences).toBe(1);
+  });
+
+  test('40. after obtaining the timber, forest 8m examine returns to the normal inspection', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
+      });
+      Object.assign(RPG.State.flags, {
+        innRepairInspectionReported: true, innRepairTimberSearchUnlocked: true, innRepairTimberObtained: true,
+        treeDefeated: true, amberTreeCoinMined: true,
+      });
+      uiControl.updateUI();
+    });
+    const result = await page.evaluate(() => {
+      document.getElementById('logContainer').innerHTML = '';
+      explorationSystem.talk();
+      return {
+        mode: RPG.State.mode,
+        label: document.getElementById('btnTalk')?.textContent,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(result.mode).toBe('base');
+    expect(result.label).toBe('調べる');
+    expect(result.logText).not.toContain('大きな琥珀樹が倒れている');
+  });
+
+  test('41. pre-obtain timber-search state survives a save/reload', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionReported = true;
+      RPG.State.flags.innRepairTimberSearchUnlocked = true;
+      RPG.State.flags.innRepairTimberObtained = false;
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_timber_test_1', JSON.stringify(snapshot));
+
+      RPG.State.flags.innRepairTimberObtained = true; // corrupt in-memory state before reload
+      uiControl.loadFromStorage('okai_rpg_timber_test_1', 'テスト');
+
+      return {
+        reported: RPG.State.flags.innRepairInspectionReported,
+        searchUnlocked: RPG.State.flags.innRepairTimberSearchUnlocked,
+        obtained: RPG.State.flags.innRepairTimberObtained,
+      };
+    });
+    expect(result).toEqual({ reported: true, searchUnlocked: true, obtained: false });
+  });
+
+  test('42. the obtained-timber state survives a save/reload', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairTimberObtained = true;
+      RPG.State.inventory.amberTreeTimber = 1;
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_timber_test_2', JSON.stringify(snapshot));
+
+      RPG.State.flags.innRepairTimberObtained = false;
+      RPG.State.inventory.amberTreeTimber = 0;
+      uiControl.loadFromStorage('okai_rpg_timber_test_2', 'テスト');
+
+      return {
+        obtained: RPG.State.flags.innRepairTimberObtained,
+        timber: RPG.State.inventory.amberTreeTimber,
+      };
+    });
+    expect(result).toEqual({ obtained: true, timber: 1 });
+  });
+
+  test('43. no new inn command or dialogue is introduced by the timber event', async ({ page }) => {
+    const staticResult = await page.evaluate(() => ({
+      innUiButtonCount: document.querySelectorAll('#innUI button').length,
+      hasProcessFn: (
+        typeof innSystem.processTimber === 'function' ||
+        typeof innSystem.playTimberDelivery === 'function'
+      ),
+    }));
+    expect(staticResult).toEqual({ innUiButtonCount: 6, hasProcessFn: false });
+
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionReported: true, innRepairTimberSearchUnlocked: true, innRepairTimberObtained: true,
+      },
+    });
+    const label = await page.locator('#btnInnObserve').textContent();
+    expect(label).not.toBe('報告する');
+    expect(label).not.toBe('齧られた柱');
+  });
+
+  test('44. loading a save without any inn-repair-inspection or timber flags does not error', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const legacySave = JSON.parse(JSON.stringify(RPG.State));
+      delete legacySave.flags.innRepairInspectionUnlocked;
+      delete legacySave.flags.innRepairHoleInspected;
+      delete legacySave.flags.innRepairDroppingsInspected;
+      delete legacySave.flags.innRepairPillarInspected;
+      delete legacySave.flags.innRepairInspectionReported;
+      delete legacySave.flags.innRepairTimberSearchUnlocked;
+      delete legacySave.flags.innRepairTimberObtained;
+      delete legacySave.inventory.amberTreeTimber;
+      localStorage.setItem('okai_rpg_inspect_legacy_test', JSON.stringify(legacySave));
+
+      let errored = false;
+      try {
+        uiControl.loadFromStorage('okai_rpg_inspect_legacy_test', 'テスト');
+      } catch (e) {
+        errored = true;
+      }
+
+      return {
+        errored,
+        unlocked: RPG.State.flags.innRepairInspectionUnlocked,
+        hole: RPG.State.flags.innRepairHoleInspected,
+        droppings: RPG.State.flags.innRepairDroppingsInspected,
+        pillar: RPG.State.flags.innRepairPillarInspected,
+        reported: RPG.State.flags.innRepairInspectionReported,
+        timberSearchUnlocked: RPG.State.flags.innRepairTimberSearchUnlocked,
+        timberObtained: RPG.State.flags.innRepairTimberObtained,
+        timberCount: RPG.State.inventory.amberTreeTimber,
+      };
+    });
+    expect(result).toEqual({
+      errored: false, unlocked: false, hole: false, droppings: false, pillar: false,
+      reported: false, timberSearchUnlocked: false, timberObtained: false, timberCount: 0,
+    });
+  });
+});

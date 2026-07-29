@@ -1,8 +1,112 @@
 // 🚩ーー【移動・探索システム】ーー
 // Build 14.1: Namespaces updated to RPG.State and RPG.Assets
 const explorationSystem = {
+    _pendingMikawashiMoveBattleEligibility: false,
+
     isInHerbGarden: function () {
         return RPG.State.explorationArea === "herbGarden";
+    },
+
+    getTemporaryEffectSteps: function (fieldName) {
+        return Math.max(0, Number(RPG.State[fieldName]) || 0);
+    },
+
+    canUseFakeWoundMedicine: function () {
+        return RPG.State.currentHP < RPG.State.maxHP;
+    },
+
+    canUseSmokeBomb: function () {
+        const isFreeExplorationArea =
+            RPG.State.explorationArea === "forest" ||
+            RPG.State.explorationArea === "herbGarden";
+        return (
+            RPG.State.mode === "base" &&
+            RPG.State.isInDungeon === true &&
+            RPG.State.isAtInn !== true &&
+            RPG.State.flags.onWagon !== true &&
+            RPG.State.location !== "かつての街道" &&
+            isFreeExplorationArea &&
+            this.getTemporaryEffectSteps("smokeBombStepsRemaining") <= 0
+        );
+    },
+
+    canUseMikawashiFeather: function () {
+        const isFormerHighway = RPG.State.location === "かつての街道";
+        return (
+            RPG.State.mode === "base" &&
+            RPG.State.isInDungeon === true &&
+            RPG.State.isAtInn !== true &&
+            (RPG.State.flags.onWagon !== true || isFormerHighway) &&
+            this.getTemporaryEffectSteps("mikawashiStepsRemaining") <= 0
+        );
+    },
+
+    beginTemporaryFieldStep: function () {
+        const isFormerHighway = RPG.State.location === "かつての街道";
+        const isCountedFreeMove =
+            RPG.State.mode === "base" &&
+            RPG.State.isInDungeon === true &&
+            RPG.State.isAtInn !== true &&
+            (RPG.State.flags.onWagon !== true || isFormerHighway);
+
+        if (!isCountedFreeMove) {
+            this._pendingMikawashiMoveBattleEligibility = false;
+            return {
+                counted: false,
+                smokeActive: false,
+                mikawashiActive: false,
+                smokeExpired: false,
+                mikawashiExpired: false
+            };
+        }
+
+        const smokeSteps = this.getTemporaryEffectSteps("smokeBombStepsRemaining");
+        const mikawashiSteps = this.getTemporaryEffectSteps("mikawashiStepsRemaining");
+        const effects = {
+            counted: true,
+            smokeActive: smokeSteps > 0,
+            mikawashiActive: mikawashiSteps > 0,
+            smokeExpired: smokeSteps === 1,
+            mikawashiExpired: mikawashiSteps === 1
+        };
+
+        RPG.State.smokeBombStepsRemaining = Math.max(0, smokeSteps - 1);
+        RPG.State.mikawashiStepsRemaining = Math.max(0, mikawashiSteps - 1);
+        this._pendingMikawashiMoveBattleEligibility = effects.mikawashiActive;
+        return effects;
+    },
+
+    finishTemporaryFieldStep: function (effects, options = {}) {
+        if (!effects || effects.counted !== true) return;
+
+        if (effects.smokeExpired) {
+            uiControl.addLog("煙が薄れ、気配が元に戻った。");
+        }
+        if (effects.mikawashiExpired) {
+            uiControl.addLog("ミカワシ羽の力が消えた。");
+        }
+        if (options.preserveBattleEligibility !== true) {
+            this._pendingMikawashiMoveBattleEligibility = false;
+        }
+        if (effects.smokeExpired || effects.mikawashiExpired) {
+            uiControl.updateUI();
+        }
+    },
+
+    consumeMikawashiMoveBattleEligibility: function () {
+        const isEligible = this._pendingMikawashiMoveBattleEligibility === true;
+        this._pendingMikawashiMoveBattleEligibility = false;
+        return isEligible;
+    },
+
+    clearMikawashiMoveBattleEligibility: function () {
+        this._pendingMikawashiMoveBattleEligibility = false;
+    },
+
+    clearTemporaryItemEffects: function () {
+        RPG.State.smokeBombStepsRemaining = 0;
+        RPG.State.mikawashiStepsRemaining = 0;
+        this.clearMikawashiMoveBattleEligibility();
     },
 
     getHerbGardenMaxDistance: function () {
@@ -99,33 +203,54 @@ const explorationSystem = {
         );
     },
 
-    tryHerbGardenEncounter: function (distance) {
-        if (RPG.State.flags.isDebugEncountersOff) return false;
+    isRandomEncounterSuppressed: function (options = {}) {
+        return (
+            options.smokeActive === true ||
+            RPG.State.flags.isDebugEncountersOff === true ||
+            (
+                RPG.State.storyPhase === 8 &&
+                RPG.State.flags.onWagon === true
+            ) ||
+            RPG.State.location === "かつての街道"
+        );
+    },
+
+    tryHerbGardenEncounter: function (distance, options = {}) {
+        if (this.isRandomEncounterSuppressed(options)) return false;
         if (distance === 3 || distance <= 0) return false;
         if (Math.random() >= RPG.Assets.CONFIG.BATTLE_RATE) return false;
 
         if (RPG.State.storyPhase >= 6 && distance <= 2) {
-            battleSystem.startBattle(Math.random() < 0.35 ? "skull_bee" : "rat");
+            battleSystem.startBattle(
+                Math.random() < 0.35 ? "skull_bee" : "rat",
+                { mikawashiEvasionActive: options.mikawashiActive === true }
+            );
             return true;
         }
 
         if (distance <= 2) {
-            battleSystem.startBattle("rat");
+            battleSystem.startBattle("rat", {
+                mikawashiEvasionActive: options.mikawashiActive === true
+            });
             return true;
         }
 
         if (RPG.State.storyPhase >= 6 && Math.random() < 0.25) {
-            battleSystem.startBattle("skull_bee");
+            battleSystem.startBattle("skull_bee", {
+                mikawashiEvasionActive: options.mikawashiActive === true
+            });
             return true;
         }
 
         // Match the forest's existing rat/weasel weight ratio (10:3) after 4m.
         const enemyId = Math.random() < (10 / 13) ? "rat" : "weasel";
-        battleSystem.startBattle(enemyId);
+        battleSystem.startBattle(enemyId, {
+            mikawashiEvasionActive: options.mikawashiActive === true
+        });
         return true;
     },
 
-    tryHerbGardenVineEncounter: function (distance) {
+    tryHerbGardenVineEncounter: function (distance, options = {}) {
         const flags = RPG.State.flags;
         if (RPG.State.storyPhase < 6) return false;
 
@@ -133,7 +258,12 @@ const explorationSystem = {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
                 ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6CarnivorousVineIntro),
-                { text: null, action: () => battleSystem.startBattle("carnivorous_vine") }
+                {
+                    text: null,
+                    action: () => battleSystem.startBattle("carnivorous_vine", {
+                        mikawashiEvasionActive: options.mikawashiActive === true
+                    })
+                }
             ];
             this.playDialogueLoop();
             return true;
@@ -143,9 +273,12 @@ const explorationSystem = {
             distance >= 4 &&
             distance <= 6 &&
             flags.carnivorousVineRegrown === true &&
+            !this.isRandomEncounterSuppressed(options) &&
             Math.random() < 0.08
         ) {
-            battleSystem.startBattle("carnivorous_vine");
+            battleSystem.startBattle("carnivorous_vine", {
+                mikawashiEvasionActive: options.mikawashiActive === true
+            });
             return true;
         }
 
@@ -304,10 +437,12 @@ const explorationSystem = {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDistance;
             this.recordTravelStep();
+            const temporaryEffects = this.beginTemporaryFieldStep();
             RPG.State.location = uiControl.getLocData(nextDistance).name;
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.moved(nextDistance));
 
             if (RPG.State.isPoisoned && battleSystem.applyPoisonTick()) {
+                this.finishTemporaryFieldStep(temporaryEffects);
                 battleSystem.resolveDefeat();
                 return;
             }
@@ -331,7 +466,10 @@ const explorationSystem = {
                 uiControl.addLog("他の場所より丁寧に整えられている。", "ambient");
             }
 
-            if (this.playHerbGardenBroochPassage(nextDistance)) return;
+            if (this.playHerbGardenBroochPassage(nextDistance)) {
+                this.finishTemporaryFieldStep(temporaryEffects);
+                return;
+            }
 
             if (nextDistance === 3 && (RPG.State.inventory.lightRabbitBrooch || 0) === 0) {
                 if (RPG.State.storyPhase >= 6 && RPG.State.flags.scentPouchQuestStarted === true) {
@@ -339,6 +477,7 @@ const explorationSystem = {
                 } else {
                     this.playHerbGardenBlockedEvent();
                 }
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
 
@@ -353,13 +492,22 @@ const explorationSystem = {
                     { text: null, action: () => this.finishHerbGardenReturnHandhold() }
                 ];
                 this.playDialogueLoop();
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
 
             if (RPG.State.flags.herbGardenReturnHandholdActive !== true) {
-                if (this.tryHerbGardenVineEncounter(nextDistance)) return;
-                if (this.tryHerbGardenEncounter(nextDistance)) return;
+                if (this.tryHerbGardenVineEncounter(nextDistance, temporaryEffects)) {
+                    this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                    return;
+                }
+                if (this.tryHerbGardenEncounter(nextDistance, temporaryEffects)) {
+                    this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                    return;
+                }
             }
+
+            this.finishTemporaryFieldStep(temporaryEffects);
         }
 
         uiControl.updateUI();
@@ -739,6 +887,9 @@ const explorationSystem = {
             // A fully automatic scene can finish without a final player tap.
             // Always clear the transparent tap layer before restoring commands.
             this.cancelActiveTypewriter();
+            if (RPG.State.mode !== "choice") {
+                this.clearMikawashiMoveBattleEligibility();
+            }
             RPG.State.isWaitingForInput = false;
             uiControl.hideFloatingArrow();
             uiControl.disableTapOverlay();
@@ -875,6 +1026,7 @@ const explorationSystem = {
 
     move: function (step, options = {}) {
         const skipTravelCue = options.skipTravelCue === true;
+        if (RPG.State.flags.chapter1Cleared === true) return;
         if (RPG.State.mode !== "base" || RPG.State.isAtInn) return;
         if (RPG.State.location === "宿屋内部") return;
         if (!skipTravelCue && typeof visualDirector !== "undefined" && visualDirector.travelActive) return;
@@ -948,10 +1100,18 @@ const explorationSystem = {
             if (started) return;
         }
 
+        let temporaryEffects = null;
         if (step !== 0) {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDist;
             this.recordTravelStep();
+            if (
+                RPG.State.flags.onWagon === true &&
+                RPG.State.location !== "かつての街道"
+            ) {
+                this.clearTemporaryItemEffects();
+            }
+            temporaryEffects = this.beginTemporaryFieldStep();
             uiControl.addLog(
                 RPG.Assets.GAME_TEXT.exploration.moved(RPG.State.currentDistance),
                 "movement"
@@ -976,12 +1136,14 @@ const explorationSystem = {
                     RPG.State.dialogueQueue = this.buildMatamatabiFadeQueue();
                     uiControl.updateUI();
                     this.playDialogueLoop();
+                    this.finishTemporaryFieldStep(temporaryEffects);
                     return;
                 }
             }
 
             if (RPG.State.isPoisoned) {
                 if (battleSystem.applyPoisonTick()) {
+                    this.finishTemporaryFieldStep(temporaryEffects);
                     battleSystem.resolveDefeat();
                     return;
                 }
@@ -989,7 +1151,11 @@ const explorationSystem = {
         }
 
         // Build 14.2.1: Journey Dialogues (Story Phase 8)
-        if (RPG.State.storyPhase === 8 && step !== 0) {
+        if (
+            RPG.State.storyPhase === 8 &&
+            step !== 0 &&
+            !RPG.State.completedEvents.includes("phase8_wagon_journey_completed")
+        ) {
             const dist = RPG.State.currentDistance;
             let journeyText = null;
             let journeyDialogue = null;
@@ -1043,6 +1209,7 @@ const explorationSystem = {
                 RPG.State.mode = "event";
                 RPG.State.dialogueQueue = journeyDialogue;
                 this.playDialogueLoop();
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
         }
@@ -1051,21 +1218,22 @@ const explorationSystem = {
         if (RPG.State.location === "かつての街道" && RPG.State.storyPhase === 9 && step !== 0) {
             const dist = RPG.State.currentDistance;
 
-            // Initialize battle count for this distance if not exists
-            if (!RPG.State.highwayBattleCount[dist]) {
-                RPG.State.highwayBattleCount[dist] = 0;
-            }
-
-            // 6m: Single crow battle (not handled by events)
-            if (dist === 6 && RPG.State.highwayBattleCount[6] < 1) {
-                RPG.State.highwayBattleCount[dist]++;
-                battleSystem.startBattle('eye_eating_crow');
+            // 6m: Single crow battle (not handled by EVENT_DATA).
+            // The count is a victory count and is updated only by battleSystem.
+            if (dist === 6 && (Number(RPG.State.highwayBattleCount[6]) || 0) < 1) {
+                battleSystem.startHighwayFixedBattle(6, 'eye_eating_crow', {
+                    mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
+                });
+                this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
                 return;
             }
         }
 
         // Build 15.1.2: Delegated to scenarioEvents.treeEventSystem.handleEncounter()
-        if (scenarioEvents.treeEventSystem.handleEncounter(step)) return;
+        if (scenarioEvents.treeEventSystem.handleEncounter(step)) {
+            this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+            return;
+        }
 
         const dist = RPG.State.currentDistance;
         const canInspectAmberTree =
@@ -1080,6 +1248,7 @@ const explorationSystem = {
             uiControl.addLog("きらり。", "ambient");
             uiControl.addLog("少し先の木立の奥で、樹液が鈍く光っている。", "ambient");
             uiControl.updateUI();
+            this.finishTemporaryFieldStep(temporaryEffects);
             return;
         }
 
@@ -1092,6 +1261,7 @@ const explorationSystem = {
             const hintLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiHint4m || [];
             hintLines.forEach(line => uiControl.addLog(line, "ambient"));
             uiControl.updateUI();
+            this.finishTemporaryFieldStep(temporaryEffects);
             return;
         }
 
@@ -1109,6 +1279,7 @@ const explorationSystem = {
             const flavorLines = RPG.Assets.GAME_TEXT.events.phase6Wagon5mFlavor || [];
             flavorLines.forEach(line => uiControl.addLog(line, "ambient"));
             uiControl.updateUI();
+            this.finishTemporaryFieldStep(temporaryEffects);
             return;
         }
 
@@ -1124,12 +1295,14 @@ const explorationSystem = {
                     ];
                     this.playDialogueLoop();
                 }
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
 
             if (dist === 5) {
                 RPG.State.flags.forest5mFirstVisit = true;
                 uiControl.updateUI();
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
 
@@ -1142,22 +1315,33 @@ const explorationSystem = {
                     ];
                     this.playDialogueLoop();
                 }
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
         }
 
         // Build 14.1.7: Check for Return Trip Event (Priority)
-        if (dist === 5 && this.checkEvents()) return;
-
-        // 10m Priority Logic
-        if (dist === 10) {
-            if (this.checkEvents()) return;
-            uiControl.addLog(RPG.Assets.GAME_TEXT.events.pathAt10m);
-            uiControl.updateUI();
+        if (dist === 5 && this.checkEvents()) {
+            this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
             return;
         }
 
-        if (this.checkEvents()) return;
+        // 10m Priority Logic
+        if (dist === 10) {
+            if (this.checkEvents()) {
+                this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                return;
+            }
+            uiControl.addLog(RPG.Assets.GAME_TEXT.events.pathAt10m);
+            uiControl.updateUI();
+            this.finishTemporaryFieldStep(temporaryEffects);
+            return;
+        }
+
+        if (this.checkEvents()) {
+            this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+            return;
+        }
 
         // エンカウント判定
         // Build 15.2.3: Peaceful Return Mode only applies to the successful 3-coin return trip
@@ -1166,10 +1350,21 @@ const explorationSystem = {
 
         // Build 14.2.2: No random encounters on Former Highway (fixed encounters only)
         const isHighway = (RPG.State.location === "かつての街道");
+        const randomEncounterSuppressed = this.isRandomEncounterSuppressed(temporaryEffects || {});
 
-        if (!isPeacefulMode && !isHighway && RPG.State.isInDungeon && RPG.State.currentDistance > 0 && RPG.State.currentDistance < 10) {
-            if (!RPG.State.flags.isDebugEncountersOff && Math.random() < RPG.Assets.CONFIG.BATTLE_RATE) {
-                battleSystem.startBattle();
+        if (
+            !randomEncounterSuppressed &&
+            !isPeacefulMode &&
+            RPG.State.isInDungeon &&
+            step !== 0 &&
+            RPG.State.currentDistance > 0 &&
+            RPG.State.currentDistance < 10
+        ) {
+            if (Math.random() < RPG.Assets.CONFIG.BATTLE_RATE) {
+                battleSystem.startBattle(null, {
+                    mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
+                });
+                this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
                 return;
             }
         }
@@ -1202,6 +1397,7 @@ const explorationSystem = {
                     uiControl.updateUI();
                 }
             }
+            this.finishTemporaryFieldStep(temporaryEffects);
             return;
         } else if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
             setTimeout(() => {
@@ -1216,6 +1412,7 @@ const explorationSystem = {
                 uiControl.addLog(nextLoc.desc);
             }, 600);
         }
+        this.finishTemporaryFieldStep(temporaryEffects);
     },
 
     inspectHerbGarden: function () {
@@ -1338,6 +1535,25 @@ const explorationSystem = {
         if (RPG.State.mode !== "base") return;
 
         if (!RPG.State.isInDungeon) {
+            // Build 15.5.5: Inn-front outer-wall hole inspection, once the inn-repair
+            // damage inspection stage is unlocked.
+            if (
+                RPG.State.flags.innRepairInspectionUnlocked === true &&
+                RPG.State.flags.innRepairHoleInspected !== true
+            ) {
+                uiControl.addSeparator();
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.innRepairHoleInspect.map(text => ({ text }));
+                RPG.State.dialogueQueue.push({
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.innRepairHoleInspected = true;
+                        uiControl.updateUI();
+                    }
+                });
+                this.playDialogueLoop();
+                return;
+            }
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkAtInn);
             return;
         }
@@ -1349,6 +1565,28 @@ const explorationSystem = {
 
         const dist = RPG.State.currentDistance;
         const flags = RPG.State.flags;
+
+        // Build 15.5.5: Forest-entrance rat-droppings inspection takes priority over the
+        // amber merchant, but only once and only while unlocked and not yet inspected.
+        if (
+            dist === 0 &&
+            RPG.State.explorationArea === "forest" &&
+            flags.innRepairInspectionUnlocked === true &&
+            flags.innRepairDroppingsInspected !== true
+        ) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.innRepairDroppingsInspect.map(text => ({ text }));
+            RPG.State.dialogueQueue.push({
+                text: null,
+                action: () => {
+                    flags.innRepairDroppingsInspected = true;
+                    uiControl.updateUI();
+                }
+            });
+            this.playDialogueLoop();
+            return;
+        }
 
         if (
             dist === 0 &&
@@ -1402,6 +1640,9 @@ const explorationSystem = {
                         RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
                         flags.amberTreeCoinMined = true;
                         RPG.State.postTreeBattles = 0;
+                        if (typeof innSystem !== "undefined") {
+                            innSystem.tryUnlockInnRepairInspection();
+                        }
                         uiControl.updateUI();
                     }
                 },
@@ -1411,6 +1652,42 @@ const explorationSystem = {
                 { text: "オーエン「もっとその話をしようよ。僕の目玉を抉って、どうしたかったんだっけ？」", color: "#a020f0" },
                 { text: "カイン（……琥珀商に、ナイフを返さないとな）" }
             ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        // Build 15.5.6: Inn-repair timber retrieval from the fallen amber tree at 8m,
+        // once the damage-inspection report has unlocked the search. The highway route
+        // also reaches currentDistance === 8 (see highway_8m_escalation) without resetting
+        // explorationArea, so exclude it the same way getForestObservation() does.
+        if (
+            dist === 8 &&
+            RPG.State.location !== "かつての街道" &&
+            flags.treeDefeated === true &&
+            flags.innRepairInspectionReported === true &&
+            flags.innRepairTimberSearchUnlocked === true &&
+            flags.innRepairTimberObtained !== true
+        ) {
+            const timberLines = RPG.Assets.GAME_TEXT.events.innRepairTimberObtain || [];
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = timberLines.map(line => {
+                if (line === "《🪵琥珀樹の木材》を手に入れた！") {
+                    return {
+                        text: line,
+                        type: "marker",
+                        color: "#ffd166",
+                        action: () => {
+                            RPG.State.inventory.amberTreeTimber = (RPG.State.inventory.amberTreeTimber || 0) + 1;
+                            flags.innRepairTimberObtained = true;
+                            uiControl.updateUI();
+                        }
+                    };
+                }
+                if (line.startsWith("オーエン")) {
+                    return { text: line, color: "#a020f0" };
+                }
+                return { text: line };
+            });
             this.playDialogueLoop();
             return;
         }
@@ -1970,6 +2247,55 @@ const explorationSystem = {
         let success = false;
         let consumeItem = true;
         switch (itemId) {
+            case 'fakeWoundMedicine':
+                if (!this.canUseFakeWoundMedicine()) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
+                    uiControl.closeModal();
+                    return;
+                }
+                const fakeMedicineHealAmount = Math.max(
+                    1,
+                    Math.floor(RPG.State.maxHP * RPG.Config.FAKE_WOUND_MEDICINE_HEAL_RATE)
+                );
+                const hpBeforeFakeMedicine = RPG.State.currentHP;
+                RPG.State.currentHP = Math.min(
+                    RPG.State.maxHP,
+                    RPG.State.currentHP + fakeMedicineHealAmount
+                );
+                const actualFakeMedicineRecovery = RPG.State.currentHP - hpBeforeFakeMedicine;
+                uiControl.addLog(`🩹傷薬もどきを使い、HPが${actualFakeMedicineRecovery}回復した。`);
+                success = true;
+                break;
+            case 'smokeBomb':
+                if (!this.canUseSmokeBomb()) {
+                    uiControl.addLog(
+                        this.getTemporaryEffectSteps("smokeBombStepsRemaining") > 0
+                            ? RPG.Assets.GAME_TEXT.items.notNeeded
+                            : RPG.Assets.GAME_TEXT.items.cannotUse
+                    );
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.smokeBombStepsRemaining = RPG.Config.SMOKE_BOMB_STEP_COUNT;
+                uiControl.addLog("💨煙玉を使った！");
+                uiControl.addLog("煙がカインの気配を覆った。");
+                success = true;
+                break;
+            case 'mikawashiFeather':
+                if (!this.canUseMikawashiFeather()) {
+                    uiControl.addLog(
+                        this.getTemporaryEffectSteps("mikawashiStepsRemaining") > 0
+                            ? RPG.Assets.GAME_TEXT.items.notNeeded
+                            : RPG.Assets.GAME_TEXT.items.cannotUse
+                    );
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.mikawashiStepsRemaining = RPG.Config.MIKAWASHI_STEP_COUNT;
+                uiControl.addLog("🪶ミカワシ羽を使った！");
+                uiControl.addLog("身体が軽くなった。");
+                success = true;
+                break;
             case 'herb':
                 if (RPG.State.currentHP >= RPG.State.maxHP) {
                     uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
@@ -2093,6 +2419,7 @@ const explorationSystem = {
 
     // Build 14.2.1: Transition to Former Highway
     transitionToHighway: function () {
+        this.clearTemporaryItemEffects();
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [
             { text: "―― かつての街道 ――", delay: 1500, color: "#FFD700" },
@@ -2101,7 +2428,16 @@ const explorationSystem = {
                 text: null,
                 delay: 0,
                 action: () => {
+                    if (
+                        !RPG.State.completedEvents.includes("phase8_wagon_journey_completed")
+                    ) {
+                        RPG.State.completedEvents.push("phase8_wagon_journey_completed");
+                    }
                     RPG.State.storyPhase = 9;
+                    RPG.State.flags.onWagon = true;
+                    RPG.State.isAtInn = false;
+                    RPG.State.isInDungeon = true;
+                    RPG.State.explorationArea = "highway";
                     RPG.State.location = "かつての街道";
                     RPG.State.currentDistance = 0;
                     RPG.State.mode = "base";

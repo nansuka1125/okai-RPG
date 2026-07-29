@@ -343,6 +343,7 @@ test.describe('Chapter 1 amber system', () => {
         innRatEvent: true,
         innRatEvent2: false,
         innRatEvent2StayCount: 1,
+        ratEvent2BattleFought: true,
         treeDefeated: true,
         amberMerchantRecognized: true,
         borrowedMiningKnifeReceived: false,
@@ -377,12 +378,13 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('one completed stay unlocks the second inn rat event', async ({ page }) => {
+  test('one completed stay alone does not unlock the second inn rat event; a battle win also is required', async ({ page }) => {
     const result = await page.evaluate(() => {
       Object.assign(RPG.State.flags, {
         innRatEvent: true,
         innRatEvent2: false,
         innRatEvent2StayCount: 0,
+        ratEvent2BattleFought: false,
       });
 
       innSystem.refreshHerbGardenHarvestsAfterStay();
@@ -392,18 +394,21 @@ test.describe('Chapter 1 amber system', () => {
       };
 
       innSystem.refreshHerbGardenHarvestsAfterStay();
-      return {
-        afterFirstStay,
-        cappedStayCount: RPG.State.flags.innRatEvent2StayCount,
-      };
+      const cappedStayCount = RPG.State.flags.innRatEvent2StayCount;
+
+      RPG.State.flags.ratEvent2BattleFought = true;
+      const afterBattleWin = innSystem.canTriggerInnRatEvent2();
+
+      return { afterFirstStay, cappedStayCount, afterBattleWin };
     });
 
     expect(result).toEqual({
       afterFirstStay: {
         stayCount: 1,
-        ratUnlocked: true,
+        ratUnlocked: false,
       },
       cappedStayCount: 1,
+      afterBattleWin: true,
     });
   });
 

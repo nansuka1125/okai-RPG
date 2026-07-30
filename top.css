@@ -350,16 +350,46 @@ h1 {
 
 .character-card {
     --character-image: none;
+    --character-position: center;
+    --character-filter: none;
     min-width: 0;
     padding: 14px 12px;
-    background-image:
-        linear-gradient(180deg, rgba(7, 7, 9, 0.14) 0%, rgba(7, 7, 9, 0.92) 76%),
-        var(--character-image),
+    position: relative;
+    background:
+        radial-gradient(circle at 50% 30%, rgba(178, 147, 101, 0.16), transparent 58%),
         linear-gradient(145deg, #292824, #121214);
-    background-position: center;
-    background-size: cover;
     display: flex;
     align-items: flex-end;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+.character-card::before,
+.character-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.character-card::before {
+    z-index: -2;
+    background-image: var(--character-image);
+    background-position: var(--character-position);
+    background-size: cover;
+    background-repeat: no-repeat;
+    filter: var(--character-filter);
+}
+
+.character-card::after {
+    z-index: -1;
+    background: linear-gradient(
+        180deg,
+        rgba(7, 7, 9, 0.04) 0%,
+        rgba(7, 7, 9, 0.18) 30%,
+        rgba(7, 7, 9, 0.72) 54%,
+        rgba(7, 7, 9, 0.97) 100%
+    );
 }
 
 .character-card + .character-card {
@@ -367,16 +397,23 @@ h1 {
 }
 
 .character-card--cain {
-    --character-image: none;
+    --character-image: url("images/top-cain-costume.png");
+    --character-position: 48% 36%;
+    --character-filter: brightness(1.18) contrast(1.08) saturate(0.96)
+        drop-shadow(0 0 9px rgba(218, 179, 117, 0.28));
 }
 
 .character-card--owen {
-    --character-image: none;
-    background-position: 58% center;
+    --character-image: url("images/top-owen-costume.png");
+    --character-position: 61% 34%;
+    --character-filter: brightness(1.04) contrast(1.05) saturate(1.06)
+        drop-shadow(0 0 8px rgba(192, 152, 226, 0.24));
 }
 
 .character-copy {
     width: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 .character-copy h2 {
@@ -385,6 +422,7 @@ h1 {
     font-size: 17px;
     font-weight: 500;
     letter-spacing: 0.12em;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.96);
 }
 
 .character-copy p {
@@ -393,6 +431,7 @@ h1 {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
     font-size: 10.5px;
     line-height: 1.65;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.98);
 }
 
 .utility-links {

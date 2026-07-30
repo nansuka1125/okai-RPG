@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="第一章「宿屋と銀貨」の記録を選びます。">
+    <title>第一章「宿屋と銀貨」｜記録を開く</title>
+    <link rel="stylesheet" href="top.css">
+    <script src="chapter1-records.js" defer></script>
+</head>
+
+<body class="records-page">
+    <main class="records-screen">
+        <a class="records-back" href="index.html">← 公式トップへ</a>
+
+        <section class="records-panel" aria-labelledby="recordsTitle">
+            <header class="records-header">
+                <p>第一章</p>
+                <h1 id="recordsTitle">宿屋と銀貨</h1>
+                <span>旅を始める記録を選ぶ</span>
+            </header>
+
+            <div id="startupError" class="startup-error records-error" role="alert" hidden></div>
+
+            <div id="savePickerList" class="records-list">
+                <button id="newGameButton" class="save-picker-row new-game-row" type="button">
+                    <strong>はじめから</strong>
+                    <span>新しい旅を始める</span>
+                </button>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

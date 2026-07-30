@@ -91,7 +91,7 @@ window.onload = () => {
         }
 
         if (hasStoredRecord) {
-            window.location.replace("index.html");
+            window.location.replace("chapter1-records.html");
             return;
         }
     }
@@ -106,7 +106,7 @@ window.onload = () => {
             return;
         }
 
-        window.location.replace("index.html?resumeError=1");
+        window.location.replace("chapter1-records.html?resumeError=1");
         return;
     }
 

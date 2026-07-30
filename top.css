@@ -145,58 +145,12 @@ h1 {
     letter-spacing: 0.14em;
 }
 
-.saved-start-menu {
-    display: grid;
-    gap: 8px;
-}
-
-.saved-start-menu[hidden],
-.start-button[hidden],
-.startup-error[hidden],
-.save-picker[hidden] {
+.startup-error[hidden] {
     display: none;
 }
 
-.latest-save-info {
-    max-width: 100%;
-    margin-top: 6px;
-    color: #e0d5bf;
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
-    font-size: 10px;
-    font-weight: 400;
-    line-height: 1.45;
-    white-space: pre-line;
-}
-
-.start-secondary-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.start-secondary-button {
-    min-height: 38px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.035);
-    color: #d8cfbd;
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    text-decoration: none;
-    display: grid;
-    place-items: center;
-}
-
-.start-secondary-button:hover {
-    border-color: rgba(240, 211, 139, 0.62);
-    color: #fff4d7;
-}
-
-.start-secondary-button:focus-visible,
 .save-picker-row:focus-visible,
-.save-picker-close:focus-visible {
+.records-back:focus-visible {
     outline: 2px solid var(--gold-bright);
     outline-offset: 2px;
 }
@@ -212,61 +166,76 @@ h1 {
     line-height: 1.5;
 }
 
-.save-picker {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
+.records-screen {
+    width: min(100%, 560px);
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
     padding:
-        max(18px, env(safe-area-inset-top))
+        max(20px, env(safe-area-inset-top))
         16px
-        max(18px, env(safe-area-inset-bottom));
-    background: rgba(0, 0, 0, 0.78);
+        max(20px, env(safe-area-inset-bottom));
     display: grid;
-    place-items: center;
+    align-content: center;
+    gap: 10px;
 }
 
-.save-picker-panel {
-    width: min(100%, 520px);
-    max-height: min(78vh, 620px);
+.records-back {
+    width: fit-content;
+    color: #928a7b;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.records-panel {
+    min-height: 0;
+    max-height: calc(100dvh - 72px);
     border: 1px solid rgba(201, 167, 93, 0.48);
     border-radius: 6px;
-    background: #151412;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(132, 94, 39, 0.14), transparent 34%),
+        #151412;
     box-shadow: 0 18px 52px rgba(0, 0, 0, 0.64);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-.save-picker-header {
-    padding: 13px 14px;
+.records-header {
+    padding: 18px 16px 14px;
     border-bottom: 1px solid var(--line);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    text-align: center;
 }
 
-.save-picker-header h2 {
-    margin: 0;
+.records-header p {
+    margin: 0 0 4px;
+    color: var(--gold);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+}
+
+.records-header h1 {
+    margin: 0 0 7px;
     color: #f2e8d2;
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 500;
     letter-spacing: 0.08em;
 }
 
-.save-picker-close {
-    width: 34px;
-    height: 34px;
-    border: 0;
-    background: transparent;
-    color: #aaa394;
-    font: inherit;
-    font-size: 24px;
-    cursor: pointer;
+.records-header span {
+    color: #928a7b;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
 }
 
-.save-picker-list {
+.records-error {
+    margin: 10px 10px 0;
+}
+
+.records-list {
     min-height: 0;
-    max-height: min(52vh, 430px);
     padding: 10px;
     display: grid;
     gap: 8px;
@@ -316,6 +285,19 @@ h1 {
     white-space: pre-line;
 }
 
+.new-game-row {
+    border-color: rgba(240, 211, 139, 0.54);
+    background: rgba(201, 167, 93, 0.1);
+}
+
+.new-game-row strong {
+    color: #fff0c9;
+}
+
+.chapter-menu {
+    display: grid;
+}
+
 .chapter-list {
     margin-top: 9px;
     display: grid;
@@ -333,6 +315,17 @@ h1 {
     font-size: 11px;
     letter-spacing: 0.04em;
     text-decoration: none;
+}
+
+.chapter-item-name,
+.chapter-item-status {
+    display: block;
+}
+
+.chapter-item-status {
+    margin-top: 2px;
+    font-size: 10px;
+    color: #66625c;
 }
 
 .is-disabled {
@@ -470,6 +463,19 @@ h1 {
 
     .characters {
         min-height: 160px;
+    }
+
+    .records-screen {
+        align-content: start;
+        padding-top: max(14px, env(safe-area-inset-top));
+    }
+
+    .records-panel {
+        max-height: calc(100dvh - 58px);
+    }
+
+    .records-header {
+        padding: 13px 14px 10px;
     }
 }
 

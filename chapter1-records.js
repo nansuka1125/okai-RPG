@@ -53,44 +53,16 @@
         }
     };
 
-    const getDirectContinueSlot = validSlots => {
-        if (validSlots.length === 1) return validSlots[0];
-        if (
-            validSlots.length > 1 &&
-            validSlots.every(slot => slot.savedAtMs !== null)
-        ) {
-            return [...validSlots].sort((a, b) => b.savedAtMs - a.savedAtMs)[0];
-        }
-        return null;
-    };
-
     const navigateToSlot = slot => {
         window.location.assign(`chapter1.html?resume=${encodeURIComponent(slot.resume)}`);
     };
 
     window.addEventListener("DOMContentLoaded", () => {
-        const freshStartButton = document.getElementById("freshStartButton");
-        const savedStartMenu = document.getElementById("savedStartMenu");
-        const continueButton = document.getElementById("continueButton");
-        const latestSaveInfo = document.getElementById("latestSaveInfo");
-        const openSavePickerButton = document.getElementById("openSavePickerButton");
         const newGameButton = document.getElementById("newGameButton");
-        const savePicker = document.getElementById("savePicker");
         const savePickerList = document.getElementById("savePickerList");
-        const closeSavePickerButton = document.getElementById("closeSavePickerButton");
         const startupError = document.getElementById("startupError");
 
-        if (
-            !freshStartButton ||
-            !savedStartMenu ||
-            !continueButton ||
-            !latestSaveInfo ||
-            !openSavePickerButton ||
-            !newGameButton ||
-            !savePicker ||
-            !savePickerList ||
-            !closeSavePickerButton
-        ) {
+        if (!newGameButton || !savePickerList) {
             return;
         }
 
@@ -104,20 +76,6 @@
             }
             return;
         }
-
-        const storedSlots = slots.filter(slot => slot.status !== "empty");
-        const validSlots = slots.filter(slot => slot.status === "valid");
-        const directContinueSlot = getDirectContinueSlot(validSlots);
-
-        const closePicker = () => {
-            savePicker.hidden = true;
-            openSavePickerButton.focus();
-        };
-        const openPicker = () => {
-            savePicker.hidden = false;
-            const firstAvailable = savePickerList.querySelector("button:not(:disabled)");
-            (firstAvailable || closeSavePickerButton).focus();
-        };
 
         slots.forEach(slot => {
             const button = document.createElement("button");
@@ -142,27 +100,11 @@
             savePickerList.appendChild(button);
         });
 
-        if (storedSlots.length > 0) {
-            freshStartButton.hidden = true;
-            savedStartMenu.hidden = false;
-
-            if (directContinueSlot) {
-                latestSaveInfo.textContent = directContinueSlot.summary;
-                continueButton.onclick = () => navigateToSlot(directContinueSlot);
-            } else {
-                latestSaveInfo.textContent = validSlots.length > 0
-                    ? "保存日時を比較できない記録があります。再開する記録を選んでください。"
-                    : "読み込める記録がありません。";
-                continueButton.onclick = openPicker;
-            }
-        }
-
         if (new URLSearchParams(window.location.search).get("resumeError") === "1" && startupError) {
             startupError.hidden = false;
             startupError.textContent = "記録を読み込めなかった。別の記録を選んでください。";
         }
 
-        openSavePickerButton.onclick = openPicker;
         newGameButton.onclick = () => {
             if (!window.confirm("保存している旅の記録をすべて消して、はじめから開始しますか？")) {
                 return;
@@ -178,12 +120,5 @@
             }
             window.location.assign("chapter1.html");
         };
-        closeSavePickerButton.onclick = closePicker;
-        savePicker.addEventListener("click", event => {
-            if (event.target === savePicker) closePicker();
-        });
-        document.addEventListener("keydown", event => {
-            if (event.key === "Escape" && !savePicker.hidden) closePicker();
-        });
     });
 })();

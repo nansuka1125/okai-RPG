@@ -12,6 +12,7 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 ## Page Entrypoints
 
 - `index.html`: GitHub Pages top page and chapter navigation.
+- `chapter1-records.html`: Chapter 1 new-game and saved-record selection.
 - `chapter1.html`: Chapter 1 game entrypoint. It loads the existing runtime and keeps the script order below.
 
 ## Script Load Order
@@ -34,6 +35,8 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 | --- | --- | --- |
 | `index.html` | GitHub Pages top page | Keep chapter links relative so they work under the repository Pages path. |
 | `top.css` | Top-page presentation | Keep it separate from the game stylesheet. |
+| `chapter1-records.html` | Chapter 1 record selection | Keep new-game first and preserve the existing save-slot keys and resume query values. |
+| `chapter1-records.js` | Chapter 1 record menu behavior | Reads record summaries and routes selection to the existing `chapter1.html?resume=...` loader. |
 | `chapter1.html` | Chapter 1 DOM structure and script loading | Element IDs and script order are shared dependencies. |
 | `style.css` | Global presentation and effect styling | Keep DOM/class changes synchronized with UI code. |
 | `state.js` | `RPG.Config` and the default `RPG.State` | Persistent defaults and legacy `window.gameState` shim. |

@@ -72,14 +72,15 @@ test.describe('okai-RPG smoke test', () => {
     });
   });
 
-  test('top page links to the Chapter 1 game entrypoint', async ({ page }) => {
+  test('top page links to the Chapter 1 record selection', async ({ page }) => {
     await page.goto('/');
-    const startButton = page.locator('a.start-button');
-    await expect(startButton).toHaveAttribute('href', 'chapter1.html');
-    await expect(startButton).toContainText('ゲームを始める');
+    const startButton = page.locator('#chapter1RecordsButton');
+    await expect(startButton).toHaveAttribute('href', 'chapter1-records.html');
+    await expect(startButton).toContainText('記録を開く');
     await startButton.click();
-    await expect(page).toHaveURL(/\/chapter1\.html$/);
-    await expect(page.locator('#logContainer')).not.toBeEmpty();
+    await expect(page).toHaveURL(/\/chapter1-records\.html$/);
+    await expect(page.locator('#newGameButton')).toContainText('はじめから');
+    await expect(page.locator('#savePickerList .save-picker-row')).toHaveCount(7);
   });
 
   test('top page stays compact at a phone viewport', async ({ page }) => {
@@ -95,7 +96,7 @@ test.describe('okai-RPG smoke test', () => {
 
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
     expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight * 1.5);
-    await expect(page.locator('#freshStartButton')).toBeInViewport();
+    await expect(page.locator('#chapter1RecordsButton')).toBeInViewport();
     await expect(page.locator('.characters')).toBeInViewport();
   });
 

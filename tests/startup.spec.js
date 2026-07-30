@@ -55,6 +55,11 @@ async function seedStorage(page, entries) {
   await page.reload();
 }
 
+async function openChapter1Records(page) {
+  await page.locator('#chapter1RecordsButton').click();
+  await expect(page).toHaveURL(/\/chapter1-records\.html$/);
+}
+
 test.describe('title continue flow', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
@@ -62,15 +67,18 @@ test.describe('title continue flow', () => {
     });
   });
 
-  test('shows only the existing game-start button when no save exists', async ({ page }) => {
+  test('top page always shows one Chapter 1 record button', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.locator('#freshStartButton')).toBeVisible();
-    await expect(page.locator('#freshStartButton')).toContainText('ゲームを始める');
-    await expect(page.locator('#savedStartMenu')).toBeHidden();
+    const chapterButton = page.locator('#chapter1RecordsButton');
+    await expect(chapterButton).toBeVisible();
+    await expect(chapterButton).toHaveAttribute('href', 'chapter1-records.html');
+    await expect(chapterButton).toContainText('第一章「宿屋と銀貨」');
+    await expect(chapterButton).toContainText('記録を開く');
+    await expect(page.locator('#continueButton, #newGameButton, #savePickerList')).toHaveCount(0);
   });
 
-  test('continues the newest dated record and restores it before the prologue', async ({ page }) => {
+  test('record page loads a selected dated record before the prologue', async ({ page }) => {
     const older = makeSave({
       savedAt: '2026-07-28T10:00:00.000Z',
       memo: '古い旅の記録。',
@@ -90,13 +98,13 @@ test.describe('title continue flow', () => {
       okai_rpg_suspend: JSON.stringify(newest),
     });
 
-    await expect(page.locator('#freshStartButton')).toBeHidden();
-    await expect(page.locator('#savedStartMenu')).toBeVisible();
-    await expect(page.locator('#latestSaveInfo')).toContainText('新しい旅の記録。');
-    await expect(page.locator('#latestSaveInfo')).toContainText('琥珀の森 6m');
-    await expect(page.locator('#latestSaveInfo')).toContainText('Lv.7');
+    await openChapter1Records(page);
 
-    await page.locator('#continueButton').click();
+    const suspendRow = page.getByRole('button', { name: /中断記録/ });
+    await expect(suspendRow).toContainText('新しい旅の記録。');
+    await expect(suspendRow).toContainText('琥珀の森 6m');
+    await expect(suspendRow).toContainText('Lv.7');
+    await suspendRow.click();
     await expect(page).toHaveURL(/chapter1\.html\?resume=suspend$/);
     await page.waitForFunction(() => window.RPG?.State?.storyPhase === 4);
 
@@ -120,7 +128,7 @@ test.describe('title continue flow', () => {
     });
   });
 
-  test('direct chapter test-play opens the title menu when a record exists', async ({ page }) => {
+  test('direct chapter test-play opens the Chapter 1 record page when a record exists', async ({ page }) => {
     await seedStorage(page, {
       okai_rpg_save_1: JSON.stringify(makeSave({
         savedAt: '2026-07-29T10:00:00.000Z',
@@ -130,10 +138,8 @@ test.describe('title continue flow', () => {
     });
 
     await page.goto('/chapter1.html');
-    await expect(page).toHaveURL(/\/index\.html$/);
-    await expect(page.locator('#savedStartMenu')).toBeVisible();
-    await expect(page.locator('#continueButton')).toContainText('続きから');
-    await expect(page.locator('#latestSaveInfo')).toContainText('テストプレイの続き。');
+    await expect(page).toHaveURL(/\/chapter1-records\.html$/);
+    await expect(page.getByRole('button', { name: /第一頁/ })).toContainText('テストプレイの続き。');
   });
 
   test('the picker can resume an older manual page instead of the newest record', async ({ page }) => {
@@ -150,8 +156,7 @@ test.describe('title continue flow', () => {
       })),
     });
 
-    await page.locator('#openSavePickerButton').click();
-    await expect(page.locator('#savePicker')).toBeVisible();
+    await openChapter1Records(page);
     await page.getByRole('button', { name: /第一頁/ }).click();
     await expect(page).toHaveURL(/chapter1\.html\?resume=1$/);
     await page.waitForFunction(() => window.RPG?.State?.storyPhase === 2);
@@ -172,9 +177,7 @@ test.describe('title continue flow', () => {
       })),
     });
 
-    await expect(page.locator('#latestSaveInfo')).toContainText('再開する記録を選んでください');
-    await page.locator('#continueButton').click();
-    await expect(page.locator('#savePicker')).toBeVisible();
+    await openChapter1Records(page);
     await expect(page.getByRole('button', { name: /第二頁/ })).toContainText('以前の記録');
 
     await page.getByRole('button', { name: /第二頁/ }).click();
@@ -187,18 +190,17 @@ test.describe('title continue flow', () => {
       okai_rpg_save_1: '{not valid json',
     });
 
-    await page.locator('#continueButton').click();
-    await expect(page.locator('#savePicker')).toBeVisible();
+    await openChapter1Records(page);
     await expect(page.getByRole('button', { name: /第一頁/ })).toBeDisabled();
     await expect(page.getByRole('button', { name: /第一頁/ })).toContainText('記録を読み込めない');
 
     await page.goto('/chapter1.html?resume=1');
-    await expect(page).toHaveURL(/index\.html\?resumeError=1$/);
+    await expect(page).toHaveURL(/chapter1-records\.html\?resumeError=1$/);
     await expect(page.locator('#startupError')).toContainText('記録を読み込めなかった');
 
     await page.evaluate(() => localStorage.removeItem('okai_rpg_save_5'));
     await page.goto('/chapter1.html?resume=5');
-    await expect(page).toHaveURL(/index\.html\?resumeError=1$/);
+    await expect(page).toHaveURL(/chapter1-records\.html\?resumeError=1$/);
   });
 
   test('an unsupported resume value follows the normal fresh-start route', async ({ page }) => {
@@ -225,13 +227,14 @@ test.describe('title continue flow', () => {
       }));
     });
     await seedStorage(page, entries);
+    await openChapter1Records(page);
 
     page.once('dialog', async dialog => {
       expect(dialog.type()).toBe('confirm');
       await dialog.dismiss();
     });
     await page.locator('#newGameButton').click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/chapter1-records\.html$/);
     expect(await page.evaluate(() => (
       [
         'okai_rpg_suspend',
@@ -278,9 +281,10 @@ test.describe('title continue flow', () => {
     });
     await seedStorage(page, entries);
 
-    await page.locator('#openSavePickerButton').click();
+    await openChapter1Records(page);
     const list = page.locator('#savePickerList');
-    await expect(list.locator('.save-picker-row')).toHaveCount(6);
+    await expect(list.locator('.save-picker-row')).toHaveCount(7);
+    await expect(list.locator('.save-picker-row').first()).toContainText('はじめから');
     const dimensions = await list.evaluate(element => ({
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,

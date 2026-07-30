@@ -82,7 +82,7 @@ test.describe('field utility items', () => {
     expect(result.useButtons).toEqual({
       fakeWoundMedicine: true,
       smokeBomb: true,
-      hardBottle: false,
+      hardBottle: true,
       gratefulTalisman: false,
       mikawashiFeather: true,
     });

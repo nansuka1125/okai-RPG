@@ -72,7 +72,9 @@ window.onload = () => {
             sourceLabel: "第五頁"
         }
     };
-    const resumeParam = new URLSearchParams(window.location.search).get("resume");
+    const searchParams = new URLSearchParams(window.location.search);
+    const resumeParam = searchParams.get("resume");
+    const isNewGame = searchParams.get("new") === "1";
     const resumeTarget = (
         resumeParam &&
         Object.prototype.hasOwnProperty.call(resumeTargets, resumeParam)
@@ -80,7 +82,7 @@ window.onload = () => {
         ? resumeTargets[resumeParam]
         : null;
 
-    if (resumeParam === null) {
+    if (resumeParam === null && !isNewGame) {
         let hasStoredRecord = false;
         try {
             hasStoredRecord = Object.values(resumeTargets).some(target => (

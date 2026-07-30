@@ -779,6 +779,11 @@ const uiControl = {
             return false;
         }
 
+        if (itemId === 'vampireAmber' && RPG.State.flags.matamatabiActive === true) {
+            this.addLog("カイン「今これをつけたら、さすがに血が足りない」");
+            return false;
+        }
+
         const nextAmber = this.getRareAmberCatalogEntry(itemId);
         const previousId = RPG.State.equippedRareAmberId;
         const previousAmber = previousId
@@ -803,6 +808,10 @@ const uiControl = {
         );
         RPG.State.equippedRareAmberId = itemId;
 
+        if (previousId === 'vampireAmber') {
+            this.resetVampireAmberChain();
+        }
+
         const message = previousAmber
             ? `${previousAmber.name}を外し、${nextAmber.name}を光るブローチに装着した。`
             : `${nextAmber.name}を光るブローチに装着した。`;
@@ -826,6 +835,9 @@ const uiControl = {
 
         RPG.State.inventory[equippedId] = (RPG.State.inventory[equippedId] || 0) + 1;
         RPG.State.equippedRareAmberId = null;
+        if (equippedId === 'vampireAmber') {
+            this.resetVampireAmberChain();
+        }
         if (shouldLog) {
             this.addLog(
                 `${equippedAmber.name}を光るブローチから外した。`,
@@ -847,6 +859,38 @@ const uiControl = {
         return true;
     },
 
+    // Build 15.6.x: Shared vampire-amber chain-count helpers, called from battle-end paths
+    // (battle.js), inn entry (inn.js), and equip/detach above.
+    resetVampireAmberChain: function () {
+        RPG.State.flags.vampireAmberChainBattleCount = 0;
+    },
+
+    // Build 15.6.x: Extra description text appended (never overwriting ITEM_DESC) while
+    // vampireAmber is equipped and mid-chain (chain count resets to 0 on every removal trigger,
+    // so "count >= 1" alone is a reliable "currently active" signal).
+    getVampireAmberChainDescriptionSuffix: function (itemId) {
+        if (
+            itemId === 'vampireAmber' &&
+            RPG.State.equippedRareAmberId === 'vampireAmber' &&
+            (RPG.State.flags.vampireAmberChainBattleCount || 0) >= 1
+        ) {
+            return "\nいつもより赤く濁っている。微かに脈打っている。";
+        }
+        return "";
+    },
+
+    advanceVampireAmberChainOnBattleEnd: function () {
+        if (RPG.State.equippedRareAmberId !== 'vampireAmber') return;
+
+        RPG.State.flags.vampireAmberChainBattleCount = (RPG.State.flags.vampireAmberChainBattleCount || 0) + 1;
+
+        if (RPG.State.flags.vampireAmberChainBattleCount >= 6) {
+            this.detachRareAmber({ log: false });
+            this.addLog("オーエンが《吸血琥珀》を乱暴にもぎ取った！", "marker", "#a020f0");
+            this.resetVampireAmberChain();
+        }
+    },
+
     renderRareAmberSocketControls: function (detail) {
         const equippedAmber = this.getRareAmberCatalogEntry(RPG.State.equippedRareAmberId);
         const socket = document.createElement('div');
@@ -861,7 +905,9 @@ const uiControl = {
         if (equippedAmber) {
             const description = document.createElement('div');
             description.style.cssText = 'font-size:12px;color:#aaa;margin-top:4px;';
-            description.textContent = RPG.Assets.CONFIG.ITEM_DESC[equippedAmber.id];
+            description.textContent =
+                RPG.Assets.CONFIG.ITEM_DESC[equippedAmber.id] +
+                this.getVampireAmberChainDescriptionSuffix(equippedAmber.id);
             socket.appendChild(description);
         }
 
@@ -913,7 +959,7 @@ const uiControl = {
     selectItem: function (key, count) {
         const detail = document.getElementById('itemDetailArea');
         if (!detail) return;
-        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> (×${count})<br><span style="font-size:12px;color:#aaa;">${RPG.Assets.CONFIG.ITEM_DESC[key]}</span>`;
+        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> (×${count})<br><span style="font-size:12px;color:#aaa;">${RPG.Assets.CONFIG.ITEM_DESC[key]}${this.getVampireAmberChainDescriptionSuffix(key)}</span>`;
 
         // アイテム使用ボタンの表示判定
         // 将来的にはtype判定などが望ましいが、今はswitchか個別判定
@@ -1139,18 +1185,34 @@ const uiControl = {
     // Build 15.5.1: 討伐ノート (bounty notebook) modal
     getNotebookRowDisplay: function (actualKills, tiers) {
         const isClaimed = tier => !!tier.claimedFlag && RPG.State.flags[tier.claimedFlag] === true;
-        const countableTiers = tiers.filter(tier => Number.isFinite(tier.target));
+        const isUnlocked = tier => (
+            tier.claimEnabled !== false &&
+            (!tier.unlockFlag || RPG.State.flags[tier.unlockFlag] === true)
+        );
+        const getTierProgress = tier => (
+            tier.progressFlag
+                ? Math.max(0, Number(RPG.State.flags[tier.progressFlag]) || 0)
+                : actualKills
+        );
+        const countableTiers = tiers.filter(tier => (
+            Number.isFinite(tier.target) && isUnlocked(tier)
+        ));
+        const independentProgressTier =
+            countableTiers.find(tier => !!tier.progressFlag) ||
+            null;
         const activeTier =
+            independentProgressTier ||
             countableTiers.find(tier => !isClaimed(tier)) ||
             countableTiers[countableTiers.length - 1] ||
             null;
         const displayCount = activeTier
-            ? Math.min(actualKills, activeTier.target)
+            ? Math.min(getTierProgress(activeTier), activeTier.target)
             : actualKills;
         const markers = tiers.map(tier => {
             if (!Number.isFinite(tier.target) || tier.claimEnabled === false) return '－';
             if (isClaimed(tier)) return '✓';
-            return actualKills >= tier.target ? '！' : '○';
+            if (!isUnlocked(tier)) return '－';
+            return getTierProgress(tier) >= tier.target ? '！' : '○';
         });
         return {
             displayCount,
@@ -1177,6 +1239,11 @@ const uiControl = {
 
     openNotebookModal: function () {
         if (RPG.State.mode !== "base") return;
+        if (innSystem.startPendingNotebookAllUnlocks()) return;
+        this.showNotebookModal();
+    },
+
+    showNotebookModal: function () {
         this.selectedNotebookReward = null;
         this.refreshNotebookModal();
         const modal = document.getElementById('notebookModal');

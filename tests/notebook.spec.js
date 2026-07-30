@@ -45,6 +45,25 @@ async function drainDialogue(page, maxTaps = 200) {
   throw new Error('dialogue did not finish');
 }
 
+const RAT_ALL_UNLOCK_TEXT = [
+  '傭兵崩れ「あんた、ずいぶん強いな。それとも、あのネズミが弱いのか？」',
+  'カイン「全然強くないぞ。あんたらでも多分勝てる」',
+  'オーエン「おまえでも勝てたくらいだもんね」',
+  'カイン（…その言い方は引っかかるが、事実だな）',
+  '傭兵崩れ「見掛け倒しか！よし、俺たちでもやってみるか」',
+  '娘「カインさんがネズミをバンバン倒すのを見て、他の冒険者の方がやる気になったようです」',
+  '《魔界のネズミのALL条件が解放された！》',
+];
+
+const WEASEL_ALL_UNLOCK_TEXT = [
+  '若い剣士「カインさん。森で、見えない何かに斬りつけられたんだ。あれは何なんだ？」',
+  'カイン「魔界のイタチだ。最初は透明で姿が見えない」',
+  '若い剣士「斬る方法はあるのか？」',
+  'カイン「血生臭いにおいがしたら、地面すれすれを薙ぎ払うんだ。少しでも当たれば姿が見える」',
+  '若い剣士「分かった！やってみるよ」',
+  '《魔界のイタチのALL条件が解放された！》',
+];
+
 test.describe('討伐ノート (bounty notebook)', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
@@ -388,6 +407,238 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
+  test('rat ALL unlock waits for the next notebook open, preserves repair linkage, and runs once', async ({ page }) => {
+    const immediate = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty20Received: false,
+        ratBountyAllUnlocked: false,
+        ratBountyAllProgress: 0,
+        ratBountyAllReceived: false,
+        weaselBounty20Received: false,
+        innRepairConsultSeen: true,
+        amberTreeCoinMined: true,
+        innRepairInspectionUnlocked: false,
+        innRepairInspectionReported: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 20, owen: 0 };
+      RPG.State.inventory.fakeWoundMedicine = 0;
+      innSystem.claimNotebookRewards('rat', '20');
+      return {
+        rat20Received: RPG.State.flags.ratBounty20Received,
+        unlocked: RPG.State.flags.ratBountyAllUnlocked,
+        progress: RPG.State.flags.ratBountyAllProgress,
+        repairUnlocked: RPG.State.flags.innRepairInspectionUnlocked,
+        hasAllUnlockText: RPG.State.dialogueQueue.some(
+          line => (line.text || '').includes('ALL条件が解放')
+        ),
+      };
+    });
+    expect(immediate).toEqual({
+      rat20Received: true,
+      unlocked: false,
+      progress: 0,
+      repairUnlocked: true,
+      hasAllUnlockText: false,
+    });
+
+    await drainDialogue(page);
+    const opened = await page.evaluate(() => {
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      uiControl.openNotebookModal();
+      return {
+        mode: RPG.State.mode,
+        modalDisplay: getComputedStyle(document.getElementById('notebookModal')).display,
+      };
+    });
+    expect(opened).toEqual({ mode: 'event', modalDisplay: 'none' });
+
+    await drainDialogue(page);
+    const unlocked = await page.evaluate(() => ({
+      lines: [...document.querySelectorAll('#logContainer .log-entry')]
+        .map(element => element.textContent),
+      unlocked: RPG.State.flags.ratBountyAllUnlocked,
+      progress: RPG.State.flags.ratBountyAllProgress,
+      modalDisplay: document.getElementById('notebookModal')?.style.display,
+      countText: document.getElementById('notebookRow_rat_count')?.textContent,
+      allMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
+    }));
+    expect(unlocked).toEqual({
+      lines: RAT_ALL_UNLOCK_TEXT,
+      unlocked: true,
+      progress: 0,
+      modalDisplay: 'flex',
+      countText: '0/5',
+      allMarker: '○ALL',
+    });
+
+    const reopened = await page.evaluate(() => {
+      uiControl.closeNotebookModal();
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      uiControl.openNotebookModal();
+      return {
+        mode: RPG.State.mode,
+        modalDisplay: document.getElementById('notebookModal')?.style.display,
+        lines: [...document.querySelectorAll('#logContainer .log-entry')]
+          .map(element => element.textContent),
+      };
+    });
+    expect(reopened).toEqual({ mode: 'base', modalDisplay: 'flex', lines: [] });
+  });
+
+  test('weasel-only ALL unlock uses the complete independent dialogue', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty20Received: false,
+        ratBountyAllUnlocked: false,
+        ratBountyAllReceived: false,
+        weaselBounty20Received: true,
+        weaselBountyAllUnlocked: false,
+        weaselBountyAllProgress: 0,
+        weaselBountyAllReceived: false,
+      });
+      RPG.State.defeatCounts.weasel = { cain: 40, owen: 5 };
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      uiControl.openNotebookModal();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      lines: [...document.querySelectorAll('#logContainer .log-entry')]
+        .map(element => element.textContent),
+      ratUnlocked: RPG.State.flags.ratBountyAllUnlocked,
+      weaselUnlocked: RPG.State.flags.weaselBountyAllUnlocked,
+      progress: RPG.State.flags.weaselBountyAllProgress,
+      modalDisplay: document.getElementById('notebookModal')?.style.display,
+      countText: document.getElementById('notebookRow_weasel_count')?.textContent,
+      allMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
+    }));
+    expect(result).toEqual({
+      lines: WEASEL_ALL_UNLOCK_TEXT,
+      ratUnlocked: false,
+      weaselUnlocked: true,
+      progress: 0,
+      modalDisplay: 'flex',
+      countText: '0/3',
+      allMarker: '○ALL',
+    });
+  });
+
+  test('simultaneous ALL unlocks run rat then weasel without connector text', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty20Received: true,
+        ratBountyAllUnlocked: false,
+        ratBountyAllReceived: false,
+        weaselBounty20Received: true,
+        weaselBountyAllUnlocked: false,
+        weaselBountyAllReceived: false,
+      });
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      uiControl.openNotebookModal();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      lines: [...document.querySelectorAll('#logContainer .log-entry')]
+        .map(element => element.textContent),
+      ratUnlocked: RPG.State.flags.ratBountyAllUnlocked,
+      weaselUnlocked: RPG.State.flags.weaselBountyAllUnlocked,
+      modalDisplay: document.getElementById('notebookModal')?.style.display,
+    }));
+    expect(result.lines).toEqual([...RAT_ALL_UNLOCK_TEXT, ...WEASEL_ALL_UNLOCK_TEXT]);
+    expect(result.ratUnlocked).toBe(true);
+    expect(result.weaselUnlocked).toBe(true);
+    expect(result.modalDisplay).toBe('flex');
+  });
+
+  test('ALL rows switch from locked 20 totals to independent 0/targets, claimable, then claimed', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty10Received: true,
+        ratBounty20Received: true,
+        ratBountyAllUnlocked: false,
+        ratBountyAllProgress: 0,
+        ratBountyAllReceived: false,
+        weaselBounty10Received: true,
+        weaselBounty20Received: true,
+        weaselBountyAllUnlocked: false,
+        weaselBountyAllProgress: 0,
+        weaselBountyAllReceived: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 40, owen: 10 };
+      RPG.State.defeatCounts.weasel = { cain: 30, owen: 10 };
+      uiControl.showNotebookModal();
+      const locked = {
+        ratCount: document.getElementById('notebookRow_rat_count')?.textContent,
+        ratMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
+        weaselCount: document.getElementById('notebookRow_weasel_count')?.textContent,
+        weaselMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
+      };
+
+      Object.assign(RPG.State.flags, {
+        ratBountyAllUnlocked: true,
+        weaselBountyAllUnlocked: true,
+      });
+      uiControl.refreshNotebookModal();
+      const unlocked = {
+        ratCount: document.getElementById('notebookRow_rat_count')?.textContent,
+        ratMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
+        weaselCount: document.getElementById('notebookRow_weasel_count')?.textContent,
+        weaselMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
+      };
+
+      RPG.State.flags.ratBountyAllProgress = 5;
+      RPG.State.flags.weaselBountyAllProgress = 3;
+      uiControl.refreshNotebookModal();
+      const reached = {
+        ratCount: document.getElementById('notebookRow_rat_count')?.textContent,
+        ratMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
+        weaselCount: document.getElementById('notebookRow_weasel_count')?.textContent,
+        weaselMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
+        claimableButtons: [...document.querySelectorAll('.notebook-tier-button')]
+          .filter(element => element.textContent.includes('ALL')).length,
+      };
+
+      RPG.State.flags.ratBountyAllReceived = true;
+      RPG.State.flags.weaselBountyAllReceived = true;
+      uiControl.refreshNotebookModal();
+      const claimed = {
+        ratMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
+        weaselMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
+      };
+      return { locked, unlocked, reached, claimed };
+    });
+
+    expect(result.locked).toEqual({
+      ratCount: '20/20',
+      ratMarker: '－ALL',
+      weaselCount: '20/20',
+      weaselMarker: '－ALL',
+    });
+    expect(result.unlocked).toEqual({
+      ratCount: '0/5',
+      ratMarker: '○ALL',
+      weaselCount: '0/3',
+      weaselMarker: '○ALL',
+    });
+    expect(result.reached).toEqual({
+      ratCount: '5/5',
+      ratMarker: '！ALL',
+      weaselCount: '3/3',
+      weaselMarker: '！ALL',
+      claimableButtons: 2,
+    });
+    expect(result.claimed).toEqual({ ratMarker: '✓ALL', weaselMarker: '✓ALL' });
+  });
+
   test('getRatBounty10Reward and hasAnyClaimableNotebookReward reflect the 10-kill threshold', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.flags.ratBounty10Received = false;
@@ -406,31 +657,127 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.atThreshold.claimable).toBe(true);
   });
 
-  test('claiming the rat-10 reward grants herb x3 once and marks it received', async ({ page }) => {
+  test('the rat-10 debug branch grants herb x3 and vampire amber x1 once with both reward lines', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, { mode: 'base', isAtInn: true });
       RPG.State.flags.ratBounty10Received = false;
       RPG.State.defeatCounts.rat = { cain: 6, owen: 4 };
       RPG.State.inventory.herb = 0;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = true;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
       innSystem.claimNotebookRewards();
     });
 
     await drainDialogue(page);
 
-    const result = await page.evaluate(() => ({
-      herb: RPG.State.inventory.herb,
-      received: RPG.State.flags.ratBounty10Received,
-      modalDisplay: document.getElementById('notebookModal')?.style.display,
-      mode: RPG.State.mode,
-    }));
-    expect(result).toEqual({ herb: 3, received: true, modalDisplay: 'none', mode: 'base' });
+    const result = await page.evaluate(() => {
+      const logText = document.getElementById('logContainer')?.textContent || '';
+      return {
+        herb: RPG.State.inventory.herb,
+        vampireAmber: RPG.State.inventory.vampireAmber,
+        received: RPG.State.flags.ratBounty10Received,
+        herbRewardShown: logText.includes('🌿薬草を3個受け取った！'),
+        vampireRewardShown: logText.includes('🔸《吸血琥珀》を1個受け取った！'),
+        modalDisplay: document.getElementById('notebookModal')?.style.display,
+        mode: RPG.State.mode,
+      };
+    });
+    expect(result).toEqual({
+      herb: 3,
+      vampireAmber: 1,
+      received: true,
+      herbRewardShown: true,
+      vampireRewardShown: true,
+      modalDisplay: 'none',
+      mode: 'base',
+    });
 
     // A second claim attempt afterward must be a no-op (already received).
     await page.evaluate(() => {
       innSystem.claimNotebookRewards();
     });
-    const second = await page.evaluate(() => ({ herb: RPG.State.inventory.herb, mode: RPG.State.mode }));
-    expect(second).toEqual({ herb: 3, mode: 'base' });
+    const second = await page.evaluate(() => ({
+      herb: RPG.State.inventory.herb,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+      mode: RPG.State.mode,
+    }));
+    expect(second).toEqual({ herb: 3, vampireAmber: 1, mode: 'base' });
+  });
+
+  test('disabling the rat-10 debug branch preserves the formal herb-only reward', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      RPG.State.flags.ratBounty10Received = false;
+      RPG.State.defeatCounts.rat = { cain: 10, owen: 0 };
+      RPG.State.inventory.herb = 0;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = false;
+
+      const reward = innSystem.getNotebookRewardDefinition('rat', '10');
+      const formalItemsBeforeClaim = reward?.tier.items.map(item => ({ ...item }));
+      innSystem.claimNotebookRewards('rat', '10');
+
+      return {
+        formalItemsBeforeClaim,
+        herb: RPG.State.inventory.herb,
+        vampireAmber: RPG.State.inventory.vampireAmber,
+        queueText: RPG.State.dialogueQueue.map(item => item.text || ''),
+      };
+    });
+
+    expect(result).toEqual({
+      formalItemsBeforeClaim: [{ itemId: 'herb', qty: 3 }],
+      herb: 3,
+      vampireAmber: 0,
+      queueText: [
+        '🌿薬草を3個受け取った！',
+      ],
+    });
+  });
+
+  test('the debug vampire amber appears in brooch candidates and survives save/reload', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      RPG.State.flags.ratBounty10Received = false;
+      RPG.State.defeatCounts.rat = { cain: 10, owen: 0 };
+      Object.assign(RPG.State.inventory, {
+        herb: 0,
+        vampireAmber: 0,
+        glowingBrooch: 1,
+      });
+      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = true;
+      innSystem.claimNotebookRewards('rat', '10');
+    });
+    await drainDialogue(page);
+
+    const beforeSave = await page.evaluate(() => {
+      uiControl.selectItem('glowingBrooch', 1);
+      uiControl.showRareAmberSelection();
+      const candidates = document.getElementById('itemList')?.textContent || '';
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_rat10_debug_amber_test', JSON.stringify(snapshot));
+
+      RPG.State.flags.ratBounty10Received = false;
+      RPG.State.inventory.herb = 0;
+      RPG.State.inventory.vampireAmber = 0;
+      uiControl.loadFromStorage('okai_rpg_rat10_debug_amber_test', 'デバッグ報酬テスト');
+
+      return {
+        candidateShown: candidates.includes('🔸《吸血琥珀》'),
+        received: RPG.State.flags.ratBounty10Received,
+        herb: RPG.State.inventory.herb,
+        vampireAmber: RPG.State.inventory.vampireAmber,
+      };
+    });
+
+    expect(beforeSave).toEqual({
+      candidateShown: true,
+      received: true,
+      herb: 3,
+      vampireAmber: 1,
+    });
   });
 
   test('rat 10 and 20 rewards remain independently claimable at 20 kills', async ({ page }) => {
@@ -554,11 +901,246 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(restored).toEqual({ medicine: 3, smokeBomb: 3, received: true });
   });
 
+  test('ALL progress starts at unlock, advances only for Cain, and caps at each target', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const prepareVictory = enemyId => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === enemyId);
+        RPG.State.currentEnemy = { ...template, hp: 0 };
+        RPG.State.isBattling = true;
+        RPG.State.mode = 'battle';
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.battleState = {};
+      };
+
+      Object.assign(RPG.State.flags, {
+        ratBountyAllUnlocked: false,
+        ratBountyAllProgress: 0,
+        weaselBountyAllUnlocked: true,
+        weaselBountyAllProgress: 0,
+      });
+      RPG.State.defeatCounts.rat = { cain: 40, owen: 10 };
+      RPG.State.defeatCounts.weasel = { cain: 30, owen: 10 };
+
+      prepareVictory('rat');
+      battleSystem.executeStandardVictory('rat');
+      const beforeUnlock = {
+        progress: RPG.State.flags.ratBountyAllProgress,
+        cumulativeCain: RPG.State.defeatCounts.rat.cain,
+      };
+
+      RPG.State.flags.ratBountyAllUnlocked = true;
+      prepareVictory('rat');
+      battleSystem.executeStandardVictory('rat');
+      const afterCainVictory = {
+        progress: RPG.State.flags.ratBountyAllProgress,
+        cumulativeCain: RPG.State.defeatCounts.rat.cain,
+      };
+
+      const owenAdded = battleSystem.incrementNotebookAllProgress('rat', 'Owen');
+      const amberRatAdded = battleSystem.incrementNotebookAllProgress('amber_rat', 'Cain');
+      for (let i = 0; i < 10; i++) {
+        battleSystem.incrementNotebookAllProgress('rat', 'Cain');
+        battleSystem.incrementNotebookAllProgress('weasel', 'Cain');
+      }
+
+      return {
+        beforeUnlock,
+        afterCainVictory,
+        owenAdded,
+        amberRatAdded,
+        ratProgress: RPG.State.flags.ratBountyAllProgress,
+        weaselProgress: RPG.State.flags.weaselBountyAllProgress,
+      };
+    });
+
+    expect(result).toEqual({
+      beforeUnlock: { progress: 0, cumulativeCain: 41 },
+      afterCainVictory: { progress: 1, cumulativeCain: 42 },
+      owenAdded: false,
+      amberRatAdded: false,
+      ratProgress: 5,
+      weaselProgress: 3,
+    });
+  });
+
+  test('completed ALL targets suppress only final normal random enemies and preserve amberized and fixed battles', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const originalRandom = Math.random;
+      const originalBattleRate = RPG.Assets.CONFIG.BATTLE_RATE;
+      const cleanupBattle = () => {
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        RPG.State.mode = 'base';
+      };
+
+      try {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: 1,
+        });
+        Object.assign(RPG.State.flags, {
+          chapter1Cleared: false,
+          matamatabiActive: false,
+          metThiefBoy: true,
+          ratBountyAllUnlocked: true,
+          ratBountyAllProgress: 5,
+          weaselBountyAllUnlocked: true,
+          weaselBountyAllProgress: 3,
+        });
+
+        const randomRatStarted = battleSystem.startBattle('rat', { randomEncounter: true });
+        const randomRatEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        const randomWeaselStarted = battleSystem.startBattle('weasel', { randomEncounter: true });
+        const randomWeaselEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        const fixedRatStarted = battleSystem.startBattle('rat');
+        const fixedRatEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        Math.random = () => 0;
+        const ratTemplate = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'rat');
+        const amberizedTemplate = battleSystem.maybeUseAmberizedVariant(ratTemplate);
+        const amberRandomStarted = battleSystem.startBattle(
+          amberizedTemplate.id,
+          { randomEncounter: true }
+        );
+        const amberRandomEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        RPG.State.flags.matamatabiActive = true;
+        Math.random = () => 0.5;
+        const matatabiWeaselStarted = battleSystem.startBattle(null);
+        const matatabiEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.storyPhase = 1;
+        RPG.State.explorationArea = 'herbGarden';
+        RPG.Assets.CONFIG.BATTLE_RATE = 1;
+        Math.random = () => 0;
+        const herbGardenStarted = explorationSystem.tryHerbGardenEncounter(1);
+        const herbGardenEnemy = RPG.State.currentEnemy?.id || null;
+
+        return {
+          randomRatStarted,
+          randomRatEnemy,
+          randomWeaselStarted,
+          randomWeaselEnemy,
+          fixedRatStarted,
+          fixedRatEnemy,
+          amberizedId: amberizedTemplate.id,
+          amberRandomStarted,
+          amberRandomEnemy,
+          matatabiWeaselStarted,
+          matatabiEnemy,
+          herbGardenStarted,
+          herbGardenEnemy,
+          highwaySwarmExcluded:
+            battleSystem.isNotebookAllRandomEncounterExcluded('hell_rat_swarm'),
+        };
+      } finally {
+        Math.random = originalRandom;
+        RPG.Assets.CONFIG.BATTLE_RATE = originalBattleRate;
+      }
+    });
+
+    expect(result).toEqual({
+      randomRatStarted: false,
+      randomRatEnemy: null,
+      randomWeaselStarted: false,
+      randomWeaselEnemy: null,
+      fixedRatStarted: true,
+      fixedRatEnemy: 'rat',
+      amberizedId: 'amber_rat',
+      amberRandomStarted: true,
+      amberRandomEnemy: 'amber_rat',
+      matatabiWeaselStarted: false,
+      matatabiEnemy: null,
+      herbGardenStarted: false,
+      herbGardenEnemy: null,
+      highwaySwarmExcluded: false,
+    });
+  });
+
+  test('rat and weasel ALL rewards use their dedicated intro, shared item grant, and one-time flags', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBountyAllUnlocked: true,
+        ratBountyAllProgress: 5,
+        ratBountyAllReceived: false,
+        weaselBountyAllUnlocked: true,
+        weaselBountyAllProgress: 3,
+        weaselBountyAllReceived: false,
+      });
+      RPG.State.inventory.gratefulTalisman = 0;
+      RPG.State.inventory.highHerb = 0;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.claimNotebookRewards('rat', 'all');
+    });
+    await drainDialogue(page);
+
+    const ratResult = await page.evaluate(() => {
+      const result = {
+        lines: [...document.querySelectorAll('#logContainer .log-entry')]
+          .map(element => element.textContent),
+        item: RPG.State.inventory.gratefulTalisman,
+        received: RPG.State.flags.ratBountyAllReceived,
+      };
+      innSystem.claimNotebookRewards('rat', 'all');
+      result.itemAfterRetry = RPG.State.inventory.gratefulTalisman;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.claimNotebookRewards('weasel', 'all');
+      return result;
+    });
+    expect(ratResult).toEqual({
+      lines: [
+        '娘「魔界のネズミくらいなら、冒険者の方で倒せるようになりました。ありがとうございます！」',
+        '🧧ありがた〜い札を1個受け取った！',
+      ],
+      item: 1,
+      received: true,
+      itemAfterRetry: 1,
+    });
+
+    await drainDialogue(page);
+    const weaselResult = await page.evaluate(() => {
+      const result = {
+        lines: [...document.querySelectorAll('#logContainer .log-entry')]
+          .map(element => element.textContent),
+        item: RPG.State.inventory.highHerb,
+        received: RPG.State.flags.weaselBountyAllReceived,
+      };
+      innSystem.claimNotebookRewards('weasel', 'all');
+      result.itemAfterRetry = RPG.State.inventory.highHerb;
+      return result;
+    });
+    expect(weaselResult).toEqual({
+      lines: [
+        '娘「あの剣士の方が、魔界のイタチを倒せるようになりました。お礼の品を預かっています」',
+        '🌿上薬草を3個受け取った！',
+      ],
+      item: 3,
+      received: true,
+      itemAfterRetry: 3,
+    });
+  });
+
   test('all normal notebook reward definitions use the requested items and quantities', async ({ page }) => {
     const rewards = await page.evaluate(() => Object.fromEntries(
       RPG.Assets.NOTEBOOK_ENTRIES.flatMap(entry => (
         entry.tiers
-          .filter(tier => Number.isFinite(tier.target))
+          .filter(tier => tier.id !== 'all' && Number.isFinite(tier.target))
           .map(tier => [
             `${entry.id}:${tier.id}`,
             tier.items.map(item => [item.itemId, item.qty]),
@@ -572,7 +1154,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       'weasel:10': [['smokeBomb', 3]],
       'weasel:20': [['mikawashiFeather', 3]],
       'sap:10': [['shinyOil', 3]],
-      'sap:20': [['gratefulTalisman', 1]],
+      'sap:20': [['hardBottle', 1]],
       'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],
       'amber_weasel:15': [['fakeWoundMedicine', 3]],
     });
@@ -643,7 +1225,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result).toEqual({ specialUnknownAmber: 0, secretLetter: 0 });
   });
 
-  test('ALL tiers keep reward data but have no threshold and cannot be claimed', async ({ page }) => {
+  test('rat and weasel ALL tiers use independent unlock progress while the other ALL tiers stay disabled', async ({ page }) => {
     const result = await page.evaluate(() => {
       const allTiers = Object.fromEntries(
         RPG.Assets.NOTEBOOK_ENTRIES.map(entry => {
@@ -654,6 +1236,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
               target: tier.target,
               claimEnabled: tier.claimEnabled,
               claimedFlag: tier.claimedFlag,
+              unlockFlag: tier.unlockFlag || null,
+              progressFlag: tier.progressFlag || null,
               items: tier.items.map(item => [item.itemId, item.qty]),
             },
           ];
@@ -666,15 +1250,32 @@ test.describe('討伐ノート (bounty notebook)', () => {
         const allTier = entry.tiers.find(tier => tier.id === 'all');
         RPG.State.flags[allTier.claimedFlag] = false;
       });
-      RPG.State.inventory.hardBottle = 0;
+      RPG.State.inventory.gratefulTalisman = 0;
       RPG.State.mode = 'base';
       innSystem.claimNotebookRewards('rat', 'all');
-      uiControl.openNotebookModal();
+      uiControl.showNotebookModal();
+      const lockedMarkers = [...document.querySelectorAll('.notebook-tier')]
+        .filter(element => element.textContent.includes('ALL'))
+        .map(element => element.textContent);
+      uiControl.closeNotebookModal();
+
+      Object.assign(RPG.State.flags, {
+        ratBountyAllUnlocked: true,
+        ratBountyAllProgress: 5,
+        weaselBountyAllUnlocked: true,
+        weaselBountyAllProgress: 3,
+      });
+      uiControl.showNotebookModal();
 
       return {
         allTiers,
-        ratAllClaimable: innSystem.isNotebookRewardClaimable('rat', 'all'),
-        hardBottle: RPG.State.inventory.hardBottle,
+        lockedMarkers,
+        ratAllClaimableAfterUnlock: innSystem.isNotebookRewardClaimable('rat', 'all'),
+        weaselAllClaimableAfterUnlock: innSystem.isNotebookRewardClaimable('weasel', 'all'),
+        sapAllClaimable: innSystem.isNotebookRewardClaimable('sap', 'all'),
+        amberRatAllClaimable: innSystem.isNotebookRewardClaimable('amber_rat', 'all'),
+        amberWeaselAllClaimable: innSystem.isNotebookRewardClaimable('amber_weasel', 'all'),
+        gratefulTalisman: RPG.State.inventory.gratefulTalisman,
         ratAllReceived: RPG.State.flags.ratBountyAllReceived,
         allMarkers: [...document.querySelectorAll('.notebook-tier')]
           .filter(element => element.textContent.includes('ALL'))
@@ -686,46 +1287,65 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
     expect(result.allTiers).toEqual({
       rat: {
-        target: null,
-        claimEnabled: false,
+        target: 5,
+        claimEnabled: true,
         claimedFlag: 'ratBountyAllReceived',
-        items: [['hardBottle', 1]],
+        unlockFlag: 'ratBountyAllUnlocked',
+        progressFlag: 'ratBountyAllProgress',
+        items: [['gratefulTalisman', 1]],
       },
       weasel: {
-        target: null,
-        claimEnabled: false,
+        target: 3,
+        claimEnabled: true,
         claimedFlag: 'weaselBountyAllReceived',
+        unlockFlag: 'weaselBountyAllUnlocked',
+        progressFlag: 'weaselBountyAllProgress',
         items: [['highHerb', 3]],
       },
       sap: {
         target: null,
         claimEnabled: false,
         claimedFlag: 'sapBountyAllReceived',
+        unlockFlag: null,
+        progressFlag: null,
         items: [['highHerb', 5]],
       },
       amber_rat: {
         target: null,
         claimEnabled: false,
         claimedFlag: 'amberRatBountyAllReceived',
+        unlockFlag: null,
+        progressFlag: null,
         items: [['specialUnknownAmber', 1]],
       },
       amber_weasel: {
         target: null,
         claimEnabled: false,
         claimedFlag: 'amberWeaselBountyAllReceived',
+        unlockFlag: null,
+        progressFlag: null,
         items: [['secretLetter', 1]],
       },
     });
-    expect(result.ratAllClaimable).toBe(false);
-    expect(result.hardBottle).toBe(0);
+    expect(result.lockedMarkers).toEqual(['－ALL', '－ALL', '－ALL', '－ALL', '－ALL']);
+    expect(result.ratAllClaimableAfterUnlock).toBe(true);
+    expect(result.weaselAllClaimableAfterUnlock).toBe(true);
+    expect(result.sapAllClaimable).toBe(false);
+    expect(result.amberRatAllClaimable).toBe(false);
+    expect(result.amberWeaselAllClaimable).toBe(false);
+    expect(result.gratefulTalisman).toBe(0);
     expect(result.ratAllReceived).toBe(false);
-    expect(result.allMarkers).toEqual(['－ALL', '－ALL', '－ALL', '－ALL', '－ALL']);
-    expect(result.allButtons).toBe(0);
+    expect(result.allMarkers).toEqual(['！ALL', '！ALL', '－ALL', '－ALL', '－ALL']);
+    expect(result.allButtons).toBe(2);
   });
 
-  test('old saves default every ALL received flag to false', async ({ page }) => {
+  test('old saves default every ALL state safely and keep received-20 tiers pending for unlock', async ({ page }) => {
     const result = await page.evaluate(() => {
       const allFlags = [
+        'ratBountyAllUnlocked',
+        'ratBountyAllProgress',
+        'weaselBountyAllUnlocked',
+        'weaselBountyAllProgress',
         'ratBountyAllReceived',
         'weaselBountyAllReceived',
         'sapBountyAllReceived',
@@ -734,22 +1354,37 @@ test.describe('討伐ノート (bounty notebook)', () => {
       ];
       const legacySave = JSON.parse(JSON.stringify(RPG.State));
       allFlags.forEach(flag => delete legacySave.flags[flag]);
+      legacySave.flags.ratBounty20Received = true;
       localStorage.setItem('okai_rpg_notebook_all_legacy_test', JSON.stringify(legacySave));
 
       allFlags.forEach(flag => {
-        RPG.State.flags[flag] = true;
+        RPG.State.flags[flag] = flag.endsWith('Progress') ? 99 : true;
       });
       uiControl.loadFromStorage('okai_rpg_notebook_all_legacy_test', 'テスト');
-      return Object.fromEntries(allFlags.map(flag => [flag, RPG.State.flags[flag]]));
+      const pending = innSystem.getPendingNotebookAllUnlocks().map(spec => spec.entryId);
+      uiControl.openNotebookModal();
+      return {
+        states: Object.fromEntries(allFlags.map(flag => [flag, RPG.State.flags[flag]])),
+        pending,
+        unlockStarted: RPG.State.mode === 'event',
+        modalDisplay: getComputedStyle(document.getElementById('notebookModal')).display,
+      };
     });
 
-    expect(result).toEqual({
+    expect(result.states).toEqual({
+      ratBountyAllUnlocked: false,
+      ratBountyAllProgress: 0,
+      weaselBountyAllUnlocked: false,
+      weaselBountyAllProgress: 0,
       ratBountyAllReceived: false,
       weaselBountyAllReceived: false,
       sapBountyAllReceived: false,
       amberRatBountyAllReceived: false,
       amberWeaselBountyAllReceived: false,
     });
+    expect(result.pending).toEqual(['rat']);
+    expect(result.unlockStarted).toBe(true);
+    expect(result.modalDisplay).toBe('none');
   });
 
   test('the claim button is disabled below 10 kills and claiming does nothing', async ({ page }) => {
@@ -801,6 +1436,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
       RPG.State.debug.isSkipping = true;
       RPG.State.flags.matamatabiActive = true;
+      RPG.State.flags.weaselBountyAllUnlocked = true;
+      RPG.State.flags.weaselBountyAllProgress = 0;
       RPG.State.currentEnemy = { id: 'weasel', name: '魔界のイタチ', hp: 50 };
       RPG.State.defeatCounts.weasel = { cain: 0, owen: 0 };
       RPG.State.exp = 0;
@@ -825,6 +1462,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         logHasBlownAway: logText.includes('オーエンはイタチを遠くへ吹き飛ばした'),
         logHasEscaped: logText.includes('魔界のイタチは逃げ出した'),
         defeatCounts: RPG.State.defeatCounts.weasel,
+        allProgress: RPG.State.flags.weaselBountyAllProgress,
         exp: RPG.State.exp,
         mode: RPG.State.mode,
         currentEnemy: RPG.State.currentEnemy,
@@ -836,6 +1474,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       logHasBlownAway: true,
       logHasEscaped: true,
       defeatCounts: { cain: 0, owen: 0 },
+      allProgress: 0,
       exp: 0,
       mode: 'base',
       currentEnemy: null,
@@ -852,6 +1491,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
       RPG.State.debug.isSkipping = true;
       RPG.State.flags.matamatabiActive = false;
+      RPG.State.flags.weaselBountyAllUnlocked = true;
+      RPG.State.flags.weaselBountyAllProgress = 0;
       RPG.State.currentEnemy = { id: 'weasel', name: '魔界のイタチ', hp: 50 };
       RPG.State.defeatCounts.weasel = { cain: 0, owen: 0 };
       RPG.State.isBattling = true;
@@ -868,9 +1509,17 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
     const result = await page.evaluate(() => {
       RPG.State.debug.isSkipping = false;
-      return { defeatCounts: RPG.State.defeatCounts.weasel, mode: RPG.State.mode };
+      return {
+        defeatCounts: RPG.State.defeatCounts.weasel,
+        allProgress: RPG.State.flags.weaselBountyAllProgress,
+        mode: RPG.State.mode,
+      };
     });
-    expect(result).toEqual({ defeatCounts: { cain: 0, owen: 1 }, mode: 'base' });
+    expect(result).toEqual({
+      defeatCounts: { cain: 0, owen: 1 },
+      allProgress: 0,
+      mode: 'base',
+    });
   });
 
   test('a rat under matamatabi keeps the existing blown-away-but-real-kill behavior (regression)', async ({ page }) => {
@@ -882,6 +1531,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
       RPG.State.debug.isSkipping = true;
       RPG.State.flags.matamatabiActive = true;
+      RPG.State.flags.ratBountyAllUnlocked = true;
+      RPG.State.flags.ratBountyAllProgress = 0;
       RPG.State.currentEnemy = { id: 'rat', name: '魔界のネズミ', hp: 40 };
       RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
       RPG.State.isBattling = true;
@@ -898,9 +1549,17 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
     const result = await page.evaluate(() => {
       RPG.State.debug.isSkipping = false;
-      return { defeatCounts: RPG.State.defeatCounts.rat, mode: RPG.State.mode };
+      return {
+        defeatCounts: RPG.State.defeatCounts.rat,
+        allProgress: RPG.State.flags.ratBountyAllProgress,
+        mode: RPG.State.mode,
+      };
     });
-    expect(result).toEqual({ defeatCounts: { cain: 0, owen: 1 }, mode: 'base' });
+    expect(result).toEqual({
+      defeatCounts: { cain: 0, owen: 1 },
+      allProgress: 0,
+      mode: 'base',
+    });
   });
 
   test('a glowing cat rabbit under matamatabi is unaffected by the new escape branch (regression)', async ({ page }) => {

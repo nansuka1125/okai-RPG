@@ -16,6 +16,7 @@ RPG.Config = {
     FAKE_WOUND_MEDICINE_HEAL_RATE: 0.3,
     SMOKE_BOMB_STEP_COUNT: 10,
     MIKAWASHI_STEP_COUNT: 3,
+    DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10: true,
     EVASION_RATE: {
         normal: 0.1,
         nightMedicine: 0.5,
@@ -199,6 +200,11 @@ RPG.State = {
         amberTreeCoinMined: false,
         firstAmberAppraisalDone: false,
         vampireAmberAppraisalSeen: false,
+        vampireAmberChainBattleCount: 0, // 0-5; battles completed in a row while vampireAmber is equipped. Next battle fought is this+1
+        vampireAmberStage1TalkSeen: false, // One-time dialogue the first time the stage-1 (1st-battle) drain fires
+        vampireAmberStage2TalkSeen: false, // One-time dialogue the first time the stage-2 (4th-battle) drain fires
+        vampireAmberPendingTalkStages: [], // One-time vampire-amber talks waiting for a safe post-battle slot (1 or 2)
+        pendingBattleCountEvents: [], // Enemy-count BATTLE_EVENTS deferred by a higher-priority vampire-amber talk
         amberKnifeReturnAttemptDone: false,
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,
@@ -268,6 +274,10 @@ RPG.State = {
         sapBounty20Received: false,
         amberRatBounty15Received: false,
         amberWeaselBounty15Received: false,
+        ratBountyAllUnlocked: false,
+        ratBountyAllProgress: 0,
+        weaselBountyAllUnlocked: false,
+        weaselBountyAllProgress: 0,
         ratBountyAllReceived: false,
         weaselBountyAllReceived: false,
         sapBountyAllReceived: false,

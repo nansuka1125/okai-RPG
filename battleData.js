@@ -31,13 +31,12 @@ RPG.Assets.BATTLE_TEXT = {
         ],
         freeze: [
             "オーエン「眠ってて」",
-            "オーエン「そこ」",
-            "オーエン「動くなよ」",
+            "オーエン「捕まえた」",
             "オーエン「さっさと片付けて」",
             "オーエン「早くして」"
         ],
-        intimidation: "オーエン「…おい、やりすぎだ」",
-        intimidationEffect: "オーエンの殺気が敵を威圧し、戦いは終わった…"
+        intimidation: "オーエン「……」",
+        intimidationEffect: "オーエンの殺気に、魔物は逃げていった！"
     },
     cain: {
         larvaResponse: "カイン「...毒が回るのを...っ 厄介だな」"

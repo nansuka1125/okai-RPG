@@ -123,9 +123,11 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 items: [{ itemId: "fakeWoundMedicine", qty: 3 }]
             },
             {
-                id: "all", label: "ALL", target: null,
-                claimedFlag: "ratBountyAllReceived", claimEnabled: false,
-                items: [{ itemId: "hardBottle", qty: 1 }]
+                id: "all", label: "ALL", target: 5,
+                claimedFlag: "ratBountyAllReceived", claimEnabled: true,
+                unlockFlag: "ratBountyAllUnlocked",
+                progressFlag: "ratBountyAllProgress",
+                items: [{ itemId: "gratefulTalisman", qty: 1 }]
             }
         ]
     },
@@ -145,8 +147,10 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 items: [{ itemId: "mikawashiFeather", qty: 3 }]
             },
             {
-                id: "all", label: "ALL", target: null,
-                claimedFlag: "weaselBountyAllReceived", claimEnabled: false,
+                id: "all", label: "ALL", target: 3,
+                claimedFlag: "weaselBountyAllReceived", claimEnabled: true,
+                unlockFlag: "weaselBountyAllUnlocked",
+                progressFlag: "weaselBountyAllProgress",
                 items: [{ itemId: "highHerb", qty: 3 }]
             }
         ]
@@ -164,7 +168,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "20", label: "20", target: 20, claimedFlag: "sapBounty20Received",
-                items: [{ itemId: "gratefulTalisman", qty: 1 }]
+                items: [{ itemId: "hardBottle", qty: 1 }]
             },
             {
                 id: "all", label: "ALL", target: null,
@@ -1372,6 +1376,23 @@ RPG.Assets.GAME_TEXT = {
         ratBounty20Claim: [
             "娘「おかげさまで、宿屋の周りには魔界のネズミが出なくなりました」",
             "娘「こちら、お礼です。どうぞ」"
+        ],
+        ratBountyAllUnlock: [
+            "傭兵崩れ「あんた、ずいぶん強いな。それとも、あのネズミが弱いのか？」",
+            "カイン「全然強くないぞ。あんたらでも多分勝てる」",
+            "オーエン「おまえでも勝てたくらいだもんね」",
+            "カイン（…その言い方は引っかかるが、事実だな）",
+            "傭兵崩れ「見掛け倒しか！よし、俺たちでもやってみるか」",
+            "娘「カインさんがネズミをバンバン倒すのを見て、他の冒険者の方がやる気になったようです」",
+            "《魔界のネズミのALL条件が解放された！》"
+        ],
+        weaselBountyAllUnlock: [
+            "若い剣士「カインさん。森で、見えない何かに斬りつけられたんだ。あれは何なんだ？」",
+            "カイン「魔界のイタチだ。最初は透明で姿が見えない」",
+            "若い剣士「斬る方法はあるのか？」",
+            "カイン「血生臭いにおいがしたら、地面すれすれを薙ぎ払うんだ。少しでも当たれば姿が見える」",
+            "若い剣士「分かった！やってみるよ」",
+            "《魔界のイタチのALL条件が解放された！》"
         ],
         innRepairHoleInspect: [
             "外壁の根元が、大きく齧られている。",

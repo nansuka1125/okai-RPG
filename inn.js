@@ -1231,6 +1231,7 @@ innSystem = {
         if (typeof explorationSystem !== "undefined") {
             explorationSystem.clearTemporaryItemEffects();
         }
+        uiControl.resetVampireAmberChain();
         RPG.State.isAtInn = true;
         RPG.State.isInDungeon = false;
         RPG.State.explorationArea = null;
@@ -2071,6 +2072,18 @@ innSystem = {
         return counts ? (counts.cain || 0) + (counts.owen || 0) : 0;
     },
 
+    isNotebookTierUnlocked: function (tier) {
+        if (!tier || tier.claimEnabled === false) return false;
+        return !tier.unlockFlag || RPG.State.flags[tier.unlockFlag] === true;
+    },
+
+    getNotebookTierProgress: function (entry, tier) {
+        if (tier && tier.progressFlag) {
+            return Math.max(0, Number(RPG.State.flags[tier.progressFlag]) || 0);
+        }
+        return this.getEnemyKillCount(entry && entry.enemyId);
+    },
+
     getNotebookRewardDefinition: function (entryId, tierId) {
         const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
             ? RPG.Assets.NOTEBOOK_ENTRIES
@@ -2080,7 +2093,7 @@ innSystem = {
         const tier = entry.tiers.find(candidate => candidate.id === tierId);
         if (
             !tier ||
-            tier.claimEnabled === false ||
+            !this.isNotebookTierUnlocked(tier) ||
             !Number.isFinite(tier.target) ||
             !tier.claimedFlag ||
             !Array.isArray(tier.items) ||
@@ -2095,7 +2108,7 @@ innSystem = {
         const reward = this.getNotebookRewardDefinition(entryId, tierId);
         if (!reward) return false;
         if (RPG.State.flags[reward.tier.claimedFlag] === true) return false;
-        return this.getEnemyKillCount(reward.entry.enemyId) >= reward.tier.target;
+        return this.getNotebookTierProgress(reward.entry, reward.tier) >= reward.tier.target;
     },
 
     getClaimableNotebookRewards: function () {
@@ -2127,7 +2140,88 @@ innSystem = {
         return this.getClaimableNotebookRewards().length > 0;
     },
 
-    buildNotebookClaimQueue: function (entry, tier) {
+    getPendingNotebookAllUnlocks: function () {
+        const specs = [
+            {
+                entryId: "rat",
+                prerequisiteFlag: "ratBounty20Received",
+                unlockFlag: "ratBountyAllUnlocked",
+                progressFlag: "ratBountyAllProgress",
+                receivedFlag: "ratBountyAllReceived",
+                textKey: "ratBountyAllUnlock"
+            },
+            {
+                entryId: "weasel",
+                prerequisiteFlag: "weaselBounty20Received",
+                unlockFlag: "weaselBountyAllUnlocked",
+                progressFlag: "weaselBountyAllProgress",
+                receivedFlag: "weaselBountyAllReceived",
+                textKey: "weaselBountyAllUnlock"
+            }
+        ];
+        return specs.filter(spec => (
+            RPG.State.flags[spec.prerequisiteFlag] === true &&
+            RPG.State.flags[spec.unlockFlag] !== true &&
+            RPG.State.flags[spec.receivedFlag] !== true
+        ));
+    },
+
+    buildNotebookAllUnlockQueue: function (pendingUnlocks) {
+        return pendingUnlocks.flatMap(spec => {
+            const lines = RPG.Assets.GAME_TEXT.events[spec.textKey] || [];
+            return lines.map((text, index) => {
+                const isFinalLine = index === lines.length - 1;
+                return {
+                    text,
+                    ...(isFinalLine
+                        ? {
+                            type: "marker",
+                            color: "#f1e6c8",
+                            action: () => {
+                                RPG.State.flags[spec.unlockFlag] = true;
+                                RPG.State.flags[spec.progressFlag] = 0;
+                            }
+                        }
+                        : {})
+                };
+            });
+        });
+    },
+
+    startPendingNotebookAllUnlocks: function () {
+        if (RPG.State.mode !== "base") return false;
+        const pendingUnlocks = this.getPendingNotebookAllUnlocks();
+        if (pendingUnlocks.length === 0) return false;
+
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            ...this.buildNotebookAllUnlockQueue(pendingUnlocks),
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.showNotebookModal();
+                }
+            }
+        ];
+        explorationSystem.playDialogueLoop();
+        return true;
+    },
+
+    getNotebookClaimItems: function (entry, tier) {
+        const items = tier.items.map(item => ({ ...item }));
+        if (
+            RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 === true &&
+            entry.id === "rat" &&
+            tier.id === "10"
+        ) {
+            items.push({ itemId: "vampireAmber", qty: 1 });
+        }
+        return items;
+    },
+
+    buildNotebookClaimQueue: function (entry, tier, claimItems = tier.items) {
         let intro = [
             { text: `娘「${entry.name}の討伐、ありがとうございます。こちらをどうぞ」` }
         ];
@@ -2137,8 +2231,16 @@ innSystem = {
             ];
         } else if (entry.id === "rat" && tier.id === "20") {
             intro = RPG.Assets.GAME_TEXT.events.ratBounty20Claim.map(text => ({ text }));
+        } else if (entry.id === "rat" && tier.id === "all") {
+            intro = [
+                { text: "娘「魔界のネズミくらいなら、冒険者の方で倒せるようになりました。ありがとうございます！」" }
+            ];
+        } else if (entry.id === "weasel" && tier.id === "all") {
+            intro = [
+                { text: "娘「あの剣士の方が、魔界のイタチを倒せるようになりました。お礼の品を預かっています」" }
+            ];
         }
-        const rewardLines = tier.items.map(item => ({
+        const rewardLines = claimItems.map(item => ({
             text: `${RPG.Assets.CONFIG.ITEM_NAME[item.itemId]}を${item.qty}個受け取った！`,
             type: "marker",
             color: "#f1e6c8"
@@ -2162,12 +2264,13 @@ innSystem = {
 
         const reward = this.getNotebookRewardDefinition(selected.entryId, selected.tierId);
         if (!reward) return;
+        const claimItems = this.getNotebookClaimItems(reward.entry, reward.tier);
 
         uiControl.closeNotebookModal();
         uiControl.addSeparator();
         RPG.State.mode = "event";
 
-        reward.tier.items.forEach(item => {
+        claimItems.forEach(item => {
             RPG.State.inventory[item.itemId] =
                 (RPG.State.inventory[item.itemId] || 0) + item.qty;
         });
@@ -2176,13 +2279,18 @@ innSystem = {
             this.tryUnlockInnRepairInspection();
         }
 
-        RPG.State.dialogueQueue = this.buildNotebookClaimQueue(reward.entry, reward.tier);
+        RPG.State.dialogueQueue = this.buildNotebookClaimQueue(
+            reward.entry,
+            reward.tier,
+            claimItems
+        );
         uiControl.updateUI();
         explorationSystem.playDialogueLoop();
     },
 
     // Build 8.26.1: Defeat Sequence logic
-    showDefeatSequence: function (defeatedEnemyId = null) {
+    showDefeatSequence: function (defeatedEnemyId = null, options = {}) {
+        const vampireAmberRemoved = options.vampireAmberRemoved === true;
         if (RPG.State.deathCount >= 3) {
             this.showBadEnd();
             return;
@@ -2300,6 +2408,12 @@ innSystem = {
                 uiControl.updateUI();
             }
         });
+
+        // Build 15.6.x: If this defeat forced off the vampire amber (6th chain battle),
+        // let the player learn the outcome once Cain is conscious again.
+        if (vampireAmberRemoved) {
+            RPG.State.dialogueQueue.push({ text: "《吸血琥珀》はブローチから外されていた。" });
+        }
 
         explorationSystem.playDialogueLoop();
     },

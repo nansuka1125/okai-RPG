@@ -106,19 +106,7 @@
         }
 
         newGameButton.onclick = () => {
-            if (!window.confirm("保存している旅の記録をすべて消して、はじめから開始しますか？")) {
-                return;
-            }
-            try {
-                SAVE_SLOTS.forEach(slot => localStorage.removeItem(slot.storageKey));
-            } catch (error) {
-                if (startupError) {
-                    startupError.hidden = false;
-                    startupError.textContent = "保存記録を削除できなかった。";
-                }
-                return;
-            }
-            window.location.assign("chapter1.html");
+            window.location.assign("chapter1.html?new=1");
         };
     });
 })();

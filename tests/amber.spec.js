@@ -1106,21 +1106,969 @@ test.describe('Chapter 1 amber system', () => {
       const legacySave = uiControl.createSaveSnapshot('journal');
       delete legacySave.inventory.vampireAmber;
       delete legacySave.flags.vampireAmberAppraisalSeen;
+      delete legacySave.flags.vampireAmberPendingTalkStages;
+      delete legacySave.flags.pendingBattleCountEvents;
       localStorage.setItem('okai_rpg_vampire_amber_legacy_test', JSON.stringify(legacySave));
 
       RPG.State.inventory.vampireAmber = 4;
       RPG.State.flags.vampireAmberAppraisalSeen = true;
+      RPG.State.flags.vampireAmberPendingTalkStages = [1, 2];
+      RPG.State.flags.pendingBattleCountEvents = [{ enemyId: 'rat', count: 1 }];
       uiControl.loadFromStorage('okai_rpg_vampire_amber_legacy_test', '旧吸血琥珀テスト');
 
       return {
         vampireAmber: RPG.State.inventory.vampireAmber,
         vampireSeen: RPG.State.flags.vampireAmberAppraisalSeen,
+        pendingVampireTalks: RPG.State.flags.vampireAmberPendingTalkStages,
+        pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
       };
     });
 
     expect(result).toEqual({
       vampireAmber: 0,
       vampireSeen: false,
+      pendingVampireTalks: [],
+      pendingCountEvents: [],
+    });
+  });
+
+  test.describe('vampire amber combat effect', () => {
+    async function setupChainState(page, overrides = {}) {
+      return page.evaluate((ov) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isBattling: false,
+          currentEnemy: null,
+          battleState: null,
+          maxHP: ov.maxHP ?? 140,
+          currentHP: ov.currentHP ?? (ov.maxHP ?? 140),
+          attack: ov.attack ?? 18,
+          equippedRareAmberId: ov.equipped === false ? null : 'vampireAmber',
+        });
+        RPG.State.inventory.glowingBrooch = 1;
+        // Mirror the real equip model (equipRareAmber subtracts 1 from inventory on equip),
+        // so a later detach's +1 lands back on exactly 1, not 2.
+        RPG.State.inventory.vampireAmber = ov.equipped === false ? 1 : 0;
+        Object.assign(RPG.State.flags, {
+          vampireAmberChainBattleCount: ov.chainCount ?? 0,
+          vampireAmberStage1TalkSeen: ov.stage1Seen ?? true,
+          vampireAmberStage2TalkSeen: ov.stage2Seen ?? true,
+          vampireAmberPendingTalkStages: ov.pendingTalkStages ?? [],
+          pendingBattleCountEvents: ov.pendingCountEvents ?? [],
+        });
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      }, overrides);
+    }
+
+    // Starts a synthetic (non-catalog) battle via the real beginBattle()/
+    // applyVampireAmberBattleStart() code path, then immediately neutralizes the
+    // scheduled preemptive/runBattleLoop setTimeout so no actual turn ever executes -
+    // battleState itself is left untouched so its multiplier can still be inspected.
+    async function beginDummyBattle(page, templateOverrides = {}) {
+      return page.evaluate((tpl) => {
+        battleSystem.beginBattle({
+          id: 'test_dummy', name: 'テスト用ダミー', maxHp: 999, atk: 1, xp: 0, ...tpl,
+        });
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+      }, templateOverrides);
+    }
+
+    async function completeDummyVictory(page, enemyId = 'test_dummy') {
+      return page.evaluate((id) => {
+        RPG.State.currentEnemy = {
+          id, name: id, hp: 0, xp: 0, gold: 0,
+        };
+        if (!RPG.State.defeatCounts[id]) {
+          RPG.State.defeatCounts[id] = { cain: 0, owen: 0 };
+        }
+        RPG.State.lastBlowBy = 'Cain';
+        battleSystem.executeStandardVictory(id);
+      }, enemyId);
+    }
+
+    test('drain fires only on chain battles 1, 4, and 6, with the correct amounts', async ({ page }) => {
+      const results = {};
+      for (const chainCount of [0, 1, 2, 3, 4, 5]) {
+        await setupChainState(page, { chainCount, maxHP: 100, currentHP: 100 });
+        await beginDummyBattle(page);
+        results[chainCount + 1] = await page.evaluate(() => ({
+          currentHP: RPG.State.currentHP,
+          logHasDrainLine: (document.getElementById('logContainer')?.textContent || '')
+            .includes('《吸血琥珀》がカインの血を吸った！'),
+        }));
+      }
+      expect(results[1]).toEqual({ currentHP: 90, logHasDrainLine: true }); // ceil(100*0.10)
+      expect(results[2]).toEqual({ currentHP: 100, logHasDrainLine: false });
+      expect(results[3]).toEqual({ currentHP: 100, logHasDrainLine: false });
+      expect(results[4]).toEqual({ currentHP: 85, logHasDrainLine: true }); // ceil(100*0.15)
+      expect(results[5]).toEqual({ currentHP: 100, logHasDrainLine: false });
+      expect(results[6]).toEqual({ currentHP: 80, logHasDrainLine: true }); // ceil(100*0.20)
+    });
+
+    test('drain never reduces HP below 1, but still fires the effect and advances state', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, maxHP: 100, currentHP: 1 });
+      await beginDummyBattle(page);
+      const result = await page.evaluate(() => ({
+        currentHP: RPG.State.currentHP,
+        logHasDrainLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('《吸血琥珀》がカインの血を吸った！'),
+        multiplier: RPG.State.battleState?.vampireAmberDamageMultiplier,
+      }));
+      expect(result).toEqual({ currentHP: 1, logHasDrainLine: true, multiplier: 1.5 });
+    });
+
+    test('the battle-start log and damage multiplier are 1.5x for battles 1-5 and 2x for battle 6', async ({ page }) => {
+      const results = {};
+      for (const chainCount of [0, 1, 2, 3, 4, 5]) {
+        await setupChainState(page, { chainCount });
+        await beginDummyBattle(page);
+        results[chainCount + 1] = await page.evaluate(() => ({
+          multiplier: RPG.State.battleState?.vampireAmberDamageMultiplier,
+          multiplierLines: [...document.querySelectorAll('#logContainer .log-entry')]
+            .map(element => element.textContent)
+            .filter(text => text.includes('《吸血琥珀》の力で、カインの攻撃力が')),
+        }));
+      }
+      for (const battleNumber of [1, 2, 3, 4, 5]) {
+        expect(results[battleNumber]).toEqual({
+          multiplier: 1.5,
+          multiplierLines: ['《吸血琥珀》の力で、カインの攻撃力が1.5倍になった！'],
+        });
+      }
+      expect(results[6]).toEqual({
+        multiplier: 2,
+        multiplierLines: ['《吸血琥珀》の力で、カインの攻撃力が2倍になった！'],
+      });
+    });
+
+    test('glowing_cat_rabbit is fully excluded: no drain, no multiplier, regardless of chain count', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, maxHP: 100, currentHP: 100 });
+      await beginDummyBattle(page, { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 5 });
+      const result = await page.evaluate(() => ({
+        currentHP: RPG.State.currentHP,
+        multiplier: RPG.State.battleState?.vampireAmberDamageMultiplier,
+        chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+        logHasDrainLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('《吸血琥珀》がカインの血を吸った！'),
+        logHasMultiplierLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('《吸血琥珀》の力で'),
+      }));
+      expect(result).toEqual({
+        currentHP: 100,
+        multiplier: undefined,
+        chainCount: 0,
+        logHasDrainLine: false,
+        logHasMultiplierLine: false,
+      });
+    });
+
+    test('an unequipped vampire amber produces no multiplier log or talk reservation', async ({ page }) => {
+      await setupChainState(page, {
+        equipped: false, chainCount: 0, stage1Seen: false, stage2Seen: false,
+      });
+      await beginDummyBattle(page);
+      const result = await page.evaluate(() => ({
+        multiplier: RPG.State.battleState?.vampireAmberDamageMultiplier,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasMultiplierLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('《吸血琥珀》の力で'),
+      }));
+      expect(result).toEqual({
+        multiplier: undefined, pending: [], logHasMultiplierLine: false,
+      });
+    });
+
+    test('applyCainDamage applies the multiplier exactly once and composes correctly with a critical hit', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 9999, armorHp: 0 };
+        RPG.State.battleState = { vampireAmberDamageMultiplier: 1.5 };
+        battleSystem.applyCainDamage(20, false);
+        const plainHit = 9999 - RPG.State.currentEnemy.hp;
+
+        RPG.State.currentEnemy = { id: 'dummy2', name: 'ダミー2', hp: 9999, armorHp: 0 };
+        RPG.State.battleState = { vampireAmberDamageMultiplier: 2 };
+        const critDamage = Math.floor(20 * 1.5); // mirrors processCainAction's own crit step
+        battleSystem.applyCainDamage(critDamage, true);
+        const critHit = 9999 - RPG.State.currentEnemy.hp;
+
+        RPG.State.currentEnemy = { id: 'dummy3', name: 'ダミー3', hp: 9999, armorHp: 0 };
+        RPG.State.battleState = null;
+        battleSystem.applyCainDamage(20, false);
+        const noAmberHit = 9999 - RPG.State.currentEnemy.hp;
+
+        return { plainHit, critHit, noAmberHit };
+      });
+      expect(result.plainHit).toBe(30); // floor(20*1.5)
+      expect(result.critHit).toBe(60); // floor(floor(20*1.5) * 2), applied exactly once
+      expect(result.noAmberHit).toBe(20); // unaffected when not equipped
+    });
+
+    test('the multiplier does not affect enemy-dealt damage', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.battleState = { vampireAmberDamageMultiplier: 2 };
+        RPG.State.maxHP = 100;
+        RPG.State.currentHP = 100;
+        RPG.State.inventory.gratefulTalisman = 0;
+        battleSystem.applyEnemyDirectDamage(10);
+        return RPG.State.currentHP;
+      });
+      expect(result).toBe(90);
+    });
+
+    test('a normal victory (executeStandardVictory) advances the chain by one', async ({ page }) => {
+      await setupChainState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 0, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+        battleSystem.executeStandardVictory('test_dummy');
+        return RPG.State.flags.vampireAmberChainBattleCount;
+      });
+      expect(result).toBe(3);
+    });
+
+    test('an Owen kill (endBattle with playerWin=false) advances the chain by one', async ({ page }) => {
+      await setupChainState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 0, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Owen';
+        battleSystem.endBattle(false);
+        return RPG.State.flags.vampireAmberChainBattleCount;
+      });
+      expect(result).toBe(3);
+    });
+
+    test('an Owen kill also plays a reserved vampire-amber talk after the battle', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await beginDummyBattle(page);
+      await page.evaluate(() => {
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 0, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Owen';
+        battleSystem.endBattle(false);
+      });
+      await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('オーエン「おまえ、そういうの好きなの？」'),
+      }));
+      expect(result).toEqual({ seen: true, pending: [], logHasLine: true });
+    });
+
+    test('a weasel scare-off (endWeaselEscapeBattle) advances the chain by one', async ({ page }) => {
+      await setupChainState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = { id: 'weasel', name: '魔界のイタチ' };
+        battleSystem.endWeaselEscapeBattle();
+        return RPG.State.flags.vampireAmberChainBattleCount;
+      });
+      expect(result).toBe(3);
+    });
+
+    test('completing the 6th battle by victory forces the amber off, logs the system line, and resets the chain', async ({ page }) => {
+      await setupChainState(page, { chainCount: 5 });
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 0, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+        battleSystem.executeStandardVictory('test_dummy');
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          logHasLine: (document.getElementById('logContainer')?.textContent || '')
+            .includes('オーエンが《吸血琥珀》を乱暴にもぎ取った！'),
+        };
+      });
+      expect(result).toEqual({
+        equipped: null, vampireAmberCount: 1, chainCount: 0, logHasLine: true,
+      });
+    });
+
+    test('completing the 6th battle via weasel scare-off also forces the amber off exactly once', async ({ page }) => {
+      await setupChainState(page, { chainCount: 5 });
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = { id: 'weasel', name: '魔界のイタチ' };
+        battleSystem.endWeaselEscapeBattle();
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          logOccurrences: (document.getElementById('logContainer')?.textContent || '')
+            .split('オーエンが《吸血琥珀》を乱暴にもぎ取った！').length - 1,
+        };
+      });
+      expect(result).toEqual({
+        equipped: null, vampireAmberCount: 1, chainCount: 0, logOccurrences: 1,
+      });
+    });
+
+    test('a normal defeat on battles 1-5 resets the chain but does not remove the amber', async ({ page }) => {
+      await setupChainState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        battleSystem.finalizeStandardDefeat('test_dummy');
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+        };
+      });
+      expect(result).toEqual({ equipped: 'vampireAmber', vampireAmberCount: 0, chainCount: 0 });
+    });
+
+    test('a defeat on the 6th battle also forces the amber off, without the conscious-only system line, and the bedside line appears instead', async ({ page }) => {
+      // The real defeat cinematic runs on several real-time delays unrelated to debug.isSkipping
+      // (its textless steps aren't tap-driven), so rather than waiting for it to fully play out,
+      // inspect the queued state directly - by the time finalizeStandardDefeat() returns, the
+      // synchronous part of showDefeatSequence() has run and paused on its first delayed step,
+      // leaving all later-pushed entries (including ours) still sitting in the queue untouched.
+      await setupChainState(page, { chainCount: 5 });
+      const result = await page.evaluate(() => {
+        battleSystem.finalizeStandardDefeat('test_dummy');
+        const queuedTexts = RPG.State.dialogueQueue.map(entry => entry.text).filter(Boolean);
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          queuedTexts,
+        };
+      });
+      // Clean up so this dangling defeat-sequence queue doesn't bleed into later tests.
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.dialogueQueue = [];
+      });
+      expect(result.equipped).toBeNull();
+      expect(result.vampireAmberCount).toBe(1);
+      expect(result.chainCount).toBe(0);
+      expect(result.queuedTexts.some(t => t.includes('もぎ取った'))).toBe(false);
+      expect(result.queuedTexts).toContain('《吸血琥珀》はブローチから外されていた。');
+    });
+
+    test('the stage-1 talk is reserved at battle start and plays only after victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await beginDummyBattle(page);
+      const beforeVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        mode: RPG.State.mode,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('オーエン「おまえ、そういうの好きなの？」'),
+      }));
+      expect(beforeVictory).toEqual({
+        seen: false, pending: [1], mode: 'battle', logHasLine: false,
+      });
+
+      await completeDummyVictory(page);
+      await drainDialogue(page);
+      const afterVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        mode: RPG.State.mode,
+        lines: [...document.querySelectorAll('#logContainer .log-entry')]
+          .map(element => element.textContent)
+          .filter(text => (
+            text.includes('そういうの好きなの') ||
+            text === 'カイン「何がだ」' ||
+            text.includes('血を吸われるの') ||
+            text.includes('必要な時以外は')
+          )),
+      }));
+      expect(afterVictory).toEqual({
+        seen: true,
+        pending: [],
+        mode: 'base',
+        lines: [
+          'オーエン「おまえ、そういうの好きなの？」',
+          'カイン「何がだ」',
+          'オーエン「血を吸われるの」',
+          'カイン「好きじゃない。必要な時以外はなるべく使いたくないな」',
+        ],
+      });
+    });
+
+    test('the stage-1 talk does not replay once already seen', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: true, stage2Seen: true });
+      await beginDummyBattle(page);
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '').includes('好きじゃない'),
+      }));
+      expect(result).toEqual({ mode: 'battle', pending: [], logHasLine: false });
+    });
+
+    test('the stage-2 talk is reserved at battle start and plays only after victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 3, stage1Seen: true, stage2Seen: false });
+      await beginDummyBattle(page);
+      const beforeVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage2TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        mode: RPG.State.mode,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('オーエン「……もうやめたら？」'),
+      }));
+      expect(beforeVictory).toEqual({
+        seen: false, pending: [2], mode: 'battle', logHasLine: false,
+      });
+
+      await completeDummyVictory(page);
+      await drainDialogue(page);
+      const afterVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage2TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        mode: RPG.State.mode,
+        lines: [...document.querySelectorAll('#logContainer .log-entry')]
+          .map(element => element.textContent)
+          .filter(text => text.includes('クラクラしてきた') || text.includes('もうやめたら')),
+      }));
+      expect(afterVictory).toEqual({
+        seen: true,
+        pending: [],
+        mode: 'base',
+        lines: [
+          'カイン（まずい、クラクラしてきた）',
+          'オーエン「……もうやめたら？」',
+        ],
+      });
+    });
+
+    test('the stage-2 talk does not replay once already seen', async ({ page }) => {
+      await setupChainState(page, { chainCount: 3, stage1Seen: true, stage2Seen: true });
+      await beginDummyBattle(page);
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '').includes('もうやめたら'),
+      }));
+      expect(result).toEqual({ mode: 'battle', pending: [], logHasLine: false });
+    });
+
+    test('a defeat keeps the reserved stage talk unread until the next vampire-amber victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await beginDummyBattle(page);
+      const afterDefeat = await page.evaluate(() => {
+        battleSystem.finalizeStandardDefeat('test_dummy');
+        const captured = {
+          seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+          pending: [...RPG.State.flags.vampireAmberPendingTalkStages],
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+        };
+        RPG.State.mode = 'base';
+        RPG.State.dialogueQueue = [];
+        return captured;
+      });
+      expect(afterDefeat).toEqual({ seen: false, pending: [1], chainCount: 0 });
+
+      await page.evaluate(() => {
+        RPG.State.currentHP = RPG.State.maxHP;
+      });
+      await beginDummyBattle(page);
+      await completeDummyVictory(page);
+      await drainDialogue(page);
+      const afterNextVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('カイン「好きじゃない。必要な時以外はなるべく使いたくないな」'),
+      }));
+      expect(afterNextVictory).toEqual({ seen: true, pending: [], logHasLine: true });
+    });
+
+    test('a weasel escape keeps the reserved talk unread until a later normal victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await beginDummyBattle(page, { id: 'weasel', name: '魔界のイタチ' });
+      await page.evaluate(() => {
+        battleSystem.endWeaselEscapeBattle();
+      });
+
+      const afterEscape = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        mode: RPG.State.mode,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('オーエン「おまえ、そういうの好きなの？」'),
+      }));
+      expect(afterEscape).toEqual({
+        seen: false,
+        pending: [1],
+        mode: 'base',
+        logHasLine: false,
+      });
+
+      await setupChainState(page, {
+        chainCount: 1,
+        stage1Seen: false,
+        stage2Seen: true,
+        pendingTalkStages: [1],
+      });
+      await beginDummyBattle(page);
+      await completeDummyVictory(page);
+      await drainDialogue(page);
+
+      const afterNextVictory = await page.evaluate(() => ({
+        seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+        pending: RPG.State.flags.vampireAmberPendingTalkStages,
+        logHasLine: (document.getElementById('logContainer')?.textContent || '')
+          .includes('カイン「好きじゃない。必要な時以外はなるべく使いたくないな」'),
+      }));
+      expect(afterNextVictory).toEqual({ seen: true, pending: [], logHasLine: true });
+    });
+
+    test('a boss aftermath keeps the vampire talk pending instead of being overwritten', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await beginDummyBattle(page, { id: 'hungry_amber_tree', name: '飢えた琥珀樹' });
+      await completeDummyVictory(page, 'hungry_amber_tree');
+      const result = await page.evaluate(() => {
+        const captured = {
+          seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+          pending: [...RPG.State.flags.vampireAmberPendingTalkStages],
+          logHasVampireTalk: (document.getElementById('logContainer')?.textContent || '')
+            .includes('オーエン「おまえ、そういうの好きなの？」'),
+          logHasBossAftermath: (document.getElementById('logContainer')?.textContent || '')
+            .includes('―― 勝利！ ――'),
+        };
+        RPG.State.mode = 'base';
+        RPG.State.dialogueQueue = [];
+        return captured;
+      });
+      expect(result).toEqual({
+        seen: false,
+        pending: [1],
+        logHasVampireTalk: false,
+        logHasBossAftermath: true,
+      });
+    });
+
+    test('a rat-count talk colliding with vampire talk is deferred to the next rat victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await page.evaluate(() => {
+        RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+      });
+      await beginDummyBattle(page, { id: 'rat', name: '魔界のネズミ' });
+      await completeDummyVictory(page, 'rat');
+      await drainDialogue(page);
+
+      const firstVictory = await page.evaluate(() => ({
+        pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(firstVictory.pendingCountEvents).toEqual([{ enemyId: 'rat', count: 1 }]);
+      expect(firstVictory.logText).toContain('オーエン「おまえ、そういうの好きなの？」');
+      expect(firstVictory.logText).not.toContain('カイン「デカいネズミだったな…犬くらいあるぞ」');
+
+      await page.evaluate(() => {
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      });
+      await beginDummyBattle(page, { id: 'rat', name: '魔界のネズミ' });
+      await completeDummyVictory(page, 'rat');
+      await drainDialogue(page);
+
+      const secondVictory = await page.evaluate(() => ({
+        pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(secondVictory.pendingCountEvents).toEqual([]);
+      expect(secondVictory.logText).toContain('カイン「デカいネズミだったな…犬くらいあるぞ」');
+      expect(secondVictory.logText).not.toContain('オーエン「おまえ、そういうの好きなの？」');
+    });
+
+    test('a weasel-count talk colliding with vampire talk is deferred to the next weasel victory', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0, stage1Seen: false, stage2Seen: true });
+      await page.evaluate(() => {
+        RPG.State.defeatCounts.weasel = { cain: 2, owen: 0 };
+      });
+      await beginDummyBattle(page, { id: 'weasel', name: '魔界のイタチ' });
+      await completeDummyVictory(page, 'weasel');
+      await drainDialogue(page);
+
+      const thirdVictory = await page.evaluate(() => ({
+        pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(thirdVictory.pendingCountEvents).toEqual([{ enemyId: 'weasel', count: 3 }]);
+      expect(thirdVictory.logText).toContain('カイン「好きじゃない。必要な時以外はなるべく使いたくないな」');
+      expect(thirdVictory.logText).not.toContain('カイン「悔しいな…次こそは見切ってみせる！」');
+
+      await page.evaluate(() => {
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      });
+      await beginDummyBattle(page, { id: 'weasel', name: '魔界のイタチ' });
+      await completeDummyVictory(page, 'weasel');
+      await drainDialogue(page);
+
+      const fourthVictory = await page.evaluate(() => ({
+        pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(fourthVictory.pendingCountEvents).toEqual([]);
+      expect(fourthVictory.logText).toContain('カイン「悔しいな…次こそは見切ってみせる！」');
+      expect(fourthVictory.logText).not.toContain('カイン「好きじゃない。必要な時以外はなるべく使いたくないな」');
+    });
+
+    test('manually detaching or swapping to a different amber resets the chain', async ({ page }) => {
+      await setupChainState(page, { chainCount: 3 });
+      const detachResult = await page.evaluate(() => {
+        uiControl.detachRareAmber({ log: false });
+        return RPG.State.flags.vampireAmberChainBattleCount;
+      });
+      expect(detachResult).toBe(0);
+
+      await setupChainState(page, { chainCount: 4 });
+      const swapResult = await page.evaluate(() => {
+        RPG.State.inventory.hatedAmber = 1;
+        uiControl.equipRareAmber('hatedAmber');
+        return {
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          equipped: RPG.State.equippedRareAmberId,
+        };
+      });
+      expect(swapResult).toEqual({ chainCount: 0, equipped: 'hatedAmber' });
+    });
+
+    test('entering the inn resets the chain but keeps the amber equipped', async ({ page }) => {
+      await setupChainState(page, { chainCount: 3 });
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, { isAtInn: false, isInDungeon: true, mode: 'base' });
+        innSystem.enterInn(false, { skipEntryEvents: true });
+        return {
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          equipped: RPG.State.equippedRareAmberId,
+        };
+      });
+      expect(result).toEqual({ chainCount: 0, equipped: 'vampireAmber' });
+    });
+
+    test('the dynamic description appears mid-chain and disappears once the chain resets', async ({ page }) => {
+      await setupChainState(page, { chainCount: 0 });
+      const beforeAnyBattle = await page.evaluate(() => {
+        uiControl.selectItem('vampireAmber', 1);
+        return document.getElementById('itemDetailArea')?.innerHTML || '';
+      });
+      expect(beforeAnyBattle).not.toContain('いつもより赤く濁っている');
+
+      await setupChainState(page, { chainCount: 2 });
+      const midChainViaInventory = await page.evaluate(() => {
+        uiControl.selectItem('vampireAmber', 1);
+        return document.getElementById('itemDetailArea')?.innerHTML || '';
+      });
+      expect(midChainViaInventory).toContain('いつもより赤く濁っている。微かに脈打っている。');
+
+      const midChainViaBrooch = await page.evaluate(() => {
+        uiControl.refreshGlowingBroochDetail();
+        return document.getElementById('itemDetailArea')?.innerHTML || '';
+      });
+      expect(midChainViaBrooch).toContain('いつもより赤く濁っている。微かに脈打っている。');
+
+      const afterReset = await page.evaluate(() => {
+        uiControl.detachRareAmber({ log: false, refreshModal: false });
+        RPG.State.equippedRareAmberId = 'vampireAmber'; // re-equip without going through the chain
+        uiControl.selectItem('vampireAmber', 1);
+        return document.getElementById('itemDetailArea')?.innerHTML || '';
+      });
+      expect(afterReset).not.toContain('いつもより赤く濁っている');
+    });
+
+    test('a fresh game: chain count and one-time talk flags survive a normal save/load round trip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.equippedRareAmberId = 'vampireAmber';
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 0;
+        RPG.State.flags.vampireAmberChainBattleCount = 4;
+        RPG.State.flags.vampireAmberStage1TalkSeen = true;
+        RPG.State.flags.vampireAmberStage2TalkSeen = true;
+        RPG.State.flags.vampireAmberPendingTalkStages = [2];
+        RPG.State.flags.pendingBattleCountEvents = [{ enemyId: 'rat', count: 1 }];
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_vampire_amber_chain_test', JSON.stringify(snapshot));
+
+        RPG.State.flags.vampireAmberChainBattleCount = 0;
+        RPG.State.flags.vampireAmberStage1TalkSeen = false;
+        RPG.State.flags.vampireAmberStage2TalkSeen = false;
+        RPG.State.flags.vampireAmberPendingTalkStages = [];
+        RPG.State.flags.pendingBattleCountEvents = [];
+        uiControl.loadFromStorage('okai_rpg_vampire_amber_chain_test', 'テスト');
+
+        return {
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          stage1Seen: RPG.State.flags.vampireAmberStage1TalkSeen,
+          stage2Seen: RPG.State.flags.vampireAmberStage2TalkSeen,
+          pendingVampireTalks: RPG.State.flags.vampireAmberPendingTalkStages,
+          pendingCountEvents: RPG.State.flags.pendingBattleCountEvents,
+        };
+      });
+      expect(result).toEqual({
+        chainCount: 4,
+        stage1Seen: true,
+        stage2Seen: true,
+        pendingVampireTalks: [2],
+        pendingCountEvents: [{ enemyId: 'rat', count: 1 }],
+      });
+    });
+  });
+
+  test.describe('vampire amber / matamatabi conflict', () => {
+    async function setupAccidentState(page, overrides = {}) {
+      return page.evaluate((ov) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isBattling: true,
+          currentEnemy: { id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 50, gold: 5 },
+          battleState: { playerTookDamage: true },
+          equippedRareAmberId: 'vampireAmber',
+          deathCount: ov.deathCount ?? 0,
+          exp: 0,
+        });
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 0;
+        RPG.State.inventory.matamatabiBranch = 1;
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          matamatabiActive: false,
+          vampireAmberChainBattleCount: ov.chainCount ?? 2,
+        });
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      }, overrides);
+    }
+
+    test('using the matamatabi branch from inventory while vampireAmber is equipped is blocked', async ({ page }) => {
+      await setupAccidentState(page);
+      const result = await page.evaluate(() => {
+        explorationSystem.useItem('matamatabiBranch');
+        return {
+          branchCount: RPG.State.inventory.matamatabiBranch,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+          equipped: RPG.State.equippedRareAmberId,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          logHasLine: (document.getElementById('logContainer')?.textContent || '')
+            .includes('カイン（先に吸血琥珀を外そう）'),
+        };
+      });
+      expect(result).toEqual({
+        branchCount: 1, matamatabiActive: false, equipped: 'vampireAmber', chainCount: 2, logHasLine: true,
+      });
+    });
+
+    test('equipping vampireAmber while matamatabi is active is blocked (swap case)', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 1;
+        RPG.State.inventory.hatedAmber = 1;
+        RPG.State.equippedRareAmberId = 'hatedAmber';
+        RPG.State.flags.matamatabiActive = true;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        const equipped = uiControl.equipRareAmber('vampireAmber');
+        return {
+          equipped,
+          equippedId: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+          logHasLine: (document.getElementById('logContainer')?.textContent || '')
+            .includes('カイン「今これをつけたら、さすがに血が足りない」'),
+        };
+      });
+      expect(result).toEqual({
+        equipped: false, equippedId: 'hatedAmber', vampireAmberCount: 1, matamatabiActive: true, logHasLine: true,
+      });
+    });
+
+    test('equipping vampireAmber while matamatabi is active is blocked (fresh equip case)', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 1;
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.flags.matamatabiActive = true;
+        const equipped = uiControl.equipRareAmber('vampireAmber');
+        return {
+          equipped,
+          equippedId: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+        };
+      });
+      expect(result).toEqual({ equipped: false, equippedId: null, vampireAmberCount: 1 });
+    });
+
+    test('matamatabi activating on a normal victory while vampireAmber is equipped triggers the accident instead', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        battleSystem.executeStandardVictory('test_dummy');
+        // Tap through the 4 remaining spoken lines synchronously (the 1st was already shown
+        // by the initial playDialogueLoop() call inside the accident itself). Stop there:
+        // the next queued entry is a textless fade step whose action (clearing the log)
+        // fires the instant it's dequeued, not after its delay - draining any further would
+        // wipe the very lines we're checking for.
+        for (let i = 0; i < 4 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+        return {
+          mode: RPG.State.mode,
+          equipped: RPG.State.equippedRareAmberId,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+          isBattling: RPG.State.isBattling,
+          currentEnemy: RPG.State.currentEnemy,
+          deathCount: RPG.State.deathCount,
+          defeatCounts: { ...RPG.State.defeatCounts.test_dummy },
+          exp: RPG.State.exp,
+          logText: document.getElementById('logContainer')?.textContent || '',
+        };
+      });
+      expect(result.mode).toBe('event');
+      expect(result.equipped).toBeNull();
+      expect(result.vampireAmberCount).toBe(1);
+      expect(result.chainCount).toBe(0);
+      expect(result.matamatabiActive).toBe(false);
+      expect(result.isBattling).toBe(false);
+      expect(result.currentEnemy).toBeNull();
+      expect(result.deathCount).toBe(0);
+      expect(result.defeatCounts).toEqual({ cain: 0, owen: 0 });
+      expect(result.exp).toBe(0);
+      expect(result.logText).toContain('《マタマタビ》が活性化した。');
+      expect(result.logText).toContain('吸血琥珀の様子がおかしい。');
+      expect(result.logText).toContain('カイン「あ……っ！？」');
+      expect(result.logText).toContain('ドクッ、ドクッ、ドクッ――');
+      expect(result.logText).toContain('カインは、その場に倒れた。');
+    });
+
+    test('the accident fully resolves back to the inn with HP restored', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 2 });
+      await page.evaluate(() => {
+        battleSystem.executeStandardVictory('test_dummy');
+      });
+      await drainDialogue(page, 150);
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        isAtInn: RPG.State.isAtInn,
+        location: RPG.State.location,
+        currentHP: RPG.State.currentHP,
+        maxHP: RPG.State.maxHP,
+      }));
+      expect(result.mode).toBe('base');
+      expect(result.isAtInn).toBe(true);
+      expect(result.location).toBe('宿屋《琥珀亭》');
+      expect(result.currentHP).toBe(Math.floor(result.maxHP * 0.1));
+    });
+
+    test('the accident is not a one-time event and recurs on a later trigger', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 2 });
+      const first = await page.evaluate(() => {
+        battleSystem.executeStandardVictory('test_dummy');
+        return RPG.State.mode;
+      });
+      expect(first).toBe('event');
+
+      await setupAccidentState(page, { chainCount: 1 });
+      const second = await page.evaluate(() => {
+        battleSystem.executeStandardVictory('test_dummy');
+        return {
+          mode: RPG.State.mode,
+          logHasLine: (document.getElementById('logContainer')?.textContent || '').includes('《マタマタビ》が活性化した。'),
+        };
+      });
+      expect(second).toEqual({ mode: 'event', logHasLine: true });
+    });
+
+    test('an Owen kill also triggers the accident instead of a normal Owen victory', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 4 });
+      const result = await page.evaluate(() => {
+        RPG.State.lastBlowBy = 'Owen';
+        battleSystem.endBattle(false);
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+          defeatCounts: { ...RPG.State.defeatCounts.test_dummy },
+        };
+      });
+      expect(result).toEqual({
+        equipped: null, chainCount: 0, matamatabiActive: false, defeatCounts: { cain: 0, owen: 0 },
+      });
+    });
+
+    test('a death-save retreat also triggers the accident instead of the normal matamatabi activation', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 3 });
+      const result = await page.evaluate(() => {
+        battleSystem.endBattle(false, true);
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+        };
+      });
+      expect(result).toEqual({ equipped: null, chainCount: 0, matamatabiActive: false });
+    });
+
+    test('regression: matamatabi still activates normally on victory when vampireAmber is not equipped', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isBattling: true,
+          currentEnemy: { id: 'test_dummy2', name: 'テスト用ダミー2', hp: 0, xp: 10, gold: 0 },
+          battleState: { playerTookDamage: true },
+          equippedRareAmberId: null,
+          exp: 0,
+        });
+        RPG.State.inventory.matamatabiBranch = 1;
+        RPG.State.defeatCounts.test_dummy2 = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.flags.matamatabiActive = false;
+        battleSystem.executeStandardVictory('test_dummy2');
+        return {
+          mode: RPG.State.mode,
+          defeatCounts: { ...RPG.State.defeatCounts.test_dummy2 },
+        };
+      });
+      expect(result.mode).toBe('event');
+      expect(result.defeatCounts).toEqual({ cain: 1, owen: 0 });
+      // Drain into the matamatabi activation dialogue and confirm it still runs as before.
+      await drainDialogue(page, 150);
+      const activated = await page.evaluate(() => RPG.State.flags.matamatabiActive);
+      expect(activated).toBe(true);
+    });
+
+    test('a fresh game: state after an accident survives a normal save/load round trip', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 2 });
+      const result = await page.evaluate(() => {
+        battleSystem.executeStandardVictory('test_dummy');
+        // Skip past the dialogue synchronously to reach the settled post-accident state.
+        for (let i = 0; i < 20 && RPG.State.mode === 'event'; i++) uiControl.handlePlayerInput();
+
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_matamatabi_accident_test', JSON.stringify(snapshot));
+
+        RPG.State.equippedRareAmberId = 'vampireAmber';
+        RPG.State.flags.vampireAmberChainBattleCount = 5;
+        RPG.State.flags.matamatabiActive = true;
+        uiControl.loadFromStorage('okai_rpg_matamatabi_accident_test', 'テスト');
+
+        return {
+          equipped: RPG.State.equippedRareAmberId,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          matamatabiActive: RPG.State.flags.matamatabiActive,
+          vampireAmberCount: RPG.State.inventory.vampireAmber,
+        };
+      });
+      expect(result).toEqual({
+        equipped: null, chainCount: 0, matamatabiActive: false, vampireAmberCount: 1,
+      });
     });
   });
 });

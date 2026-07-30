@@ -41,6 +41,10 @@ const explorationSystem = {
         );
     },
 
+    canOpenHardBottle: function () {
+        return RPG.State.cainLv >= 11;
+    },
+
     beginTemporaryFieldStep: function () {
         const isFormerHighway = RPG.State.location === "かつての街道";
         const isCountedFreeMove =
@@ -221,33 +225,35 @@ const explorationSystem = {
         if (Math.random() >= RPG.Assets.CONFIG.BATTLE_RATE) return false;
 
         if (RPG.State.storyPhase >= 6 && distance <= 2) {
-            battleSystem.startBattle(
+            return battleSystem.startBattle(
                 Math.random() < 0.35 ? "skull_bee" : "rat",
-                { mikawashiEvasionActive: options.mikawashiActive === true }
-            );
-            return true;
+                {
+                    mikawashiEvasionActive: options.mikawashiActive === true,
+                    randomEncounter: true
+                }
+            ) === true;
         }
 
         if (distance <= 2) {
-            battleSystem.startBattle("rat", {
-                mikawashiEvasionActive: options.mikawashiActive === true
-            });
-            return true;
+            return battleSystem.startBattle("rat", {
+                mikawashiEvasionActive: options.mikawashiActive === true,
+                randomEncounter: true
+            }) === true;
         }
 
         if (RPG.State.storyPhase >= 6 && Math.random() < 0.25) {
-            battleSystem.startBattle("skull_bee", {
-                mikawashiEvasionActive: options.mikawashiActive === true
-            });
-            return true;
+            return battleSystem.startBattle("skull_bee", {
+                mikawashiEvasionActive: options.mikawashiActive === true,
+                randomEncounter: true
+            }) === true;
         }
 
         // Match the forest's existing rat/weasel weight ratio (10:3) after 4m.
         const enemyId = Math.random() < (10 / 13) ? "rat" : "weasel";
-        battleSystem.startBattle(enemyId, {
-            mikawashiEvasionActive: options.mikawashiActive === true
-        });
-        return true;
+        return battleSystem.startBattle(enemyId, {
+            mikawashiEvasionActive: options.mikawashiActive === true,
+            randomEncounter: true
+        }) === true;
     },
 
     tryHerbGardenVineEncounter: function (distance, options = {}) {
@@ -1361,11 +1367,13 @@ const explorationSystem = {
             RPG.State.currentDistance < 10
         ) {
             if (Math.random() < RPG.Assets.CONFIG.BATTLE_RATE) {
-                battleSystem.startBattle(null, {
+                const battleStarted = battleSystem.startBattle(null, {
                     mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
                 });
-                this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
-                return;
+                if (battleStarted) {
+                    this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                    return;
+                }
             }
         }
 
@@ -2343,6 +2351,11 @@ const explorationSystem = {
                 success = true;
                 break;
             case 'matamatabiBranch':
+                if (RPG.State.equippedRareAmberId === 'vampireAmber') {
+                    uiControl.addLog("カイン（先に吸血琥珀を外そう）");
+                    uiControl.closeModal();
+                    return;
+                }
                 if (RPG.State.flags.matamatabiActive === true) {
                     uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded, "", "#9acd32");
                     uiControl.closeModal();
@@ -2380,6 +2393,25 @@ const explorationSystem = {
                     return;
                 }
                 success = true;
+                break;
+            case 'hardBottle':
+                if (!this.canOpenHardBottle()) {
+                    uiControl.addLog("カイン（ビクともしない……もっと力をつけてからだな）");
+                    uiControl.closeModal();
+                    return;
+                }
+                if (RPG.State.flags.hardBottleOpened === true) {
+                    uiControl.addLog("カイン（もう開けてあるんだったな）");
+                    uiControl.closeModal();
+                    return;
+                }
+                uiControl.addLog("《やみくもにかたい瓶》に力を込める。");
+                uiControl.addLog("ゴリラも顔負けの怪力で、蓋がゆっくりと緩んでいく……");
+                uiControl.addLog("バキッ！");
+                uiControl.addLog("ようやく開いた。");
+                RPG.State.flags.hardBottleOpened = true;
+                success = true;
+                consumeItem = false;
                 break;
             case 'nightMedicine':
                 if (!RPG.State.isAtInn) {

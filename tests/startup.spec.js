@@ -217,7 +217,7 @@ test.describe('title continue flow', () => {
     }
   });
 
-  test('starting over confirms and deletes all five pages plus the suspend record', async ({ page }) => {
+  test('starting over keeps all five pages plus the suspend record', async ({ page }) => {
     const entries = {};
     ['suspend', '1', '2', '3', '4', '5'].forEach((slot, index) => {
       const key = slot === 'suspend' ? 'okai_rpg_suspend' : `okai_rpg_save_${slot}`;
@@ -229,29 +229,8 @@ test.describe('title continue flow', () => {
     await seedStorage(page, entries);
     await openChapter1Records(page);
 
-    page.once('dialog', async dialog => {
-      expect(dialog.type()).toBe('confirm');
-      await dialog.dismiss();
-    });
     await page.locator('#newGameButton').click();
-    await expect(page).toHaveURL(/\/chapter1-records\.html$/);
-    expect(await page.evaluate(() => (
-      [
-        'okai_rpg_suspend',
-        'okai_rpg_save_1',
-        'okai_rpg_save_2',
-        'okai_rpg_save_3',
-        'okai_rpg_save_4',
-        'okai_rpg_save_5',
-      ].filter(key => localStorage.getItem(key) !== null).length
-    ))).toBe(6);
-
-    page.once('dialog', async dialog => {
-      expect(dialog.type()).toBe('confirm');
-      await dialog.accept();
-    });
-    await page.locator('#newGameButton').click();
-    await expect(page).toHaveURL(/\/chapter1\.html$/);
+    await expect(page).toHaveURL(/\/chapter1\.html\?new=1$/);
     await page.waitForFunction(() => (
       window.RPG?.State?.completedEvents?.includes('prologue_event')
     ));
@@ -266,8 +245,20 @@ test.describe('title continue flow', () => {
         'okai_rpg_save_5',
       ].filter(key => localStorage.getItem(key) !== null),
       prologueStarted: RPG.State.completedEvents.includes('prologue_event'),
+      storyPhase: RPG.State.storyPhase,
     }));
-    expect(result).toEqual({ remaining: [], prologueStarted: true });
+    expect(result).toEqual({
+      remaining: [
+        'okai_rpg_suspend',
+        'okai_rpg_save_1',
+        'okai_rpg_save_2',
+        'okai_rpg_save_3',
+        'okai_rpg_save_4',
+        'okai_rpg_save_5',
+      ],
+      prologueStarted: true,
+      storyPhase: 0,
+    });
   });
 
   test('all six records remain scrollable in the picker on a phone', async ({ page }) => {

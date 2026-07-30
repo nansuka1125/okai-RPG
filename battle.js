@@ -208,6 +208,72 @@ const battleSystem = {
         );
     },
 
+    // Build 15.6.x: Vampire-amber / matamatabi conflict. Checked ahead of the normal
+    // post-battle matamatabi activation at every battle-end path that would otherwise
+    // build/use buildMatamatabiActivationQueue() - reuses the same underlying condition,
+    // just gated on the amber also being equipped.
+    shouldTriggerVampireAmberMatamatabiAccident: function () {
+        return (
+            RPG.State.equippedRareAmberId === 'vampireAmber' &&
+            this.shouldActivateMatamatabiAfterBattle()
+        );
+    },
+
+    // Not a one-time event - can recur every time the trigger condition is met. Bypasses
+    // all normal victory/defeat bookkeeping (no EXP/gold/drops/kill-count/deathCount, no
+    // matamatabi activation) and returns Cain to the inn the same way a real defeat does,
+    // minus the parts that shouldn't apply here.
+    triggerVampireAmberMatamatabiAccident: function () {
+        uiControl.detachRareAmber({ log: false });
+
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "《マタマタビ》が活性化した。" },
+            { text: "吸血琥珀の様子がおかしい。", color: "#cc3333" },
+            { text: "カイン「あ……っ！？」" },
+            { text: "ドクッ、ドクッ、ドクッ――", color: "#cc3333" },
+            {
+                text: "カインは、その場に倒れた。",
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.add('night-mode');
+                }
+            },
+            {
+                text: "",
+                delay: 3000,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.innerHTML = '';
+                }
+            },
+            {
+                text: "",
+                delay: 1000,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.remove('night-mode');
+                    innSystem.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
+                    RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
+                    RPG.State.isPoisoned = false;
+                    uiControl.updateUI();
+                }
+            },
+            {
+                text: "",
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        explorationSystem.playDialogueLoop();
+    },
+
     buildMatamatabiActivationQueue: function () {
         if (!this.shouldActivateMatamatabiAfterBattle()) return [];
 
@@ -299,6 +365,47 @@ const battleSystem = {
         return variantId
             ? (RPG.Assets.ENEMIES.find(enemy => enemy.id === variantId) || template)
             : template;
+    },
+
+    isNotebookAllRandomEncounterExcluded: function (enemyId) {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const entry = entries.find(candidate => candidate.enemyId === enemyId);
+        const allTier = entry && entry.tiers.find(tier => (
+            tier.id === "all" &&
+            tier.unlockFlag &&
+            tier.progressFlag &&
+            Number.isFinite(tier.target)
+        ));
+        if (!allTier || RPG.State.flags[allTier.unlockFlag] !== true) return false;
+        return (Number(RPG.State.flags[allTier.progressFlag]) || 0) >= allTier.target;
+    },
+
+    incrementNotebookAllProgress: function (enemyId, defeatedBy) {
+        if (defeatedBy !== "Cain") return false;
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const entry = entries.find(candidate => candidate.enemyId === enemyId);
+        const allTier = entry && entry.tiers.find(tier => (
+            tier.id === "all" &&
+            tier.unlockFlag &&
+            tier.progressFlag &&
+            Number.isFinite(tier.target)
+        ));
+        if (!allTier || RPG.State.flags[allTier.unlockFlag] !== true) return false;
+
+        const currentProgress = Math.max(
+            0,
+            Number(RPG.State.flags[allTier.progressFlag]) || 0
+        );
+        if (currentProgress >= allTier.target) return false;
+        RPG.State.flags[allTier.progressFlag] = Math.min(
+            allTier.target,
+            currentProgress + 1
+        );
+        return true;
     },
 
     getHighwayFixedBattleSpec: function (distance) {
@@ -433,7 +540,10 @@ const battleSystem = {
     },
 
     startBattle: function (enemyId = null, options = {}) {
-        if (RPG.State.flags.chapter1Cleared === true) return;
+        if (RPG.State.flags.chapter1Cleared === true) return false;
+        const isRandomEncounter =
+            enemyId === null ||
+            options.randomEncounter === true;
         const pendingMoveEligibility =
             typeof explorationSystem !== "undefined" &&
             typeof explorationSystem.consumeMikawashiMoveBattleEligibility === "function"
@@ -461,7 +571,7 @@ const battleSystem = {
                 template = this.prepareGlowingCatRabbitTemplate(template);
                 if (!template) {
                     uiControl.addLog("光る猫うさぎの気配はまだ現れない。");
-                    return;
+                    return false;
                 }
             }
         }
@@ -480,7 +590,7 @@ const battleSystem = {
                 RPG.State.currentDistance >= e.area[0] &&
                 RPG.State.currentDistance <= e.area[1]
             );
-            if (candidates.length === 0) return;
+            if (candidates.length === 0) return false;
 
             const totalWeight = candidates.reduce((sum, e) => sum + e.weight, 0);
             let random = Math.random() * totalWeight;
@@ -495,6 +605,14 @@ const battleSystem = {
             }
 
             template = this.maybeUseAmberizedVariant(template);
+        }
+
+        if (
+            isRandomEncounter &&
+            this.isNotebookAllRandomEncounterExcluded(template && template.id)
+        ) {
+            uiControl.updateUI();
+            return false;
         }
 
         uiControl.addSeparator();
@@ -515,13 +633,14 @@ const battleSystem = {
                 }
             ];
             explorationSystem.playDialogueLoop();
-            return;
+            return true;
         }
 
         this.beginBattle(template, {
             mikawashiEvasionActive,
             highwayFixedDistance
         });
+        return true;
     },
 
     unlockNotebookEntryForEncounter: function (enemyId) {
@@ -584,6 +703,10 @@ const battleSystem = {
         RPG.State.hasOwenIntervened = false;
         RPG.State.hasOwenSavedLife = false;
 
+        this.applyVampireAmberBattleStart(template, () => this.continueBattleStart());
+    },
+
+    continueBattleStart: function () {
         if (typeof visualDirector !== "undefined") {
             visualDirector.syncScene();
             visualDirector.playBattleCue("encounter");
@@ -609,6 +732,167 @@ const battleSystem = {
             const delay = RPG.State.debug.isSkipping ? 50 : 800;
             setTimeout(() => this.runBattleLoop(), delay);
         }
+    },
+
+    getVampireAmberPendingTalkStages: function () {
+        const stages = Array.isArray(RPG.State.flags.vampireAmberPendingTalkStages)
+            ? RPG.State.flags.vampireAmberPendingTalkStages
+            : [];
+        return stages.filter((stage, index) => (
+            (stage === 1 || stage === 2) &&
+            stages.indexOf(stage) === index
+        ));
+    },
+
+    queueVampireAmberTalkStage: function (stage) {
+        const seenFlag = stage === 1
+            ? "vampireAmberStage1TalkSeen"
+            : stage === 2
+                ? "vampireAmberStage2TalkSeen"
+                : null;
+        if (!seenFlag || RPG.State.flags[seenFlag] === true) return;
+
+        const pendingStages = this.getVampireAmberPendingTalkStages();
+        if (!pendingStages.includes(stage)) pendingStages.push(stage);
+        RPG.State.flags.vampireAmberPendingTalkStages = pendingStages;
+    },
+
+    clearVampireAmberTalkStage: function (stage) {
+        RPG.State.flags.vampireAmberPendingTalkStages =
+            this.getVampireAmberPendingTalkStages().filter(candidate => candidate !== stage);
+    },
+
+    buildVampireAmberPostBattleTalkQueue: function () {
+        if (!RPG.State.battleState?.vampireAmberDamageMultiplier) return [];
+
+        return this.getVampireAmberPendingTalkStages().flatMap(stage => {
+            if (stage === 1 && RPG.State.flags.vampireAmberStage1TalkSeen !== true) {
+                return [
+                    { text: "オーエン「おまえ、そういうの好きなの？」", color: "#a020f0" },
+                    { text: "カイン「何がだ」" },
+                    { text: "オーエン「血を吸われるの」", color: "#a020f0" },
+                    {
+                        text: "カイン「好きじゃない。必要な時以外はなるべく使いたくないな」",
+                        action: () => {
+                            RPG.State.flags.vampireAmberStage1TalkSeen = true;
+                            this.clearVampireAmberTalkStage(1);
+                        }
+                    }
+                ];
+            }
+            if (stage === 2 && RPG.State.flags.vampireAmberStage2TalkSeen !== true) {
+                return [
+                    { text: "カイン（まずい、クラクラしてきた）" },
+                    {
+                        text: "オーエン「……もうやめたら？」",
+                        color: "#a020f0",
+                        action: () => {
+                            RPG.State.flags.vampireAmberStage2TalkSeen = true;
+                            this.clearVampireAmberTalkStage(2);
+                        }
+                    }
+                ];
+            }
+            this.clearVampireAmberTalkStage(stage);
+            return [];
+        });
+    },
+
+    getPendingBattleCountEvents: function () {
+        const pendingEvents = Array.isArray(RPG.State.flags.pendingBattleCountEvents)
+            ? RPG.State.flags.pendingBattleCountEvents
+            : [];
+        const uniqueKeys = new Set();
+        return pendingEvents.filter(event => {
+            const enemyId = typeof event?.enemyId === "string" ? event.enemyId : "";
+            const count = Number(event?.count);
+            const key = `${enemyId}:${count}`;
+            if (
+                !enemyId ||
+                !Number.isInteger(count) ||
+                count < 1 ||
+                uniqueKeys.has(key)
+            ) {
+                return false;
+            }
+            uniqueKeys.add(key);
+            return true;
+        }).map(event => ({
+            enemyId: event.enemyId,
+            count: Number(event.count)
+        }));
+    },
+
+    deferBattleCountEvent: function (enemyId, count) {
+        const pendingEvents = this.getPendingBattleCountEvents();
+        if (!pendingEvents.some(event => event.enemyId === enemyId && event.count === count)) {
+            pendingEvents.push({ enemyId, count });
+        }
+        RPG.State.flags.pendingBattleCountEvents = pendingEvents;
+    },
+
+    clearPendingBattleCountEvent: function (enemyId, count) {
+        RPG.State.flags.pendingBattleCountEvents =
+            this.getPendingBattleCountEvents().filter(event => (
+                event.enemyId !== enemyId || event.count !== count
+            ));
+    },
+
+    buildPendingBattleCountEventQueue: function (enemyId) {
+        return this.getPendingBattleCountEvents()
+            .filter(event => event.enemyId === enemyId)
+            .sort((left, right) => left.count - right.count)
+            .flatMap(event => {
+                const eventDialogues = RPG.Assets.BATTLE_EVENTS[enemyId]?.[event.count];
+                if (!Array.isArray(eventDialogues)) {
+                    this.clearPendingBattleCountEvent(enemyId, event.count);
+                    return [];
+                }
+                return [
+                    ...eventDialogues.map(line => ({ ...line })),
+                    {
+                        text: null,
+                        action: () => {
+                            this.clearPendingBattleCountEvent(enemyId, event.count);
+                        }
+                    }
+                ];
+            });
+    },
+
+    // Build 15.6.x: Vampire-amber battle-start hook - HP drain (battles 1/4/6 only),
+    // post-battle talk reservation, and the per-battle Cain-only damage multiplier
+    // (read later by applyCainDamage). Fully excluded for glowing_cat_rabbit, which
+    // runs its own hit-counter minigame.
+    applyVampireAmberBattleStart: function (template, next) {
+        if (template.id === 'glowing_cat_rabbit' || RPG.State.equippedRareAmberId !== 'vampireAmber') {
+            next();
+            return;
+        }
+
+        const battleNumber = (RPG.State.flags.vampireAmberChainBattleCount || 0) + 1;
+        const damageMultiplier = battleNumber === 6 ? 2 : 1.5;
+        RPG.State.battleState.vampireAmberDamageMultiplier = damageMultiplier;
+
+        if (battleNumber === 1) this.queueVampireAmberTalkStage(1);
+        if (battleNumber === 4) this.queueVampireAmberTalkStage(2);
+
+        const drainRate = battleNumber === 1 ? 0.10 : battleNumber === 4 ? 0.15 : battleNumber === 6 ? 0.20 : null;
+        if (drainRate !== null) {
+            const rawDrain = Math.ceil(RPG.State.maxHP * drainRate);
+            const maxDrain = Math.max(0, RPG.State.currentHP - 1);
+            const actualDrain = Math.min(rawDrain, maxDrain);
+            RPG.State.currentHP -= actualDrain;
+            uiControl.addLog("《吸血琥珀》がカインの血を吸った！", "marker", "#cc3333");
+        }
+
+        uiControl.addLog(
+            `《吸血琥珀》の力で、カインの攻撃力が${damageMultiplier}倍になった！`,
+            "marker",
+            "#cc3333"
+        );
+        uiControl.updateUI();
+        next();
     },
 
     runBattleLoop: function () {
@@ -697,7 +981,7 @@ const battleSystem = {
 
                 if (RPG.State.currentEnemy.frozenTurns > 0) {
                     RPG.State.currentEnemy.frozenTurns--;
-                    uiControl.addLog(`${RPG.State.currentEnemy.name}は凍りついて動けない！`, "");
+                    uiControl.addLog(`${RPG.State.currentEnemy.name}は氷の鎖に縛られて動けない！`, "");
                     const delay = RPG.State.debug.isSkipping ? 50 : 1000;
                     setTimeout(runCainAfterEnemy, delay);
                 } else {
@@ -715,7 +999,7 @@ const battleSystem = {
 
                 if (RPG.State.currentEnemy.frozenTurns > 0) {
                     RPG.State.currentEnemy.frozenTurns--;
-                    uiControl.addLog(`${RPG.State.currentEnemy.name}は凍りついて動けない！`, "");
+                    uiControl.addLog(`${RPG.State.currentEnemy.name}は氷の鎖に縛られて動けない！`, "");
                     const delay = RPG.State.debug.isSkipping ? 50 : 1000;
                     setTimeout(() => this.runBattleLoop(), delay);
                 } else {
@@ -786,9 +1070,10 @@ const battleSystem = {
                     setTimeout(() => this.endWeaselEscapeBattle(), escapeDelay);
                     return;
                 }
-                if (RPG.State.flags.matamatabiActive === true && (!RPG.State.currentEnemy || RPG.State.currentEnemy.id !== "glowing_cat_rabbit")) {
-                    uiControl.addLog("オーエンは一瞬で敵を吹き飛ばした！", "", "#a333c8");
-                } else {
+                const isSilentMatamatabiKill =
+                    RPG.State.flags.matamatabiActive === true &&
+                    (!RPG.State.currentEnemy || RPG.State.currentEnemy.id !== "glowing_cat_rabbit");
+                if (!isSilentMatamatabiKill) {
                     uiControl.addLog(
                         RPG.Assets.BATTLE_TEXT.owen.kill[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.kill.length)],
                         "",
@@ -796,12 +1081,13 @@ const battleSystem = {
                     );
                 }
                 if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
+                    uiControl.addLog(`透明な狼が${RPG.State.currentEnemy.name}へ襲いかかった！`, "");
                     uiControl.addLog(RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit.killImmune, "", "#ffffaa");
                     delay = 1200;
                 } else {
                     RPG.State.currentEnemy.hp = 0;
                     RPG.State.lastBlowBy = "Owen";
-                    uiControl.addLog("オーエンの魔法が敵を消滅させた！", "");
+                    uiControl.addLog(`透明な狼が${RPG.State.currentEnemy.name}を呑み込んだ！`, "");
                     delay = 1500;
                 }
                 break;
@@ -812,7 +1098,8 @@ const battleSystem = {
                     "",
                     "#a333c8"
                 );
-                uiControl.addLog(`${RPG.State.currentEnemy.name}は凍りついた！`, "");
+                uiControl.addLog(`氷の鎖が${RPG.State.currentEnemy.name}を縛りつけた！`, "");
+                uiControl.addLog(`${RPG.State.currentEnemy.name}は動けない！`, "");
                 break;
             case "idle":
                 const idlePhrase = RPG.Assets.GAME_TEXT.owenIdlePhrases[Math.floor(Math.random() * RPG.Assets.GAME_TEXT.owenIdlePhrases.length)];
@@ -835,6 +1122,11 @@ const battleSystem = {
     applyCainDamage: function (damage, isCritical = false) {
         const enemy = RPG.State.currentEnemy;
         if (!enemy) return;
+
+        const vampireAmberMultiplier = RPG.State.battleState?.vampireAmberDamageMultiplier;
+        if (vampireAmberMultiplier) {
+            damage = Math.floor(damage * vampireAmberMultiplier);
+        }
 
         const hasHardenedPart = (enemy.armorHp || 0) > 0;
         uiControl.addLog("カインの攻撃！", "player-action");
@@ -1045,7 +1337,7 @@ const battleSystem = {
 
         if (enemy.frozenTurns > 0) {
             enemy.frozenTurns--;
-            uiControl.addLog(`${enemy.name}は凍りついて動けない！`, "");
+            uiControl.addLog(`${enemy.name}は氷の鎖に縛られて動けない！`, "");
             setTimeout(callback, delay);
             return;
         }
@@ -1349,6 +1641,11 @@ const battleSystem = {
     },
 
     endGlowingCatRabbitBattle: function (escaped) {
+        if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
+            this.triggerVampireAmberMatamatabiAccident();
+            return;
+        }
+
         this.advanceHerbGardenHarvestCooldowns();
 
         const enemy = RPG.State.currentEnemy;
@@ -1443,6 +1740,7 @@ const battleSystem = {
     endWeaselEscapeBattle: function () {
         this.advanceHerbGardenHarvestCooldowns();
         uiControl.addSeparator();
+        uiControl.advanceVampireAmberChainOnBattleEnd();
 
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
@@ -1762,22 +2060,35 @@ const battleSystem = {
         }
 
         const matamatabiActivationQueue = this.buildMatamatabiActivationQueue();
+        let vampireAmberTalkQueue = [];
         let hasPostBattleEvent = false;
         let postBattleStarted = false;
         let highwayPostBattleQueue = [];
 
         if (isDeathSave) {
+            if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
+                this.triggerVampireAmberMatamatabiAccident();
+                return;
+            }
+
             uiControl.addLog("戦闘から離脱した。");
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
         } else if (!playerWin) {
+            if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
+                this.triggerVampireAmberMatamatabiAccident();
+                return;
+            }
+
             if (typeof visualDirector !== "undefined") {
                 visualDirector.playBattleCue("enemy-defeated");
             }
             RPG.State.defeatCounts[enemyId].owen++;
-            uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
+            uiControl.addLog(`${RPG.State.currentEnemy.name}は跡形もなく消えた。`);
             this.grantGuaranteedEnemyDrop();
+            vampireAmberTalkQueue = this.buildVampireAmberPostBattleTalkQueue();
+            uiControl.advanceVampireAmberChainOnBattleEnd();
             const highwayVictory = this.recordHighwayFixedBattleVictory(enemyId);
             highwayPostBattleQueue = this.buildHighwayPostBattleQueue(highwayVictory);
             if (highwayPostBattleQueue.length > 0) {
@@ -1798,6 +2109,9 @@ const battleSystem = {
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
+            if (vampireAmberTalkQueue.length > 0 && !hasPostBattleEvent) {
+                hasPostBattleEvent = true;
+            }
         } else {
             this.executeStandardVictory(enemyId);
             return;
@@ -1815,6 +2129,7 @@ const battleSystem = {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
                 ...highwayPostBattleQueue,
+                ...(highwayPostBattleQueue.length === 0 ? vampireAmberTalkQueue : []),
                 ...matamatabiActivationQueue
             ];
             uiControl.updateUI();
@@ -1827,13 +2142,18 @@ const battleSystem = {
     },
 
     executeStandardVictory: function (enemyId) {
+        if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
+            this.triggerVampireAmberMatamatabiAccident();
+            return;
+        }
+
         // Build 15.1.8: Lock UI IMMEDIATELY to prevent Race Condition
         RPG.State.mode = "event";
         if (typeof visualDirector !== "undefined") {
             visualDirector.playBattleCue("enemy-defeated");
         }
         // Victory text ownership rule:
-        // - Common defeat/victory lines such as "〇〇を倒した！" or "〇〇は塵になった…" are emitted ONLY here.
+        // - Common defeat/victory lines such as "〇〇を倒した！" or "〇〇は跡形もなく消えた。" are emitted ONLY here.
         // - Post-battle BATTLE_EVENTS / onDeathEvent handlers must not repeat those generic victory lines.
         //   They are reserved for boss-specific aftermath, cinematics, and dialogue only.
 
@@ -1846,11 +2166,12 @@ const battleSystem = {
 
         if (RPG.State.lastBlowBy === "Owen") {
             RPG.State.defeatCounts[enemyId].owen++;
-            uiControl.addLog(`${RPG.State.currentEnemy.name}は塵になった…`);
+            uiControl.addLog(`${RPG.State.currentEnemy.name}は跡形もなく消えた。`);
         } else {
             RPG.State.defeatCounts[enemyId].cain++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}を倒した！`);
         }
+        this.incrementNotebookAllProgress(enemyId, RPG.State.lastBlowBy);
 
         this.grantGuaranteedEnemyDrop();
         const highwayVictory = this.recordHighwayFixedBattleVictory(enemyId);
@@ -1977,6 +2298,18 @@ const battleSystem = {
             : this.buildLevelUpTalkQueue(currentLevelUpTalkLevel);
 
         const count = RPG.State.defeatCounts[enemyId] ? (RPG.State.defeatCounts[enemyId].cain + RPG.State.defeatCounts[enemyId].owen) : 1;
+        const vampireAmberTalkQueue = this.buildVampireAmberPostBattleTalkQueue();
+        const pendingCountEvents = this.getPendingBattleCountEvents()
+            .filter(event => event.enemyId === enemyId);
+        const pendingCountEventQueue = this.buildPendingBattleCountEventQueue(enemyId);
+        const currentCountEvent = RPG.Assets.BATTLE_EVENTS[enemyId]?.[count];
+        const currentCountEventAlreadyPending = pendingCountEvents.some(
+            event => event.count === count
+        );
+        const currentCountEventQueue =
+            Array.isArray(currentCountEvent) && !currentCountEventAlreadyPending
+                ? currentCountEvent.map(line => ({ ...line }))
+                : [];
         const hasInnRatEvent2Aftermath =
             enemyId === 'rat' &&
             RPG.State.flags.innRatEvent2BattleActive === true &&
@@ -2020,15 +2353,39 @@ const battleSystem = {
         if (
             !hasPostBattleEvent &&
             !highwayVictory.handled &&
-            RPG.Assets.BATTLE_EVENTS[enemyId] &&
-            RPG.Assets.BATTLE_EVENTS[enemyId][count]
+            (
+                pendingCountEventQueue.length > 0 ||
+                currentCountEventQueue.length > 0
+            )
         ) {
-            const eventDialogues = RPG.Assets.BATTLE_EVENTS[enemyId][count];
-            uiControl.addLog("---");
-            RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [...levelUpTalkQueue, ...eventDialogues, ...matamatabiActivationQueue];
-            explorationSystem.playDialogueLoop();
-            hasPostBattleEvent = true;
+            if (vampireAmberTalkQueue.length > 0) {
+                if (currentCountEventQueue.length > 0) {
+                    this.deferBattleCountEvent(enemyId, count);
+                }
+                uiControl.addLog("---");
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    ...levelUpTalkQueue,
+                    ...vampireAmberTalkQueue,
+                    ...matamatabiActivationQueue
+                ];
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            } else {
+                const eventDialogues = [
+                    ...pendingCountEventQueue,
+                    ...currentCountEventQueue
+                ];
+                uiControl.addLog("---");
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    ...levelUpTalkQueue,
+                    ...eventDialogues,
+                    ...matamatabiActivationQueue
+                ];
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
         }
 
         const defeatedEnemy = RPG.Assets.ENEMIES.find(e => e.id === enemyId);
@@ -2041,6 +2398,18 @@ const battleSystem = {
                 victoryEvent.action(RPG.State);
                 hasPostBattleEvent = true;
             }
+        }
+
+        if (!hasPostBattleEvent && vampireAmberTalkQueue.length > 0) {
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                ...levelUpTalkQueue,
+                ...vampireAmberTalkQueue,
+                ...matamatabiActivationQueue
+            ];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
         }
 
         if (!hasPostBattleEvent && levelUpTalkQueue.length > 0) {
@@ -2058,6 +2427,8 @@ const battleSystem = {
             explorationSystem.playDialogueLoop();
             hasPostBattleEvent = true;
         }
+
+        uiControl.advanceVampireAmberChainOnBattleEnd();
 
         // Final State Cleanup
         RPG.State.isBattling = false;
@@ -2111,12 +2482,23 @@ const battleSystem = {
     finalizeStandardDefeat: function (defeatedEnemyId = null) {
         uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
         RPG.State.flags.innRatEvent2BattleActive = false;
+
+        // Build 15.6.x: A defeat on what would have been the 6th vampire-amber chain battle
+        // still forces the removal, just without the conscious "もぎ取った！" line (Cain is out cold).
+        const vampireAmberRemoved =
+            RPG.State.equippedRareAmberId === 'vampireAmber' &&
+            (RPG.State.flags.vampireAmberChainBattleCount || 0) === 5;
+        if (vampireAmberRemoved) {
+            uiControl.detachRareAmber({ log: false });
+        }
+        uiControl.resetVampireAmberChain();
+
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
         RPG.State.mood = Math.max(0, RPG.State.mood - 20);
 
-        innSystem.showDefeatSequence(defeatedEnemyId);
+        innSystem.showDefeatSequence(defeatedEnemyId, { vampireAmberRemoved });
     },
 
     resolveDefeat: function () {

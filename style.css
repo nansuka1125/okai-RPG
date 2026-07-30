@@ -935,6 +935,25 @@ body.travel-active button {
     color: #948a78;
 }
 
+.notebook-tier-button {
+    appearance: none;
+    border: 1px solid rgba(198, 154, 75, 0.45);
+    border-radius: 5px;
+    background: rgba(73, 60, 39, 0.72);
+    color: #f1d58f;
+    padding: 3px 5px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.notebook-tier-button:hover,
+.notebook-tier-selected {
+    border-color: #e4bd63;
+    background: rgba(116, 84, 36, 0.92);
+    color: #fff3c6;
+}
+
 .notebook-claim-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;

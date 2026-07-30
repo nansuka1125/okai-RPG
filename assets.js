@@ -34,9 +34,14 @@ RPG.Assets.CONFIG = {
         glowingBrooch: "💍光るブローチ",
         lightRabbitBrooch: "💍光兎のブローチ",
         unknownAmber: "🔸《？琥珀》",
+        specialUnknownAmber: "🔸《？琥珀》",
+        vampireAmber: "🔸《吸血琥珀》",
+        secretLetter: "㊙️秘密のお手紙",
         borrowedMiningKnife: "🔪《借りたナイフ》",
         miningKnife: "🔪《採掘ナイフ》",
         amberTreeTimber: "《🪵琥珀樹の木材》",
+        shinyOil: "《ピカピカ油》",
+        hardOil: "《カチカチ油》",
         hatedAmber: "🔸《嫌われ琥珀》",
         sweetAmber: "🔸《甘そうな琥珀》",
         herbAmber: "🔸《薬草入り琥珀》",
@@ -73,9 +78,14 @@ RPG.Assets.CONFIG = {
         glowingBrooch: "小さく開く構造になっている。",
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
+        specialUnknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
+        vampireAmber: "自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？",
+        secretLetter: "誰かに宛てて書かれた手紙。",
         borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
         miningKnife: "琥珀を採掘するためのナイフ。借りた時から性能は変わっていない。",
         amberTreeTimber: "表面が琥珀化した、硬く丈夫な木材。",
+        shinyOil: "店主から受け取った、道具の手入れに使う油。",
+        hardOil: "店主から受け取った、素材を硬く仕上げる油。",
         hatedAmber: "装備すると通常の魔物と遭遇しにくくなるレア琥珀。",
         sweetAmber: "装備するとオーエンが戦闘へ介入しやすくなるレア琥珀。",
         herbAmber: "装備すると徐々に回復し、薬草の効果も高まるレア琥珀。",
@@ -95,6 +105,114 @@ RPG.Assets.CONFIG = {
         RPG.Config.BATTLE_RATE = value;
     }
 };
+
+RPG.Assets.NOTEBOOK_ENTRIES = [
+    {
+        id: "rat",
+        enemyId: "rat",
+        name: "魔界のネズミ",
+        initiallyKnown: true,
+        encounterFlag: "notebookRatEncountered",
+        tiers: [
+            {
+                id: "10", label: "10", target: 10, claimedFlag: "ratBounty10Received",
+                items: [{ itemId: "herb", qty: 3 }]
+            },
+            {
+                id: "20", label: "20", target: 20, claimedFlag: "ratBounty20Received",
+                items: [{ itemId: "fakeWoundMedicine", qty: 3 }]
+            },
+            {
+                id: "all", label: "ALL", target: null,
+                claimedFlag: "ratBountyAllReceived", claimEnabled: false,
+                items: [{ itemId: "hardBottle", qty: 1 }]
+            }
+        ]
+    },
+    {
+        id: "weasel",
+        enemyId: "weasel",
+        name: "魔界のイタチ",
+        initiallyKnown: true,
+        encounterFlag: "notebookWeaselEncountered",
+        tiers: [
+            {
+                id: "10", label: "10", target: 10, claimedFlag: "weaselBounty10Received",
+                items: [{ itemId: "smokeBomb", qty: 3 }]
+            },
+            {
+                id: "20", label: "20", target: 20, claimedFlag: "weaselBounty20Received",
+                items: [{ itemId: "mikawashiFeather", qty: 3 }]
+            },
+            {
+                id: "all", label: "ALL", target: null,
+                claimedFlag: "weaselBountyAllReceived", claimEnabled: false,
+                items: [{ itemId: "highHerb", qty: 3 }]
+            }
+        ]
+    },
+    {
+        id: "sap",
+        enemyId: "sap",
+        name: "琥珀の樹液",
+        initiallyKnown: false,
+        encounterFlag: "notebookSapEncountered",
+        tiers: [
+            {
+                id: "10", label: "10", target: 10, claimedFlag: "sapBounty10Received",
+                items: [{ itemId: "shinyOil", qty: 3 }]
+            },
+            {
+                id: "20", label: "20", target: 20, claimedFlag: "sapBounty20Received",
+                items: [{ itemId: "gratefulTalisman", qty: 1 }]
+            },
+            {
+                id: "all", label: "ALL", target: null,
+                claimedFlag: "sapBountyAllReceived", claimEnabled: false,
+                items: [{ itemId: "highHerb", qty: 5 }]
+            }
+        ]
+    },
+    {
+        id: "amber_rat",
+        enemyId: "amber_rat",
+        name: "琥珀化ネズミ",
+        initiallyKnown: false,
+        encounterFlag: "notebookAmberRatEncountered",
+        tiers: [
+            {
+                id: "15", label: "15", target: 15, claimedFlag: "amberRatBounty15Received",
+                items: [
+                    { itemId: "fakeWoundMedicine", qty: 3 },
+                    { itemId: "smokeBomb", qty: 3 }
+                ]
+            },
+            {
+                id: "all", label: "ALL", target: null,
+                claimedFlag: "amberRatBountyAllReceived", claimEnabled: false,
+                items: [{ itemId: "specialUnknownAmber", qty: 1 }]
+            }
+        ]
+    },
+    {
+        id: "amber_weasel",
+        enemyId: "amber_weasel",
+        name: "琥珀化イタチ",
+        initiallyKnown: false,
+        encounterFlag: "notebookAmberWeaselEncountered",
+        tiers: [
+            {
+                id: "15", label: "15", target: 15, claimedFlag: "amberWeaselBounty15Received",
+                items: [{ itemId: "fakeWoundMedicine", qty: 3 }]
+            },
+            {
+                id: "all", label: "ALL", target: null,
+                claimedFlag: "amberWeaselBountyAllReceived", claimEnabled: false,
+                items: [{ itemId: "secretLetter", qty: 1 }]
+            }
+        ]
+    }
+];
 
 // Chapter 1 amber values. Equipment effects remain descriptive until the
 // amber-case rules are decided; exchange and trade-in can already use one source.
@@ -169,6 +287,12 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         exchangeable: false,
         oneTime: true,
         effect: "装備中、状態異常を受けなくなる。"
+    },
+    {
+        id: "vampireAmber",
+        name: "《吸血琥珀》",
+        exchangeable: false,
+        effect: "自分のHPを少し吸う代わりに、攻撃力を大きく高める。"
     }
 ];
 
@@ -1299,6 +1423,14 @@ RPG.Assets.GAME_TEXT = {
             "カイン（冗談なのか、判断に迷うな）",
             "宿屋に戻ろう。"
         ],
+        innRepairTimberDelivery: [
+            "カイン「宿を直すのに使えそうな木材を持ってきた」",
+            "カインは《琥珀樹の木材》を店主へ渡した。",
+            "店主「おお、こいつは頑丈だな。これなら板に加工できる。ありがとう、助かったよ」",
+            "店主「礼になるかわからんが、こいつを持っていきな」",
+            "《ピカピカ油》と《カチカチ油》を手に入れた！",
+            "店主は、修繕に使う板材を確保した。"
+        ],
         phase6HerbGardenNoBottle: [
             "カイン（そうだ、空き瓶についてきかないと）"
         ],
@@ -2384,6 +2516,10 @@ RPG.Assets.getJourneyMemo = function (state) {
     const flags = state && state.flags ? state.flags : {};
     const inventory = state && state.inventory ? state.inventory : {};
     const phase = Number(state && state.storyPhase) || 0;
+
+    if (flags.innRepairTimberDelivered === true) {
+        return "宿を直すための木材を店主へ渡した。";
+    }
 
     if (phase >= 9) {
         if (

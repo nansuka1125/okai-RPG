@@ -255,6 +255,104 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.exchangePreviewShown).toBe(true);
   });
 
+  test('the special unknown amber is appraised before the normal first appraisal', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.specialUnknownAmber = 1;
+      RPG.State.inventory.unknownAmber = 1;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.State.flags.treeDefeated = true;
+      RPG.State.flags.amberMerchantRecognized = true;
+      RPG.State.flags.borrowedMiningKnifeReceived = true;
+      RPG.State.flags.firstAmberAppraisalDone = false;
+      RPG.State.flags.vampireAmberAppraisalSeen = false;
+      innSystem.interactWithAmberMerchant();
+    });
+
+    await drainDialogue(page);
+    let result = await page.evaluate(() => ({
+      specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+      sparkling: RPG.State.amberStorage.sparkling,
+      firstDone: RPG.State.flags.firstAmberAppraisalDone,
+      vampireSeen: RPG.State.flags.vampireAmberAppraisalSeen,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+
+    expect(result.specialUnknownAmber).toBe(0);
+    expect(result.unknownAmber).toBe(1);
+    expect(result.vampireAmber).toBe(1);
+    expect(result.sparkling).toBe(0);
+    expect(result.firstDone).toBe(false);
+    expect(result.vampireSeen).toBe(true);
+    expect(result.log).toContain('《吸血琥珀》と鑑定された。');
+    expect(result.log).toContain(
+      '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
+    );
+
+    await page.evaluate(() => innSystem.interactWithAmberMerchant());
+    await drainDialogue(page);
+    result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+      sparkling: RPG.State.amberStorage.sparkling,
+      firstDone: RPG.State.flags.firstAmberAppraisalDone,
+    }));
+    expect(result).toEqual({
+      unknownAmber: 0,
+      vampireAmber: 1,
+      sparkling: 1,
+      firstDone: true,
+    });
+  });
+
+  test('special appraisal bypasses the unchanged normal random draw', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.specialUnknownAmber = 1;
+      RPG.State.inventory.unknownAmber = 2;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.State.flags.firstAmberAppraisalDone = true;
+      RPG.State.flags.vampireAmberAppraisalSeen = false;
+      RPG.State.flags.miningKnifeAwarded = true;
+      RPG.State.amberStorage.junk = 0;
+      RPG.State.junkAmberDelivered = 3;
+
+      const originalRandom = Math.random;
+      let randomCalls = 0;
+      Math.random = () => {
+        randomCalls++;
+        return 0.75;
+      };
+      innSystem.appraiseAmber(3);
+      Math.random = originalRandom;
+
+      return {
+        randomCalls,
+        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        vampireAmber: RPG.State.inventory.vampireAmber,
+        junk: RPG.State.amberStorage.junk,
+        weights: {
+          sparkling: RPG.Assets.AMBER_APPRAISAL.sparkling.weight,
+          junk: RPG.Assets.AMBER_APPRAISAL.junk.weight,
+          insect: RPG.Assets.AMBER_APPRAISAL.insect.weight,
+        },
+      };
+    });
+
+    expect(result).toEqual({
+      randomCalls: 2,
+      specialUnknownAmber: 0,
+      unknownAmber: 0,
+      vampireAmber: 1,
+      junk: 2,
+      weights: { sparkling: 70, junk: 15, insect: 15 },
+    });
+    await drainDialogue(page);
+  });
+
   test('merchant recognition, knife loan, return attempt, and overnight move stay ordered', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
@@ -510,6 +608,71 @@ test.describe('Chapter 1 amber system', () => {
     expect(result).toEqual({ sparkling: 1, sweet: 0 });
   });
 
+  test('vampire amber is socketable but absent from exchange and trade-in', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.vampireAmber = 1;
+      RPG.State.equippedRareAmberId = null;
+      RPG.State.amberStorage.sparkling = 999;
+
+      innSystem.showAmberExchangeMenu();
+      const exchangeMenu = document.getElementById('action-buttons')?.textContent || '';
+      innSystem.showAmberTradeInMenu();
+      const tradeInMenu = document.getElementById('action-buttons')?.textContent || '';
+      RPG.State.mode = 'base';
+
+      const before = {
+        currentHP: RPG.State.currentHP,
+        maxHP: RPG.State.maxHP,
+        attack: RPG.State.attack,
+      };
+      const equipped = uiControl.equipRareAmber('vampireAmber');
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_vampire_amber_test', JSON.stringify(snapshot));
+
+      RPG.State.inventory.vampireAmber = 4;
+      RPG.State.equippedRareAmberId = null;
+      uiControl.loadFromStorage('okai_rpg_vampire_amber_test', '吸血琥珀テスト');
+      const equippedAfterLoad = RPG.State.equippedRareAmberId;
+      const inventoryAfterLoad = RPG.State.inventory.vampireAmber;
+      const detached = uiControl.detachRareAmber({ log: false, refreshModal: false });
+
+      return {
+        name: RPG.Assets.CONFIG.ITEM_NAME.vampireAmber,
+        description: RPG.Assets.CONFIG.ITEM_DESC.vampireAmber,
+        exchangeMenu,
+        tradeInMenu,
+        equipped,
+        equippedAfterLoad,
+        inventoryAfterLoad,
+        detached,
+        equippedAfterDetach: RPG.State.equippedRareAmberId,
+        inventoryAfterDetach: RPG.State.inventory.vampireAmber,
+        before,
+        after: {
+          currentHP: RPG.State.currentHP,
+          maxHP: RPG.State.maxHP,
+          attack: RPG.State.attack,
+        },
+      };
+    });
+
+    expect(result.name).toBe('🔸《吸血琥珀》');
+    expect(result.description).toBe(
+      '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
+    );
+    expect(result.exchangeMenu).not.toContain('吸血琥珀');
+    expect(result.tradeInMenu).not.toContain('吸血琥珀');
+    expect(result.equipped).toBe(true);
+    expect(result.equippedAfterLoad).toBe('vampireAmber');
+    expect(result.inventoryAfterLoad).toBe(0);
+    expect(result.detached).toBe(true);
+    expect(result.equippedAfterDetach).toBeNull();
+    expect(result.inventoryAfterDetach).toBe(1);
+    expect(result.after).toEqual(result.before);
+  });
+
   test('the exchange catalog stays scrollable on a phone viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => {
@@ -632,5 +795,332 @@ test.describe('Chapter 1 amber system', () => {
     });
 
     expect(result).toEqual({ beforeThief: 'rat', afterThief: 'amber_rat' });
+  });
+
+  test('the glowing brooch equips one owned rare amber from its inventory detail', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.hatedAmber = 1;
+      RPG.State.inventory.sweetAmber = 1;
+      RPG.State.equippedRareAmberId = null;
+      uiControl.openModal();
+      uiControl.selectItem('glowingBrooch', 1);
+    });
+
+    await expect(page.locator('#itemDetailArea')).toContainText('装着中：なし');
+    await page.getByRole('button', { name: '琥珀を装着する' }).click();
+    await expect(page.locator('#itemList .item-row')).toHaveCount(2);
+    await expect(page.locator('#itemList')).toContainText('通常の魔物と遭遇しにくくなる');
+
+    await page.locator('#itemList .item-row', { hasText: '嫌われ琥珀' }).click();
+
+    const result = await page.evaluate(() => ({
+      equipped: RPG.State.equippedRareAmberId,
+      hated: RPG.State.inventory.hatedAmber,
+      sweet: RPG.State.inventory.sweetAmber,
+      detail: document.getElementById('itemDetailArea')?.textContent || '',
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.equipped).toBe('hatedAmber');
+    expect(result.hated).toBe(0);
+    expect(result.sweet).toBe(1);
+    expect(result.detail).toContain('装着中：🔸《嫌われ琥珀》');
+    expect(result.detail).toContain('琥珀を交換する');
+    expect(result.detail).toContain('琥珀を外す');
+    expect(result.log).toContain('《嫌われ琥珀》を光るブローチに装着した。');
+  });
+
+  test('rare amber exchange returns the old amber and detach returns the new one', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.hatedAmber = 0;
+      RPG.State.inventory.sweetAmber = 1;
+      RPG.State.equippedRareAmberId = 'hatedAmber';
+      uiControl.openModal();
+      uiControl.selectItem('glowingBrooch', 1);
+    });
+
+    await page.getByRole('button', { name: '琥珀を交換する' }).click();
+    await page.locator('#itemList .item-row', { hasText: '甘そうな琥珀' }).click();
+
+    let result = await page.evaluate(() => ({
+      equipped: RPG.State.equippedRareAmberId,
+      hated: RPG.State.inventory.hatedAmber,
+      sweet: RPG.State.inventory.sweetAmber,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.equipped).toBe('sweetAmber');
+    expect(result.hated).toBe(1);
+    expect(result.sweet).toBe(0);
+    expect(result.log).toContain(
+      '《嫌われ琥珀》を外し、《甘そうな琥珀》を光るブローチに装着した。'
+    );
+
+    await page.getByRole('button', { name: '琥珀を外す' }).click();
+    result = await page.evaluate(() => ({
+      equipped: RPG.State.equippedRareAmberId,
+      hated: RPG.State.inventory.hatedAmber,
+      sweet: RPG.State.inventory.sweetAmber,
+      detail: document.getElementById('itemDetailArea')?.textContent || '',
+    }));
+    expect(result).toEqual({
+      equipped: null,
+      hated: 1,
+      sweet: 1,
+      detail: expect.stringContaining('装着中：なし'),
+    });
+  });
+
+  test('invalid equip requests never change the brooch or inventory', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.equippedRareAmberId = null;
+      RPG.State.inventory.glowingBrooch = 0;
+      RPG.State.inventory.hatedAmber = 1;
+      const withoutBrooch = uiControl.equipRareAmber('hatedAmber');
+      RPG.State.equippedRareAmberId = 'hatedAmber';
+      const detachWithoutBrooch = uiControl.detachRareAmber({
+        log: false,
+        refreshModal: false,
+      });
+      RPG.State.equippedRareAmberId = null;
+
+      RPG.State.inventory.glowingBrooch = 1;
+      const invalidId = uiControl.equipRareAmber('notRareAmber');
+
+      RPG.State.inventory.hatedAmber = 0;
+      const withoutAmber = uiControl.equipRareAmber('hatedAmber');
+
+      return {
+        withoutBrooch,
+        detachWithoutBrooch,
+        invalidId,
+        withoutAmber,
+        equipped: RPG.State.equippedRareAmberId,
+        hated: RPG.State.inventory.hatedAmber,
+      };
+    });
+    expect(result).toEqual({
+      withoutBrooch: false,
+      detachWithoutBrooch: false,
+      invalidId: false,
+      withoutAmber: false,
+      equipped: null,
+      hated: 0,
+    });
+  });
+
+  test('an equipped rare amber is excluded from trade-in until detached', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.sweetAmber = 0;
+      RPG.State.equippedRareAmberId = 'sweetAmber';
+      RPG.State.amberStorage.sparkling = 0;
+
+      innSystem.showAmberTradeInMenu();
+      const whileEquipped = document.getElementById('action-buttons')?.textContent || '';
+
+      uiControl.detachRareAmber({ log: false, refreshModal: false });
+      innSystem.showAmberTradeInMenu();
+      const afterDetach = document.getElementById('action-buttons')?.textContent || '';
+
+      return {
+        whileEquipped,
+        afterDetach,
+        equipped: RPG.State.equippedRareAmberId,
+        sweet: RPG.State.inventory.sweetAmber,
+      };
+    });
+    expect(result.whileEquipped).not.toContain('甘そうな琥珀');
+    expect(result.afterDetach).toContain('甘そうな琥珀');
+    expect(result.equipped).toBeNull();
+    expect(result.sweet).toBe(1);
+  });
+
+  test('rare amber equipment survives saves and old saves default to empty', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.hatedAmber = 0;
+      RPG.State.equippedRareAmberId = 'hatedAmber';
+      const equippedSave = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_rare_amber_equipped_test', JSON.stringify(equippedSave));
+
+      RPG.State.inventory.hatedAmber = 1;
+      RPG.State.equippedRareAmberId = null;
+      uiControl.loadFromStorage('okai_rpg_rare_amber_equipped_test', '装着テスト');
+      const equippedAfterLoad = {
+        equipped: RPG.State.equippedRareAmberId,
+        hated: RPG.State.inventory.hatedAmber,
+      };
+
+      const legacySave = JSON.parse(JSON.stringify(equippedSave));
+      delete legacySave.equippedRareAmberId;
+      legacySave.inventory.hatedAmber = 1;
+      localStorage.setItem('okai_rpg_rare_amber_legacy_test', JSON.stringify(legacySave));
+      uiControl.loadFromStorage('okai_rpg_rare_amber_legacy_test', '旧セーブテスト');
+
+      return {
+        equippedAfterLoad,
+        legacyEquipped: RPG.State.equippedRareAmberId,
+        legacyHated: RPG.State.inventory.hatedAmber,
+      };
+    });
+    expect(result).toEqual({
+      equippedAfterLoad: { equipped: 'hatedAmber', hated: 0 },
+      legacyEquipped: null,
+      legacyHated: 1,
+    });
+  });
+
+  test('phase 6 brooch conversion auto-detaches amber and does not re-equip it', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        storyPhase: 6,
+        equippedRareAmberId: 'hatedAmber',
+      });
+      Object.assign(RPG.State.flags, {
+        herbGardenOwenJewelChecked: true,
+        herbGardenFortuneConsultUnlocked: true,
+        herbGardenBroochGranted: false,
+        herbGardenFortuneFollowupDone: false,
+        herbGardenBroochReturned: false,
+      });
+      Object.assign(RPG.State.inventory, {
+        glowingBrooch: 1,
+        lightRabbitBrooch: 0,
+        hatedAmber: 0,
+      });
+      innSystem.showPhase6HerbGardenBroochChoices();
+    });
+
+    await page.click('#btnChoiceA');
+    await drainDialogue(page);
+
+    let result = await page.evaluate(() => ({
+      equipped: RPG.State.equippedRareAmberId,
+      glowingBrooch: RPG.State.inventory.glowingBrooch,
+      lightRabbitBrooch: RPG.State.inventory.lightRabbitBrooch,
+      hated: RPG.State.inventory.hatedAmber,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.equipped).toBeNull();
+    expect(result.glowingBrooch).toBe(0);
+    expect(result.lightRabbitBrooch).toBe(1);
+    expect(result.hated).toBe(1);
+    expect(result.log).toContain('《嫌われ琥珀》を光るブローチから外した。');
+
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.flags.herbGardenFortuneFollowupDone = true;
+      RPG.State.flags.scentPouchQuestStarted = true;
+      RPG.State.inventory.mintFlower = 1;
+      RPG.State.inventory.boneMeal = 1;
+      innSystem.observe();
+    });
+    await drainDialogue(page);
+
+    result = await page.evaluate(() => ({
+      equipped: RPG.State.equippedRareAmberId,
+      glowingBrooch: RPG.State.inventory.glowingBrooch,
+      lightRabbitBrooch: RPG.State.inventory.lightRabbitBrooch,
+      hated: RPG.State.inventory.hatedAmber,
+    }));
+    expect(result).toEqual({
+      equipped: null,
+      glowingBrooch: 1,
+      lightRabbitBrooch: 0,
+      hated: 1,
+    });
+  });
+
+  test('all nine rare amber candidates remain scrollable on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.equippedRareAmberId = null;
+      RPG.Assets.RARE_AMBER_CATALOG.forEach(item => {
+        RPG.State.inventory[item.id] = 1;
+      });
+      uiControl.openModal();
+      uiControl.selectItem('glowingBrooch', 1);
+    });
+
+    await page.getByRole('button', { name: '琥珀を装着する' }).click();
+    const rows = page.locator('#itemList .item-row');
+    await expect(rows).toHaveCount(9);
+    await expect(page.locator('#itemList')).toContainText('🔸《吸血琥珀》');
+    await expect(page.locator('#itemList')).toContainText(
+      '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
+    );
+
+    const dimensions = await page.locator('#itemList').evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      viewportHeight: window.innerHeight,
+    }));
+    expect(dimensions.clientHeight).toBeLessThanOrEqual(dimensions.viewportHeight * 0.4 + 1);
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+
+    const lastRow = rows.last();
+    await lastRow.scrollIntoViewIfNeeded();
+    await expect(lastRow).toBeInViewport();
+  });
+
+  test('equipping rare amber does not activate any gameplay effect yet', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.glowingBrooch = 1;
+      RPG.State.inventory.hatedAmber = 1;
+      RPG.State.equippedRareAmberId = null;
+      const before = {
+        battleRate: RPG.Config.BATTLE_RATE,
+        currentHP: RPG.State.currentHP,
+        maxHP: RPG.State.maxHP,
+        attack: RPG.State.attack,
+        exp: RPG.State.exp,
+      };
+
+      uiControl.equipRareAmber('hatedAmber');
+
+      return {
+        before,
+        after: {
+          battleRate: RPG.Config.BATTLE_RATE,
+          currentHP: RPG.State.currentHP,
+          maxHP: RPG.State.maxHP,
+          attack: RPG.State.attack,
+          exp: RPG.State.exp,
+        },
+      };
+    });
+    expect(result.after).toEqual(result.before);
+  });
+
+  test('old saves default vampire amber state to unowned and unseen', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const legacySave = uiControl.createSaveSnapshot('journal');
+      delete legacySave.inventory.vampireAmber;
+      delete legacySave.flags.vampireAmberAppraisalSeen;
+      localStorage.setItem('okai_rpg_vampire_amber_legacy_test', JSON.stringify(legacySave));
+
+      RPG.State.inventory.vampireAmber = 4;
+      RPG.State.flags.vampireAmberAppraisalSeen = true;
+      uiControl.loadFromStorage('okai_rpg_vampire_amber_legacy_test', '旧吸血琥珀テスト');
+
+      return {
+        vampireAmber: RPG.State.inventory.vampireAmber,
+        vampireSeen: RPG.State.flags.vampireAmberAppraisalSeen,
+      };
+    });
+
+    expect(result).toEqual({
+      vampireAmber: 0,
+      vampireSeen: false,
+    });
   });
 });

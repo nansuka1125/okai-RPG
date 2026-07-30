@@ -80,10 +80,15 @@ async function setCleanInnBaseline(page, overrides = {}) {
       innRepairPillarInspected: false,
       innRepairInspectionReported: false,
       innRepairTimberSearchUnlocked: false,
+      innRepairTimberObtained: false,
+      innRepairTimberDelivered: false,
       ...ov.flags,
     });
     RPG.State.inventory.unknownAmber = 0;
     RPG.State.inventory.silverCoin = 0;
+    RPG.State.inventory.amberTreeTimber = 0;
+    RPG.State.inventory.shinyOil = 0;
+    RPG.State.inventory.hardOil = 0;
     RPG.State.defeatCounts.rat = ov.defeatCountsRat || { cain: 0, owen: 0 };
     // Clear any battle residue left over from a previous test/section so a fresh
     // observe() call isn't silently blocked by a stale isBattling/currentEnemy state.
@@ -610,12 +615,12 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     const result = await page.evaluate(() => ({
       ratBounty20Received: RPG.State.flags.ratBounty20Received,
       logHasLine: document.getElementById('logContainer')?.textContent.includes('おかげさまで、宿屋の周りには魔界のネズミが出なくなりました'),
-      logHasItemLine: document.getElementById('logContainer')?.textContent.includes('《傷薬もどき》を5個手に入れた！'),
+      logHasItemLine: document.getElementById('logContainer')?.textContent.includes('🩹傷薬もどきを3個受け取った！'),
       fakeWoundMedicine: RPG.State.inventory.fakeWoundMedicine,
       mode: RPG.State.mode,
     }));
     expect(result).toEqual({
-      ratBounty20Received: true, logHasLine: true, logHasItemLine: true, fakeWoundMedicine: 5, mode: 'base',
+      ratBounty20Received: true, logHasLine: true, logHasItemLine: true, fakeWoundMedicine: 3, mode: 'base',
     });
   });
 
@@ -745,7 +750,7 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     expect(result).toBeNull();
   });
 
-  test('15. the rat-20 bounty grants exactly 5 fakeWoundMedicine', async ({ page }) => {
+  test('15. the rat-20 bounty grants exactly 3 fakeWoundMedicine', async ({ page }) => {
     await setCleanInnBaseline(page, {
       flags: { ratBounty10Received: true }, // force claimNotebookRewards() onto the rat-20 branch
       defeatCountsRat: { cain: 20, owen: 0 },
@@ -754,7 +759,7 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     await page.evaluate(() => innSystem.claimNotebookRewards());
     await drainDialogue(page);
     const result = await page.evaluate(() => RPG.State.inventory.fakeWoundMedicine);
-    expect(result).toBe(5);
+    expect(result).toBe(3);
   });
 
   test('16. the rat-20 bounty cannot be claimed twice', async ({ page }) => {
@@ -771,8 +776,8 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     await drainDialogue(page);
     const secondAmount = await page.evaluate(() => RPG.State.inventory.fakeWoundMedicine);
 
-    expect(firstAmount).toBe(5);
-    expect(secondAmount).toBe(5);
+    expect(firstAmount).toBe(3);
+    expect(secondAmount).toBe(3);
   });
 
   test('17. reaching 20 rat kills alone does not unlock the inspection', async ({ page }) => {
@@ -1482,6 +1487,169 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     expect(result).toEqual({
       errored: false, unlocked: false, hole: false, droppings: false, pillar: false,
       reported: false, timberSearchUnlocked: false, timberObtained: false, timberCount: 0,
+    });
+  });
+
+  test('45. the innkeeper receives the timber and grants both oils', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionReported: true,
+        innRepairTimberSearchUnlocked: true,
+        innRepairTimberObtained: true,
+        innRepairTimberDelivered: false,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.inventory.amberTreeTimber = 1;
+      uiControl.updateUI();
+    });
+
+    await expect(page.locator('#btnInnObserve')).toHaveText('木材を渡す');
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      timber: RPG.State.inventory.amberTreeTimber,
+      shinyOil: RPG.State.inventory.shinyOil,
+      hardOil: RPG.State.inventory.hardOil,
+      delivered: RPG.State.flags.innRepairTimberDelivered,
+      memo: uiControl.getJourneyMemo(),
+      label: document.getElementById('btnInnObserve')?.textContent,
+      logText: document.getElementById('logContainer')?.textContent || '',
+      shinyOilName: RPG.Assets.CONFIG.ITEM_NAME.shinyOil,
+      hardOilName: RPG.Assets.CONFIG.ITEM_NAME.hardOil,
+    }));
+
+    expect(result.timber).toBe(0);
+    expect(result.shinyOil).toBe(1);
+    expect(result.hardOil).toBe(1);
+    expect(result.delivered).toBe(true);
+    expect(result.memo).toBe('宿を直すための木材を店主へ渡した。');
+    expect(result.label).toBe('様子を見る');
+    expect(result.logText).toContain('これなら板に加工できる。ありがとう、助かったよ');
+    expect(result.shinyOilName).toBe('《ピカピカ油》');
+    expect(result.hardOilName).toBe('《カチカチ油》');
+  });
+
+  test('46. timber delivery cannot replay or grant duplicate oils', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionReported: true,
+        innRepairTimberObtained: true,
+        innRepairTimberDelivered: true,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.inventory.amberTreeTimber = 1;
+      RPG.State.inventory.shinyOil = 1;
+      RPG.State.inventory.hardOil = 1;
+      uiControl.updateUI();
+      innSystem.observe();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      canDeliver: innSystem.canDeliverInnRepairTimber(),
+      timber: RPG.State.inventory.amberTreeTimber,
+      shinyOil: RPG.State.inventory.shinyOil,
+      hardOil: RPG.State.inventory.hardOil,
+      logHasDelivery: (document.getElementById('logContainer')?.textContent || '')
+        .includes('これなら板に加工できる'),
+    }));
+    expect(result).toEqual({
+      canDeliver: false,
+      timber: 1,
+      shinyOil: 1,
+      hardOil: 1,
+      logHasDelivery: false,
+    });
+  });
+
+  test('47. the fortune-teller route keeps priority over timber delivery', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      state: { storyPhase: 4 },
+      flags: {
+        phase4TheftDiscovered: true,
+        phase4FortuneConsultDone: false,
+        innRepairInspectionReported: true,
+        innRepairTimberObtained: true,
+        innRepairTimberDelivered: false,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.inventory.amberTreeTimber = 1;
+      uiControl.updateUI();
+    });
+
+    await expect(page.locator('#btnInnObserve')).toHaveText('占い師に相談');
+    await page.evaluate(() => innSystem.observe());
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      timber: RPG.State.inventory.amberTreeTimber,
+      delivered: RPG.State.flags.innRepairTimberDelivered,
+      fortuneDone: RPG.State.flags.phase4FortuneConsultDone,
+    }));
+    expect(result).toEqual({ timber: 1, delivered: false, fortuneDone: true });
+  });
+
+  test('48. old saves receive safe defaults for timber delivery and both oils', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const legacySave = JSON.parse(JSON.stringify(RPG.State));
+      delete legacySave.flags.innRepairTimberDelivered;
+      delete legacySave.inventory.shinyOil;
+      delete legacySave.inventory.hardOil;
+      localStorage.setItem('okai_rpg_timber_delivery_legacy_test', JSON.stringify(legacySave));
+
+      uiControl.loadFromStorage('okai_rpg_timber_delivery_legacy_test', 'テスト');
+      return {
+        delivered: RPG.State.flags.innRepairTimberDelivered,
+        shinyOil: RPG.State.inventory.shinyOil,
+        hardOil: RPG.State.inventory.hardOil,
+      };
+    });
+    expect(result).toEqual({ delivered: false, shinyOil: 0, hardOil: 0 });
+  });
+
+  test('49. completed timber delivery and both oils survive save/reload', async ({ page }) => {
+    await setCleanInnBaseline(page, {
+      flags: {
+        innRepairInspectionReported: true,
+        innRepairTimberObtained: true,
+        innRepairTimberDelivered: false,
+      },
+    });
+    await page.evaluate(() => {
+      RPG.State.inventory.amberTreeTimber = 1;
+      uiControl.updateUI();
+      innSystem.observe();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => {
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_timber_delivery_completed_test', JSON.stringify(snapshot));
+
+      RPG.State.flags.innRepairTimberDelivered = false;
+      RPG.State.inventory.amberTreeTimber = 1;
+      RPG.State.inventory.shinyOil = 0;
+      RPG.State.inventory.hardOil = 0;
+      uiControl.loadFromStorage('okai_rpg_timber_delivery_completed_test', 'テスト');
+
+      return {
+        delivered: RPG.State.flags.innRepairTimberDelivered,
+        timber: RPG.State.inventory.amberTreeTimber,
+        shinyOil: RPG.State.inventory.shinyOil,
+        hardOil: RPG.State.inventory.hardOil,
+        memo: uiControl.getJourneyMemo(),
+      };
+    });
+    expect(result).toEqual({
+      delivered: true,
+      timber: 0,
+      shinyOil: 1,
+      hardOil: 1,
+      memo: '宿を直すための木材を店主へ渡した。',
     });
   });
 });

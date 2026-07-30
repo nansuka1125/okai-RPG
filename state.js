@@ -98,9 +98,14 @@ RPG.State = {
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
         unknownAmber: 0,
+        specialUnknownAmber: 0,
+        vampireAmber: 0,
+        secretLetter: 0,
         borrowedMiningKnife: 0,
         miningKnife: 0,
         amberTreeTimber: 0,
+        shinyOil: 0,
+        hardOil: 0,
         hatedAmber: 0,
         sweetAmber: 0,
         herbAmber: 0,
@@ -112,6 +117,7 @@ RPG.State = {
         debug_poison: 10,
         debug_lvl10: 1
     },
+    equippedRareAmberId: null, // Rare amber currently socketed into the glowing brooch
     amberStorage: {
         sparkling: 0,
         junk: 0,
@@ -192,6 +198,7 @@ RPG.State = {
         borrowedMiningKnifeReceived: false,
         amberTreeCoinMined: false,
         firstAmberAppraisalDone: false,
+        vampireAmberAppraisalSeen: false,
         amberKnifeReturnAttemptDone: false,
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,
@@ -249,7 +256,23 @@ RPG.State = {
         wagonReadyForDeparture: false, // Build 15.2.68: Allow the moved departure-night scene only after the wagon preparation quest is complete
         chapter1Cleared: false, // Chapter 1 is complete only after the final victory scene has fully finished
         notebookUnlocked: false, // Build 15.5.1: One-time daughter scene unlocks the inn's 討伐ノート command
+        notebookRatEncountered: false,
+        notebookWeaselEncountered: false,
+        notebookSapEncountered: false,
+        notebookAmberRatEncountered: false,
+        notebookAmberWeaselEncountered: false,
         ratBounty10Received: false, // Build 15.5.1: Prevent duplicate rat-10-kill bounty reward from the 討伐ノート
+        weaselBounty10Received: false,
+        weaselBounty20Received: false,
+        sapBounty10Received: false,
+        sapBounty20Received: false,
+        amberRatBounty15Received: false,
+        amberWeaselBounty15Received: false,
+        ratBountyAllReceived: false,
+        weaselBountyAllReceived: false,
+        sapBountyAllReceived: false,
+        amberRatBountyAllReceived: false,
+        amberWeaselBountyAllReceived: false,
         innRepairConsultSeen: false, // Build 15.5.3: One-time innkeeper consultation after both inn rat battles, introducing the inn-repair thread
         ratBounty20Received: false, // Build 15.5.3: Rat-20 bounty from the 討伐ノート; also signals the inn-repair thread's next stage is unlocked
         ratEvent2BattleFought: false, // Build 15.5.4: One ordinary battle victory after inn rat event 1, required before the チューチュー❗️ trigger for inn rat event 2
@@ -260,7 +283,9 @@ RPG.State = {
         innRepairPillarInspected: false, // Build 15.5.5: Inn lobby gnawed pillar inspection done
         innRepairInspectionReported: false, // Build 15.5.5: One-time report to the innkeeper after all three inspections
         innRepairTimberSearchUnlocked: false, // Build 15.5.5: Set alongside the report; gates the forest-8m timber retrieval event
-        innRepairTimberObtained: false // Build 15.5.6: One-time amber tree timber retrieval at forest 8m, once the damage report has unlocked the search
+        innRepairTimberObtained: false, // Build 15.5.6: One-time amber tree timber retrieval at forest 8m, once the damage report has unlocked the search
+        innRepairTimberDelivered: false, // The innkeeper has received the timber and secured material for repair boards
+        hardBottleOpened: false // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11; contents undecided
     },
 
     // 一時フラグ

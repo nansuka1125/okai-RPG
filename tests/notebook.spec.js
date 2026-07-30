@@ -254,6 +254,108 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(unlocked).toBe(true);
   });
 
+  test('unknown notebook entries unlock when the confirmed battle begins', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State.flags, {
+        notebookSapEncountered: false,
+        notebookAmberRatEncountered: false,
+        notebookAmberWeaselEncountered: false,
+      });
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: false,
+        currentEnemy: null,
+      });
+
+      uiControl.openNotebookModal();
+      const before = document.getElementById('notebookRowList')?.textContent || '';
+      uiControl.closeNotebookModal();
+
+      const sap = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+      battleSystem.beginBattle(sap);
+      const unlockedAtStart = RPG.State.flags.notebookSapEncountered;
+
+      RPG.State.isBattling = false;
+      RPG.State.currentEnemy = null;
+      RPG.State.battleState = null;
+      RPG.State.mode = 'base';
+      uiControl.openNotebookModal();
+      const after = document.getElementById('notebookRowList')?.textContent || '';
+
+      return {
+        before,
+        after,
+        unlockedAtStart,
+        amberRatLocked: RPG.State.flags.notebookAmberRatEncountered,
+        amberWeaselLocked: RPG.State.flags.notebookAmberWeaselEncountered,
+      };
+    });
+
+    expect(result.before).toContain('？？？');
+    expect(result.before).not.toContain('琥珀の樹液');
+    expect(result.after).toContain('琥珀の樹液');
+    expect(result.unlockedAtStart).toBe(true);
+    expect(result.amberRatLocked).toBe(false);
+    expect(result.amberWeaselLocked).toBe(false);
+  });
+
+  test('normal_rat does not unlock or count as the notebook rat entry', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.notebookRatEncountered = false;
+      const unlocked = battleSystem.unlockNotebookEntryForEncounter('normal_rat');
+      return {
+        unlocked,
+        flag: RPG.State.flags.notebookRatEncountered,
+      };
+    });
+    expect(result).toEqual({ unlocked: false, flag: false });
+  });
+
+  test('legacy saves infer missing encounter flags only from existing matching kills', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const legacySave = JSON.parse(JSON.stringify(RPG.State));
+      [
+        'notebookRatEncountered',
+        'notebookWeaselEncountered',
+        'notebookSapEncountered',
+        'notebookAmberRatEncountered',
+        'notebookAmberWeaselEncountered',
+      ].forEach(flag => delete legacySave.flags[flag]);
+      legacySave.defeatCounts = {
+        sap: { cain: 0, owen: 1 },
+        amber_rat: { cain: 0, owen: 0 },
+      };
+      localStorage.setItem('okai_rpg_notebook_encounter_legacy_test', JSON.stringify(legacySave));
+
+      uiControl.loadFromStorage('okai_rpg_notebook_encounter_legacy_test', 'テスト');
+      return {
+        sap: RPG.State.flags.notebookSapEncountered,
+        amberRat: RPG.State.flags.notebookAmberRatEncountered,
+        amberWeasel: RPG.State.flags.notebookAmberWeaselEncountered,
+      };
+    });
+
+    expect(result).toEqual({ sap: true, amberRat: false, amberWeasel: false });
+  });
+
+  test('an explicit encounter unlock survives save and reload even without a kill', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.notebookAmberWeaselEncountered = true;
+      RPG.State.defeatCounts.amber_weasel = { cain: 0, owen: 0 };
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_notebook_encounter_save_test', JSON.stringify(snapshot));
+
+      RPG.State.flags.notebookAmberWeaselEncountered = false;
+      uiControl.loadFromStorage('okai_rpg_notebook_encounter_save_test', 'テスト');
+      return {
+        encountered: RPG.State.flags.notebookAmberWeaselEncountered,
+        kills: innSystem.getEnemyKillCount('amber_weasel'),
+      };
+    });
+
+    expect(result).toEqual({ encountered: true, kills: 0 });
+  });
+
   test('getNotebookRowDisplay caps progress at the active tier and marks tiers correctly', async ({ page }) => {
     const result = await page.evaluate(() => {
       const tiers = [
@@ -279,10 +381,10 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
 
     expect(result).toEqual({
-      unclaimedLow: { count: 2, target: 10, markers: ['○', '○', '○'] },
-      unclaimedReached: { count: 10, target: 10, markers: ['！', '○', '○'] },
-      claimed: { count: 13, target: 20, markers: ['✓', '○', '○'] },
-      claimedOverflow: { count: 20, target: 20, markers: ['✓', '○', '○'] },
+      unclaimedLow: { count: 2, target: 10, markers: ['○', '○', '－'] },
+      unclaimedReached: { count: 10, target: 10, markers: ['！', '○', '－'] },
+      claimed: { count: 13, target: 20, markers: ['✓', '○', '－'] },
+      claimedOverflow: { count: 20, target: 20, markers: ['✓', '！', '－'] },
     });
   });
 
@@ -329,6 +431,325 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
     const second = await page.evaluate(() => ({ herb: RPG.State.inventory.herb, mode: RPG.State.mode }));
     expect(second).toEqual({ herb: 3, mode: 'base' });
+  });
+
+  test('rat 10 and 20 rewards remain independently claimable at 20 kills', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty10Received: false,
+        ratBounty20Received: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 12, owen: 8 };
+      RPG.State.inventory.herb = 0;
+      RPG.State.inventory.fakeWoundMedicine = 0;
+      innSystem.claimNotebookRewards('rat', '20');
+    });
+    await drainDialogue(page);
+
+    await page.evaluate(() => {
+      innSystem.claimNotebookRewards('rat', '10');
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      herb: RPG.State.inventory.herb,
+      medicine: RPG.State.inventory.fakeWoundMedicine,
+      rat10: RPG.State.flags.ratBounty10Received,
+      rat20: RPG.State.flags.ratBounty20Received,
+      claimable: innSystem.hasAnyClaimableNotebookReward(),
+    }));
+    expect(result).toEqual({
+      herb: 3,
+      medicine: 3,
+      rat10: true,
+      rat20: true,
+      claimable: false,
+    });
+  });
+
+  test('the player selects an achieved tier before using the shared claim button', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        notebookUnlocked: true,
+        ratBounty10Received: false,
+        ratBounty20Received: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 20, owen: 0 };
+      uiControl.openNotebookModal();
+
+      const claimButton = document.getElementById('btnNotebookClaim');
+      const disabledBeforeSelection = claimButton?.disabled;
+      const rat20 = document.getElementById('notebookRow_rat_tier1');
+      rat20?.click();
+
+      return {
+        disabledBeforeSelection,
+        disabledAfterSelection: claimButton?.disabled,
+        selectedText: document.querySelector('.notebook-tier-selected')?.textContent,
+      };
+    });
+
+    expect(state).toEqual({
+      disabledBeforeSelection: true,
+      disabledAfterSelection: false,
+      selectedText: '！20',
+    });
+  });
+
+  test('amber rat 15 grants medicine and smoke as one idempotent set reward', async ({ page }) => {
+    const immediate = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      RPG.State.flags.amberRatBounty15Received = false;
+      RPG.State.defeatCounts.amber_rat = { cain: 10, owen: 5 };
+      RPG.State.inventory.fakeWoundMedicine = 0;
+      RPG.State.inventory.smokeBomb = 0;
+
+      innSystem.claimNotebookRewards('amber_rat', '15');
+      innSystem.claimNotebookRewards('amber_rat', '15');
+      return {
+        medicine: RPG.State.inventory.fakeWoundMedicine,
+        smokeBomb: RPG.State.inventory.smokeBomb,
+        received: RPG.State.flags.amberRatBounty15Received,
+        mode: RPG.State.mode,
+      };
+    });
+
+    expect(immediate).toEqual({
+      medicine: 3,
+      smokeBomb: 3,
+      received: true,
+      mode: 'event',
+    });
+
+    await drainDialogue(page);
+    const afterDialogue = await page.evaluate(() => {
+      innSystem.claimNotebookRewards('amber_rat', '15');
+      return {
+        medicine: RPG.State.inventory.fakeWoundMedicine,
+        smokeBomb: RPG.State.inventory.smokeBomb,
+        log: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(afterDialogue.medicine).toBe(3);
+    expect(afterDialogue.smokeBomb).toBe(3);
+    expect(afterDialogue.log).toContain('🩹傷薬もどきを3個受け取った！');
+    expect(afterDialogue.log).toContain('💨煙玉を3個受け取った！');
+
+    const restored = await page.evaluate(() => {
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_notebook_set_reward_save_test', JSON.stringify(snapshot));
+      RPG.State.inventory.fakeWoundMedicine = 0;
+      RPG.State.inventory.smokeBomb = 0;
+      RPG.State.flags.amberRatBounty15Received = false;
+
+      uiControl.loadFromStorage('okai_rpg_notebook_set_reward_save_test', 'テスト');
+      return {
+        medicine: RPG.State.inventory.fakeWoundMedicine,
+        smokeBomb: RPG.State.inventory.smokeBomb,
+        received: RPG.State.flags.amberRatBounty15Received,
+      };
+    });
+    expect(restored).toEqual({ medicine: 3, smokeBomb: 3, received: true });
+  });
+
+  test('all normal notebook reward definitions use the requested items and quantities', async ({ page }) => {
+    const rewards = await page.evaluate(() => Object.fromEntries(
+      RPG.Assets.NOTEBOOK_ENTRIES.flatMap(entry => (
+        entry.tiers
+          .filter(tier => Number.isFinite(tier.target))
+          .map(tier => [
+            `${entry.id}:${tier.id}`,
+            tier.items.map(item => [item.itemId, item.qty]),
+          ])
+      ))
+    ));
+
+    expect(rewards).toEqual({
+      'rat:10': [['herb', 3]],
+      'rat:20': [['fakeWoundMedicine', 3]],
+      'weasel:10': [['smokeBomb', 3]],
+      'weasel:20': [['mikawashiFeather', 3]],
+      'sap:10': [['shinyOil', 3]],
+      'sap:20': [['gratefulTalisman', 1]],
+      'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],
+      'amber_weasel:15': [['fakeWoundMedicine', 3]],
+    });
+  });
+
+  test('special ALL reward items are separate non-usable inventory entries', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.unknownAmber = 2;
+      RPG.State.inventory.specialUnknownAmber = 1;
+      RPG.State.inventory.secretLetter = 1;
+
+      uiControl.openModal();
+      uiControl.selectItem('specialUnknownAmber', 1);
+      const specialHasUseButton = Boolean(
+        document.querySelector('#itemDetailArea button')
+      );
+      uiControl.selectItem('secretLetter', 1);
+      const letterHasUseButton = Boolean(
+        document.querySelector('#itemDetailArea button')
+      );
+
+      return {
+        normalUnknownAmber: RPG.State.inventory.unknownAmber,
+        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        secretLetter: RPG.State.inventory.secretLetter,
+        specialName: RPG.Assets.CONFIG.ITEM_NAME.specialUnknownAmber,
+        specialDescription: RPG.Assets.CONFIG.ITEM_DESC.specialUnknownAmber,
+        letterName: RPG.Assets.CONFIG.ITEM_NAME.secretLetter,
+        letterDescription: RPG.Assets.CONFIG.ITEM_DESC.secretLetter,
+        specialHasUseButton,
+        letterHasUseButton,
+        socketable: RPG.Assets.RARE_AMBER_CATALOG.some(
+          amber => amber.id === 'specialUnknownAmber'
+        ),
+      };
+    });
+
+    expect(result).toEqual({
+      normalUnknownAmber: 2,
+      specialUnknownAmber: 1,
+      secretLetter: 1,
+      specialName: '🔸《？琥珀》',
+      specialDescription: 'まだ鑑定されていない琥珀。琥珀商なら正体が分かる。',
+      letterName: '㊙️秘密のお手紙',
+      letterDescription: '誰かに宛てて書かれた手紙。',
+      specialHasUseButton: false,
+      letterHasUseButton: false,
+      socketable: false,
+    });
+  });
+
+  test('old saves default the two special reward item counts to zero', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const legacySave = JSON.parse(JSON.stringify(RPG.State));
+      delete legacySave.inventory.specialUnknownAmber;
+      delete legacySave.inventory.secretLetter;
+      localStorage.setItem('okai_rpg_notebook_special_item_legacy_test', JSON.stringify(legacySave));
+
+      RPG.State.inventory.specialUnknownAmber = 4;
+      RPG.State.inventory.secretLetter = 4;
+      uiControl.loadFromStorage('okai_rpg_notebook_special_item_legacy_test', 'テスト');
+
+      return {
+        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        secretLetter: RPG.State.inventory.secretLetter,
+      };
+    });
+    expect(result).toEqual({ specialUnknownAmber: 0, secretLetter: 0 });
+  });
+
+  test('ALL tiers keep reward data but have no threshold and cannot be claimed', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const allTiers = Object.fromEntries(
+        RPG.Assets.NOTEBOOK_ENTRIES.map(entry => {
+          const tier = entry.tiers.find(candidate => candidate.id === 'all');
+          return [
+            entry.id,
+            {
+              target: tier.target,
+              claimEnabled: tier.claimEnabled,
+              claimedFlag: tier.claimedFlag,
+              items: tier.items.map(item => [item.itemId, item.qty]),
+            },
+          ];
+        })
+      );
+
+      RPG.Assets.NOTEBOOK_ENTRIES.forEach(entry => {
+        RPG.State.defeatCounts[entry.enemyId] = { cain: 999, owen: 999 };
+        RPG.State.flags[entry.encounterFlag] = true;
+        const allTier = entry.tiers.find(tier => tier.id === 'all');
+        RPG.State.flags[allTier.claimedFlag] = false;
+      });
+      RPG.State.inventory.hardBottle = 0;
+      RPG.State.mode = 'base';
+      innSystem.claimNotebookRewards('rat', 'all');
+      uiControl.openNotebookModal();
+
+      return {
+        allTiers,
+        ratAllClaimable: innSystem.isNotebookRewardClaimable('rat', 'all'),
+        hardBottle: RPG.State.inventory.hardBottle,
+        ratAllReceived: RPG.State.flags.ratBountyAllReceived,
+        allMarkers: [...document.querySelectorAll('.notebook-tier')]
+          .filter(element => element.textContent.includes('ALL'))
+          .map(element => element.textContent),
+        allButtons: [...document.querySelectorAll('.notebook-tier-button')]
+          .filter(element => element.textContent.includes('ALL')).length,
+      };
+    });
+
+    expect(result.allTiers).toEqual({
+      rat: {
+        target: null,
+        claimEnabled: false,
+        claimedFlag: 'ratBountyAllReceived',
+        items: [['hardBottle', 1]],
+      },
+      weasel: {
+        target: null,
+        claimEnabled: false,
+        claimedFlag: 'weaselBountyAllReceived',
+        items: [['highHerb', 3]],
+      },
+      sap: {
+        target: null,
+        claimEnabled: false,
+        claimedFlag: 'sapBountyAllReceived',
+        items: [['highHerb', 5]],
+      },
+      amber_rat: {
+        target: null,
+        claimEnabled: false,
+        claimedFlag: 'amberRatBountyAllReceived',
+        items: [['specialUnknownAmber', 1]],
+      },
+      amber_weasel: {
+        target: null,
+        claimEnabled: false,
+        claimedFlag: 'amberWeaselBountyAllReceived',
+        items: [['secretLetter', 1]],
+      },
+    });
+    expect(result.ratAllClaimable).toBe(false);
+    expect(result.hardBottle).toBe(0);
+    expect(result.ratAllReceived).toBe(false);
+    expect(result.allMarkers).toEqual(['－ALL', '－ALL', '－ALL', '－ALL', '－ALL']);
+    expect(result.allButtons).toBe(0);
+  });
+
+  test('old saves default every ALL received flag to false', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const allFlags = [
+        'ratBountyAllReceived',
+        'weaselBountyAllReceived',
+        'sapBountyAllReceived',
+        'amberRatBountyAllReceived',
+        'amberWeaselBountyAllReceived',
+      ];
+      const legacySave = JSON.parse(JSON.stringify(RPG.State));
+      allFlags.forEach(flag => delete legacySave.flags[flag]);
+      localStorage.setItem('okai_rpg_notebook_all_legacy_test', JSON.stringify(legacySave));
+
+      allFlags.forEach(flag => {
+        RPG.State.flags[flag] = true;
+      });
+      uiControl.loadFromStorage('okai_rpg_notebook_all_legacy_test', 'テスト');
+      return Object.fromEntries(allFlags.map(flag => [flag, RPG.State.flags[flag]]));
+    });
+
+    expect(result).toEqual({
+      ratBountyAllReceived: false,
+      weaselBountyAllReceived: false,
+      sapBountyAllReceived: false,
+      amberRatBountyAllReceived: false,
+      amberWeaselBountyAllReceived: false,
+    });
   });
 
   test('the claim button is disabled below 10 kills and claiming does nothing', async ({ page }) => {

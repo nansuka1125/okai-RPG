@@ -111,6 +111,9 @@ h1 {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
     text-decoration: none;
     transition: border-color 160ms ease, filter 160ms ease, transform 160ms ease;
 }
@@ -140,6 +143,177 @@ h1 {
     font-size: 20px;
     font-weight: 700;
     letter-spacing: 0.14em;
+}
+
+.saved-start-menu {
+    display: grid;
+    gap: 8px;
+}
+
+.saved-start-menu[hidden],
+.start-button[hidden],
+.startup-error[hidden],
+.save-picker[hidden] {
+    display: none;
+}
+
+.latest-save-info {
+    max-width: 100%;
+    margin-top: 6px;
+    color: #e0d5bf;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.45;
+    white-space: pre-line;
+}
+
+.start-secondary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.start-secondary-button {
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.035);
+    color: #d8cfbd;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    display: grid;
+    place-items: center;
+}
+
+.start-secondary-button:hover {
+    border-color: rgba(240, 211, 139, 0.62);
+    color: #fff4d7;
+}
+
+.start-secondary-button:focus-visible,
+.save-picker-row:focus-visible,
+.save-picker-close:focus-visible {
+    outline: 2px solid var(--gold-bright);
+    outline-offset: 2px;
+}
+
+.startup-error {
+    margin: 0 0 8px;
+    padding: 9px 12px;
+    border: 1px solid rgba(205, 98, 82, 0.55);
+    background: rgba(100, 28, 22, 0.24);
+    color: #efc0b7;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.save-picker {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    padding:
+        max(18px, env(safe-area-inset-top))
+        16px
+        max(18px, env(safe-area-inset-bottom));
+    background: rgba(0, 0, 0, 0.78);
+    display: grid;
+    place-items: center;
+}
+
+.save-picker-panel {
+    width: min(100%, 520px);
+    max-height: min(78vh, 620px);
+    border: 1px solid rgba(201, 167, 93, 0.48);
+    border-radius: 6px;
+    background: #151412;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.64);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.save-picker-header {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.save-picker-header h2 {
+    margin: 0;
+    color: #f2e8d2;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+}
+
+.save-picker-close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    background: transparent;
+    color: #aaa394;
+    font: inherit;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.save-picker-list {
+    min-height: 0;
+    max-height: min(52vh, 430px);
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.save-picker-row {
+    width: 100%;
+    min-height: 66px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--paper);
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+    display: grid;
+    gap: 5px;
+}
+
+.save-picker-row:hover:not(:disabled) {
+    border-color: rgba(240, 211, 139, 0.62);
+    background: rgba(201, 167, 93, 0.08);
+}
+
+.save-picker-row:disabled {
+    color: #706b62;
+    cursor: default;
+}
+
+.save-picker-row strong {
+    color: #f0dfbb;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.save-picker-row:disabled strong {
+    color: #77736c;
+}
+
+.save-picker-row span {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 10px;
+    line-height: 1.45;
+    white-space: pre-line;
 }
 
 .chapter-list {

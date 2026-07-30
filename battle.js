@@ -524,7 +524,19 @@ const battleSystem = {
         });
     },
 
+    unlockNotebookEntryForEncounter: function (enemyId) {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const entry = entries.find(candidate => candidate.enemyId === enemyId);
+        if (!entry || !entry.encounterFlag) return false;
+        if (RPG.State.flags[entry.encounterFlag] === true) return false;
+        RPG.State.flags[entry.encounterFlag] = true;
+        return true;
+    },
+
     beginBattle: function (template, options = {}) {
+        this.unlockNotebookEntryForEncounter(template && template.id);
         RPG.State.mode = "battle";
         const isPhase4FirstRabbitEncounter =
             template.id === "glowing_cat_rabbit" &&

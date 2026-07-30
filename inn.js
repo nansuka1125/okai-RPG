@@ -251,8 +251,20 @@ innSystem = {
         );
     },
 
+    canDeliverInnRepairTimber: function () {
+        return (
+            RPG.State.flags.innRepairInspectionReported === true &&
+            RPG.State.flags.innRepairTimberObtained === true &&
+            RPG.State.flags.innRepairTimberDelivered !== true &&
+            (RPG.State.inventory.amberTreeTimber || 0) > 0
+        );
+    },
+
     shouldUseAmberMerchantObserveRoute: function () {
         const flags = RPG.State.flags;
+        const hasUnappraisedAmber =
+            (RPG.State.inventory.specialUnknownAmber || 0) > 0 ||
+            (RPG.State.inventory.unknownAmber || 0) > 0;
         const hasFirstCoin =
             flags.hasFoundFirstCoin === true ||
             (RPG.State.silverCoins || 0) >= 1 ||
@@ -261,7 +273,7 @@ innSystem = {
             (hasFirstCoin && flags.amberMerchantRecognized !== true) ||
             (flags.treeDefeated === true && flags.borrowedMiningKnifeReceived !== true) ||
             (
-                (RPG.State.inventory.unknownAmber || 0) > 0 &&
+                hasUnappraisedAmber &&
                 flags.firstAmberAppraisalDone !== true
             ) ||
             (
@@ -438,6 +450,7 @@ innSystem = {
                     return;
                 }
 
+                uiControl.detachRareAmber({ refreshModal: false });
                 RPG.State.mode = "event";
                 RPG.State.dialogueQueue = this.buildDialogueQueue(
                     RPG.Assets.GAME_TEXT.events.phase6HerbGardenBrooch,
@@ -532,6 +545,7 @@ innSystem = {
         this.ensureAmberState();
         const flags = RPG.State.flags;
         const unknownCount = RPG.State.inventory.unknownAmber || 0;
+        const specialUnknownCount = RPG.State.inventory.specialUnknownAmber || 0;
 
         if (flags.amberMerchantRecognized !== true) {
             const existingMerchantObservation = RPG.Assets.GAME_TEXT.innObserve?.[1]?.[1] || [];
@@ -567,6 +581,11 @@ innSystem = {
                 { text: "琥珀商「大事な商売道具だからな。ちゃんと返してくれよ」" }
             ];
             explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        if (specialUnknownCount > 0 && flags.firstAmberAppraisalDone !== true) {
+            this.playFirstVampireAmberAppraisal();
             return;
         }
 
@@ -637,6 +656,45 @@ innSystem = {
         explorationSystem.playDialogueLoop();
     },
 
+    getVampireAmberAppraisalText: function (amount, includeDescription) {
+        const quantity = amount > 1 ? ` ×${amount}` : "";
+        const description = includeDescription
+            ? `\n${RPG.Assets.CONFIG.ITEM_DESC.vampireAmber}`
+            : "";
+        return `《吸血琥珀》${quantity}と鑑定された。${description}`;
+    },
+
+    playFirstVampireAmberAppraisal: function () {
+        if ((RPG.State.inventory.specialUnknownAmber || 0) <= 0) return;
+        const firstSeen = RPG.State.flags.vampireAmberAppraisalSeen !== true;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            {
+                text: this.getVampireAmberAppraisalText(1, firstSeen),
+                type: "marker",
+                color: "#ffd166",
+                action: () => {
+                    RPG.State.inventory.specialUnknownAmber = Math.max(
+                        0,
+                        (RPG.State.inventory.specialUnknownAmber || 0) - 1
+                    );
+                    RPG.State.inventory.vampireAmber =
+                        (RPG.State.inventory.vampireAmber || 0) + 1;
+                    RPG.State.flags.vampireAmberAppraisalSeen = true;
+                    uiControl.updateUI();
+                }
+            },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        explorationSystem.playDialogueLoop();
+    },
+
     playAmberKnifeReturnAttempt: function () {
         const flags = RPG.State.flags;
         RPG.State.mode = "event";
@@ -658,8 +716,11 @@ innSystem = {
     showAmberMerchantMenu: function () {
         this.ensureAmberState();
         const storage = RPG.State.amberStorage;
+        const appraisalCount =
+            (RPG.State.inventory.specialUnknownAmber || 0) +
+            (RPG.State.inventory.unknownAmber || 0);
         this.showAmberActionMenu([
-            { label: `鑑定する（《？琥珀》${RPG.State.inventory.unknownAmber || 0}個）`, action: () => this.showAmberAppraisalMenu() },
+            { label: `鑑定する（《？琥珀》${appraisalCount}個）`, action: () => this.showAmberAppraisalMenu() },
             { label: `交換する（キラキラ${storage.sparkling}個）`, action: () => this.showAmberExchangeMenu() },
             { label: "レア琥珀を下取りに出す", action: () => this.showAmberTradeInMenu() },
             { label: "預かり品を確認", action: () => this.showAmberStorage() },
@@ -674,7 +735,9 @@ innSystem = {
     },
 
     showAmberAppraisalMenu: function () {
-        const count = RPG.State.inventory.unknownAmber || 0;
+        const count =
+            (RPG.State.inventory.specialUnknownAmber || 0) +
+            (RPG.State.inventory.unknownAmber || 0);
         const choices = [];
         if (count > 0) {
             choices.push({ label: "《？琥珀》1個を鑑定", action: () => this.appraiseAmber(1) });
@@ -697,23 +760,39 @@ innSystem = {
 
     appraiseAmber: function (requestedCount) {
         this.ensureAmberState();
-        const count = Math.min(requestedCount, RPG.State.inventory.unknownAmber || 0);
+        const specialAvailable = RPG.State.inventory.specialUnknownAmber || 0;
+        const normalAvailable = RPG.State.inventory.unknownAmber || 0;
+        const count = Math.min(requestedCount, specialAvailable + normalAvailable);
         if (count <= 0) {
             this.showAmberAppraisalMenu();
             return;
         }
 
+        const specialCount = Math.min(count, specialAvailable);
+        const normalCount = count - specialCount;
         const resultCounts = { sparkling: 0, junk: 0, insect: 0 };
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < normalCount; i++) {
             resultCounts[this.rollAmberAppraisal()]++;
         }
 
-        RPG.State.inventory.unknownAmber -= count;
+        RPG.State.inventory.specialUnknownAmber -= specialCount;
+        RPG.State.inventory.vampireAmber =
+            (RPG.State.inventory.vampireAmber || 0) + specialCount;
+        RPG.State.inventory.unknownAmber -= normalCount;
         Object.keys(resultCounts).forEach(type => {
             RPG.State.amberStorage[type] += resultCounts[type];
         });
 
         const lines = [];
+        if (specialCount > 0) {
+            const firstSeen = RPG.State.flags.vampireAmberAppraisalSeen !== true;
+            lines.push({
+                text: this.getVampireAmberAppraisalText(specialCount, firstSeen),
+                type: "marker",
+                color: "#ffd166"
+            });
+            RPG.State.flags.vampireAmberAppraisalSeen = true;
+        }
         Object.entries(resultCounts).forEach(([type, amount]) => {
             if (amount <= 0) return;
             const data = RPG.Assets.AMBER_APPRAISAL[type];
@@ -1992,68 +2071,113 @@ innSystem = {
         return counts ? (counts.cain || 0) + (counts.owen || 0) : 0;
     },
 
+    getNotebookRewardDefinition: function (entryId, tierId) {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const entry = entries.find(candidate => candidate.id === entryId);
+        if (!entry) return null;
+        const tier = entry.tiers.find(candidate => candidate.id === tierId);
+        if (
+            !tier ||
+            tier.claimEnabled === false ||
+            !Number.isFinite(tier.target) ||
+            !tier.claimedFlag ||
+            !Array.isArray(tier.items) ||
+            tier.items.length === 0
+        ) {
+            return null;
+        }
+        return { entry, tier };
+    },
+
+    isNotebookRewardClaimable: function (entryId, tierId) {
+        const reward = this.getNotebookRewardDefinition(entryId, tierId);
+        if (!reward) return false;
+        if (RPG.State.flags[reward.tier.claimedFlag] === true) return false;
+        return this.getEnemyKillCount(reward.entry.enemyId) >= reward.tier.target;
+    },
+
+    getClaimableNotebookRewards: function () {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const rewards = [];
+        entries.forEach(entry => {
+            entry.tiers.forEach(tier => {
+                if (this.isNotebookRewardClaimable(entry.id, tier.id)) {
+                    rewards.push({ entryId: entry.id, tierId: tier.id });
+                }
+            });
+        });
+        return rewards;
+    },
+
     getRatBounty10Reward: function () {
-        if (RPG.State.flags.ratBounty10Received === true) return null;
-        if (this.getEnemyKillCount("rat") < 10) return null;
+        if (!this.isNotebookRewardClaimable("rat", "10")) return null;
         return { itemId: "herb", qty: 3, flag: "ratBounty10Received" };
     },
 
     getRatBounty20Reward: function () {
-        if (RPG.State.flags.ratBounty20Received === true) return null;
-        if (this.getEnemyKillCount("rat") < 20) return null;
-        return { itemId: "fakeWoundMedicine", qty: 5, flag: "ratBounty20Received" };
+        if (!this.isNotebookRewardClaimable("rat", "20")) return null;
+        return { itemId: "fakeWoundMedicine", qty: 3, flag: "ratBounty20Received" };
     },
 
     hasAnyClaimableNotebookReward: function () {
-        return this.getRatBounty10Reward() !== null || this.getRatBounty20Reward() !== null;
+        return this.getClaimableNotebookRewards().length > 0;
     },
 
-    buildRatBounty10ClaimQueue: function () {
-        return [
-            { text: "娘「ネズミ、もう10匹も倒してくれたんですか？　ありがとうございます。これ、持っていってください」" },
-            {
-                text: "《🌿薬草を3個もらった》",
-                type: "marker",
-                color: "#f1e6c8",
-                action: () => {
-                    RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 3;
-                    RPG.State.flags.ratBounty10Received = true;
-                    uiControl.updateUI();
-                }
-            }
+    buildNotebookClaimQueue: function (entry, tier) {
+        let intro = [
+            { text: `娘「${entry.name}の討伐、ありがとうございます。こちらをどうぞ」` }
         ];
+        if (entry.id === "rat" && tier.id === "10") {
+            intro = [
+                { text: "娘「ネズミ、もう10匹も倒してくれたんですか？　ありがとうございます。これ、持っていってください」" }
+            ];
+        } else if (entry.id === "rat" && tier.id === "20") {
+            intro = RPG.Assets.GAME_TEXT.events.ratBounty20Claim.map(text => ({ text }));
+        }
+        const rewardLines = tier.items.map(item => ({
+            text: `${RPG.Assets.CONFIG.ITEM_NAME[item.itemId]}を${item.qty}個受け取った！`,
+            type: "marker",
+            color: "#f1e6c8"
+        }));
+        return [...intro, ...rewardLines];
     },
 
-    buildRatBounty20ClaimQueue: function () {
-        return [
-            ...RPG.Assets.GAME_TEXT.events.ratBounty20Claim.map(text => ({ text })),
-            {
-                text: "《傷薬もどき》を5個手に入れた！",
-                type: "marker",
-                color: "#f1e6c8",
-                action: () => {
-                    RPG.State.inventory.fakeWoundMedicine = (RPG.State.inventory.fakeWoundMedicine || 0) + 5;
-                    RPG.State.flags.ratBounty20Received = true;
-                    this.tryUnlockInnRepairInspection();
-                    uiControl.updateUI();
-                }
-            }
-        ];
-    },
-
-    claimNotebookRewards: function () {
+    claimNotebookRewards: function (entryId = null, tierId = null) {
         if (RPG.State.mode !== "base") return;
 
-        const rat10Reward = this.getRatBounty10Reward();
-        const rat20Reward = this.getRatBounty20Reward();
-        if (!rat10Reward && !rat20Reward) return;
+        let selected = entryId && tierId ? { entryId, tierId } : null;
+        if (!selected) {
+            selected = this.getClaimableNotebookRewards()[0] || null;
+        }
+        if (
+            !selected ||
+            !this.isNotebookRewardClaimable(selected.entryId, selected.tierId)
+        ) {
+            return;
+        }
+
+        const reward = this.getNotebookRewardDefinition(selected.entryId, selected.tierId);
+        if (!reward) return;
 
         uiControl.closeNotebookModal();
         uiControl.addSeparator();
         RPG.State.mode = "event";
-        RPG.State.dialogueQueue = rat10Reward
-            ? [...this.buildRatBounty10ClaimQueue()]
-            : [...this.buildRatBounty20ClaimQueue()];
+
+        reward.tier.items.forEach(item => {
+            RPG.State.inventory[item.itemId] =
+                (RPG.State.inventory[item.itemId] || 0) + item.qty;
+        });
+        RPG.State.flags[reward.tier.claimedFlag] = true;
+        if (reward.entry.id === "rat" && reward.tier.id === "20") {
+            this.tryUnlockInnRepairInspection();
+        }
+
+        RPG.State.dialogueQueue = this.buildNotebookClaimQueue(reward.entry, reward.tier);
+        uiControl.updateUI();
         explorationSystem.playDialogueLoop();
     },
 
@@ -2396,6 +2520,26 @@ innSystem = {
                     );
                     RPG.State.inventory.glowingBrooch = (RPG.State.inventory.glowingBrooch || 0) + 1;
                     RPG.State.flags.herbGardenBroochReturned = true;
+                    uiControl.updateUI();
+                }
+            );
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        if (this.canDeliverInnRepairTimber()) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.innRepairTimberDelivery,
+                () => {
+                    RPG.State.inventory.amberTreeTimber = Math.max(
+                        0,
+                        (RPG.State.inventory.amberTreeTimber || 0) - 1
+                    );
+                    RPG.State.inventory.shinyOil = (RPG.State.inventory.shinyOil || 0) + 1;
+                    RPG.State.inventory.hardOil = (RPG.State.inventory.hardOil || 0) + 1;
+                    RPG.State.flags.innRepairTimberDelivered = true;
                     uiControl.updateUI();
                 }
             );

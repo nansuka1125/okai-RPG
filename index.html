@@ -7,6 +7,7 @@
     <meta name="description" content="カインを操作し、オーエンと旅をする全三章のブラウザRPG。">
     <title>騎士カインと封印の旅｜公式トップページ</title>
     <link rel="stylesheet" href="top.css">
+    <script src="top.js" defer></script>
 </head>
 
 <body>
@@ -24,10 +25,28 @@
                 全三章のブラウザRPG。
             </p>
 
-            <a class="start-button" href="chapter1.html">
+            <div id="startupError" class="startup-error" role="alert" hidden></div>
+
+            <a id="freshStartButton" class="start-button" href="chapter1.html">
                 <span class="chapter-name">第一章「宿屋と銀貨」</span>
                 <span class="start-label">ゲームを始める</span>
             </a>
+
+            <div id="savedStartMenu" class="saved-start-menu" hidden>
+                <button id="continueButton" class="start-button" type="button">
+                    <span class="chapter-name">第一章「宿屋と銀貨」</span>
+                    <span class="start-label">続きから</span>
+                    <span id="latestSaveInfo" class="latest-save-info"></span>
+                </button>
+                <div class="start-secondary-actions">
+                    <button id="openSavePickerButton" class="start-secondary-button" type="button">
+                        記録を選ぶ
+                    </button>
+                    <button id="newGameButton" class="start-secondary-button" type="button">
+                        はじめから
+                    </button>
+                </div>
+            </div>
 
             <nav class="chapter-list" aria-label="章の一覧">
                 <!-- 制作後は href を追加するだけでリンクとして有効化できます。 -->
@@ -60,6 +79,16 @@
             <a aria-disabled="true">感想を送る</a>
         </footer>
     </main>
+
+    <div id="savePicker" class="save-picker" hidden>
+        <div class="save-picker-panel" role="dialog" aria-modal="true" aria-labelledby="savePickerTitle">
+            <div class="save-picker-header">
+                <h2 id="savePickerTitle">再開する記録を選ぶ</h2>
+                <button id="closeSavePickerButton" class="save-picker-close" type="button" aria-label="閉じる">×</button>
+            </div>
+            <div id="savePickerList" class="save-picker-list"></div>
+        </div>
+    </div>
 </body>
 
 </html>

@@ -3,6 +3,7 @@
 const uiControl = {
     pendingOverwriteSlot: null,
     overwriteResetTimer: null,
+    selectedNotebookReward: null,
 
     scrollLogToLatest: function (container) {
         if (!container) return;
@@ -419,6 +420,13 @@ const uiControl = {
                     observeLabel === "様子を見る" &&
                     typeof innSystem !== "undefined" &&
                     !innSystem.shouldUseAmberMerchantObserveRoute() &&
+                    innSystem.canDeliverInnRepairTimber()
+                ) {
+                    observeLabel = "木材を渡す";
+                } else if (
+                    observeLabel === "様子を見る" &&
+                    typeof innSystem !== "undefined" &&
+                    !innSystem.shouldUseAmberMerchantObserveRoute() &&
                     innSystem.canTriggerInnRatEvent2()
                 ) {
                     observeLabel = "チューチュー❗️";
@@ -674,6 +682,214 @@ const uiControl = {
         return locations[key] || locations[0];
     },
 
+    getRareAmberCatalogEntry: function (itemId) {
+        if (!itemId || !Array.isArray(RPG.Assets.RARE_AMBER_CATALOG)) return null;
+        return RPG.Assets.RARE_AMBER_CATALOG.find(item => item.id === itemId) || null;
+    },
+
+    renderInventoryList: function () {
+        const list = document.getElementById('itemList');
+        if (!list) return;
+
+        list.innerHTML = '';
+        const items = Object.entries(RPG.State.inventory).filter(([k, v]) => v > 0);
+        if (items.length === 0) {
+            list.innerHTML = `<div style="text-align:center; padding:20px;">${RPG.Assets.GAME_TEXT.exploration.noInventory}</div>`;
+            return;
+        }
+
+        items.forEach(([key, count]) => {
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            div.textContent = `${RPG.Assets.CONFIG.ITEM_NAME[key]} (×${count})`;
+            div.onclick = () => this.selectItem(key, count);
+            list.appendChild(div);
+        });
+    },
+
+    refreshGlowingBroochDetail: function () {
+        this.renderInventoryList();
+        const broochCount = RPG.State.inventory.glowingBrooch || 0;
+        if (broochCount > 0) {
+            this.selectItem('glowingBrooch', broochCount);
+        }
+    },
+
+    showRareAmberSelection: function () {
+        if (
+            RPG.State.mode !== "base" ||
+            (RPG.State.inventory.glowingBrooch || 0) <= 0
+        ) {
+            return;
+        }
+
+        const list = document.getElementById('itemList');
+        const detail = document.getElementById('itemDetailArea');
+        if (!list || !detail) return;
+
+        const equippedId = RPG.State.equippedRareAmberId;
+        const candidates = RPG.Assets.RARE_AMBER_CATALOG.filter(item => (
+            item.id !== equippedId &&
+            (RPG.State.inventory[item.id] || 0) > 0
+        ));
+
+        list.innerHTML = '';
+        if (candidates.length === 0) {
+            const empty = document.createElement('div');
+            empty.style.textAlign = 'center';
+            empty.style.padding = '20px';
+            empty.textContent = '装着できるレア琥珀を持っていない。';
+            list.appendChild(empty);
+        } else {
+            candidates.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'item-row';
+
+                const name = document.createElement('div');
+                name.textContent = `${RPG.Assets.CONFIG.ITEM_NAME[item.id]} (×${RPG.State.inventory[item.id]})`;
+
+                const description = document.createElement('div');
+                description.style.fontSize = '12px';
+                description.style.color = '#aaa';
+                description.style.marginTop = '4px';
+                description.textContent = RPG.Assets.CONFIG.ITEM_DESC[item.id];
+
+                row.append(name, description);
+                row.onclick = () => this.equipRareAmber(item.id);
+                list.appendChild(row);
+            });
+        }
+
+        detail.innerHTML = '';
+        const title = document.createElement('strong');
+        title.textContent = '装着するレア琥珀を選ぶ';
+        const backButton = document.createElement('button');
+        backButton.className = 'btn';
+        backButton.style.cssText = 'height:35px;margin:10px auto 0;width:120px;';
+        backButton.textContent = '戻る';
+        backButton.onclick = () => this.refreshGlowingBroochDetail();
+        detail.append(title, document.createElement('br'), backButton);
+    },
+
+    equipRareAmber: function (itemId) {
+        if (
+            RPG.State.mode !== "base" ||
+            (RPG.State.inventory.glowingBrooch || 0) <= 0
+        ) {
+            return false;
+        }
+
+        const nextAmber = this.getRareAmberCatalogEntry(itemId);
+        const previousId = RPG.State.equippedRareAmberId;
+        const previousAmber = previousId
+            ? this.getRareAmberCatalogEntry(previousId)
+            : null;
+
+        if (
+            !nextAmber ||
+            (RPG.State.inventory[itemId] || 0) <= 0 ||
+            itemId === previousId ||
+            (previousId && !previousAmber)
+        ) {
+            return false;
+        }
+
+        if (previousAmber) {
+            RPG.State.inventory[previousId] = (RPG.State.inventory[previousId] || 0) + 1;
+        }
+        RPG.State.inventory[itemId] = Math.max(
+            0,
+            (RPG.State.inventory[itemId] || 0) - 1
+        );
+        RPG.State.equippedRareAmberId = itemId;
+
+        const message = previousAmber
+            ? `${previousAmber.name}を外し、${nextAmber.name}を光るブローチに装着した。`
+            : `${nextAmber.name}を光るブローチに装着した。`;
+        this.addLog(message, "marker", "#ffd166");
+        this.updateUI();
+        this.refreshGlowingBroochDetail();
+        return true;
+    },
+
+    detachRareAmber: function (options = {}) {
+        const shouldLog = options.log !== false;
+        const shouldRefreshModal = options.refreshModal !== false;
+        const equippedId = RPG.State.equippedRareAmberId;
+        const equippedAmber = this.getRareAmberCatalogEntry(equippedId);
+        if (
+            (RPG.State.inventory.glowingBrooch || 0) <= 0 ||
+            !equippedAmber
+        ) {
+            return false;
+        }
+
+        RPG.State.inventory[equippedId] = (RPG.State.inventory[equippedId] || 0) + 1;
+        RPG.State.equippedRareAmberId = null;
+        if (shouldLog) {
+            this.addLog(
+                `${equippedAmber.name}を光るブローチから外した。`,
+                "marker",
+                "#ffd166"
+            );
+        }
+        this.updateUI();
+
+        const modal = document.getElementById('itemModal');
+        if (
+            shouldRefreshModal &&
+            modal &&
+            modal.style.display === 'flex' &&
+            (RPG.State.inventory.glowingBrooch || 0) > 0
+        ) {
+            this.refreshGlowingBroochDetail();
+        }
+        return true;
+    },
+
+    renderRareAmberSocketControls: function (detail) {
+        const equippedAmber = this.getRareAmberCatalogEntry(RPG.State.equippedRareAmberId);
+        const socket = document.createElement('div');
+        socket.style.cssText = 'border-top:1px solid #333;margin-top:12px;padding-top:12px;';
+
+        const status = document.createElement('div');
+        status.textContent = equippedAmber
+            ? `装着中：${RPG.Assets.CONFIG.ITEM_NAME[equippedAmber.id]}`
+            : '装着中：なし';
+        socket.appendChild(status);
+
+        if (equippedAmber) {
+            const description = document.createElement('div');
+            description.style.cssText = 'font-size:12px;color:#aaa;margin-top:4px;';
+            description.textContent = RPG.Assets.CONFIG.ITEM_DESC[equippedAmber.id];
+            socket.appendChild(description);
+        }
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px;';
+
+        const selectionButton = document.createElement('button');
+        selectionButton.className = 'btn';
+        selectionButton.style.cssText = 'height:35px;width:150px;';
+        selectionButton.textContent = equippedAmber
+            ? '琥珀を交換する'
+            : '琥珀を装着する';
+        selectionButton.onclick = () => this.showRareAmberSelection();
+        actions.appendChild(selectionButton);
+
+        if (equippedAmber) {
+            const detachButton = document.createElement('button');
+            detachButton.className = 'btn';
+            detachButton.style.cssText = 'height:35px;width:150px;';
+            detachButton.textContent = '琥珀を外す';
+            detachButton.onclick = () => this.detachRareAmber();
+            actions.appendChild(detachButton);
+        }
+
+        socket.appendChild(actions);
+        detail.appendChild(socket);
+    },
+
     openModal: function () {
         if (RPG.State.mode !== "base") return;
 
@@ -690,19 +906,7 @@ const uiControl = {
         // Build 8.18: Clear ghost item details when opening modal
         if (detail) detail.innerHTML = 'アイテムを選択してください';
 
-        list.innerHTML = '';
-        const items = Object.entries(RPG.State.inventory).filter(([k, v]) => v > 0);
-        if (items.length === 0) {
-            list.innerHTML = `<div style="text-align:center; padding:20px;">${RPG.Assets.GAME_TEXT.exploration.noInventory}</div>`;
-        } else {
-            items.forEach(([key, count]) => {
-                const div = document.createElement('div');
-                div.className = 'item-row';
-                div.textContent = `${RPG.Assets.CONFIG.ITEM_NAME[key]} (×${count})`;
-                div.onclick = () => this.selectItem(key, count);
-                list.appendChild(div);
-            });
-        }
+        this.renderInventoryList();
         modal.style.display = 'flex';
     },
 
@@ -747,6 +951,7 @@ const uiControl = {
             key === 'purpleMacaron' ||
             key === 'glowingBunnyEars' ||
             key === 'nightMedicine' ||
+            key === 'hardBottle' ||
             canUseEmptyBottle ||
             canUseScentPouch ||
             canUseFakeWoundMedicine ||
@@ -757,6 +962,9 @@ const uiControl = {
         }
 
         detail.innerHTML = html;
+        if (key === 'glowingBrooch') {
+            this.renderRareAmberSocketControls(detail);
+        }
     },
 
     closeModal: function () {
@@ -931,85 +1139,137 @@ const uiControl = {
     // Build 15.5.1: 討伐ノート (bounty notebook) modal
     getNotebookRowDisplay: function (actualKills, tiers) {
         const isClaimed = tier => !!tier.claimedFlag && RPG.State.flags[tier.claimedFlag] === true;
-        const activeTier = tiers.find(t => !isClaimed(t)) || tiers[tiers.length - 1];
-        const displayCount = Math.min(actualKills, activeTier.target ?? actualKills);
+        const countableTiers = tiers.filter(tier => Number.isFinite(tier.target));
+        const activeTier =
+            countableTiers.find(tier => !isClaimed(tier)) ||
+            countableTiers[countableTiers.length - 1] ||
+            null;
+        const displayCount = activeTier
+            ? Math.min(actualKills, activeTier.target)
+            : actualKills;
         const markers = tiers.map(tier => {
-            if (!tier.claimedFlag) return '○';
+            if (!Number.isFinite(tier.target) || tier.claimEnabled === false) return '－';
             if (isClaimed(tier)) return '✓';
             return actualKills >= tier.target ? '！' : '○';
         });
-        return { displayCount, displayTarget: activeTier.target, markers };
+        return {
+            displayCount,
+            displayTarget: activeTier ? activeTier.target : null,
+            markers
+        };
     },
 
     getNotebookRows: function () {
-        return [
-            {
-                id: 'rat', enemyId: 'rat', name: '魔界のネズミ',
-                tiers: [
-                    { label: '10', target: 10, claimedFlag: 'ratBounty10Received' },
-                    { label: '20', target: 20, claimedFlag: 'ratBounty20Received' },
-                    { label: 'ALL', target: null, claimedFlag: null }
-                ]
-            },
-            {
-                id: 'weasel', enemyId: 'weasel', name: '魔界のイタチ',
-                tiers: [
-                    { label: '10', target: 10, claimedFlag: null },
-                    { label: '20', target: 20, claimedFlag: null },
-                    { label: 'ALL', target: null, claimedFlag: null }
-                ]
-            },
-            {
-                id: 'unknown1', enemyId: null, name: '？？？',
-                tiers: [
-                    { label: '10', target: null, claimedFlag: null },
-                    { label: '20', target: null, claimedFlag: null },
-                    { label: 'ALL', target: null, claimedFlag: null }
-                ]
-            },
-            {
-                id: 'unknown2', enemyId: null, name: '？？？',
-                tiers: [
-                    { label: '10', target: null, claimedFlag: null },
-                    { label: 'ALL', target: null, claimedFlag: null }
-                ]
-            },
-            {
-                id: 'unknown3', enemyId: null, name: '？？？',
-                tiers: [
-                    { label: '10', target: null, claimedFlag: null },
-                    { label: 'ALL', target: null, claimedFlag: null }
-                ]
-            }
-        ];
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        return entries.map(entry => {
+            const isKnown =
+                entry.initiallyKnown === true ||
+                RPG.State.flags[entry.encounterFlag] === true;
+            return {
+                ...entry,
+                isKnown,
+                name: isKnown ? entry.name : '？？？'
+            };
+        });
     },
 
     openNotebookModal: function () {
         if (RPG.State.mode !== "base") return;
+        this.selectedNotebookReward = null;
         this.refreshNotebookModal();
         const modal = document.getElementById('notebookModal');
         if (modal) modal.style.display = 'flex';
     },
 
+    selectNotebookReward: function (entryId, tierId) {
+        if (!innSystem.isNotebookRewardClaimable(entryId, tierId)) return;
+        this.selectedNotebookReward = { entryId, tierId };
+        this.refreshNotebookModal();
+    },
+
+    claimSelectedNotebookReward: function () {
+        const selected = this.selectedNotebookReward;
+        if (!selected) return;
+        innSystem.claimNotebookRewards(selected.entryId, selected.tierId);
+    },
+
     refreshNotebookModal: function () {
+        const rowList = document.getElementById('notebookRowList');
+        if (!rowList) return;
+        rowList.innerHTML = '';
+
+        if (
+            this.selectedNotebookReward &&
+            !innSystem.isNotebookRewardClaimable(
+                this.selectedNotebookReward.entryId,
+                this.selectedNotebookReward.tierId
+            )
+        ) {
+            this.selectedNotebookReward = null;
+        }
+
         this.getNotebookRows().forEach(row => {
-            const actualKills = row.enemyId ? innSystem.getEnemyKillCount(row.enemyId) : 0;
+            const actualKills = row.isKnown
+                ? innSystem.getEnemyKillCount(row.enemyId)
+                : 0;
             const { displayCount, displayTarget, markers } = this.getNotebookRowDisplay(actualKills, row.tiers);
-            const countEl = document.getElementById(`notebookRow_${row.id}_count`);
-            if (countEl) countEl.textContent = `${displayCount}/${displayTarget ?? '-'}`;
+
+            const rowEl = document.createElement('div');
+            rowEl.className = 'notebook-row';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'notebook-row-name';
+            nameEl.textContent = row.name;
+
+            const countEl = document.createElement('div');
+            countEl.className = 'notebook-row-progress';
+            countEl.id = `notebookRow_${row.id}_count`;
+            countEl.textContent = row.isKnown
+                ? `${displayCount}/${displayTarget ?? '-'}`
+                : '0/-';
+
+            const tiersEl = document.createElement('div');
+            tiersEl.className = 'notebook-row-tiers';
             row.tiers.forEach((tier, i) => {
-                const tierEl = document.getElementById(`notebookRow_${row.id}_tier${i}`);
-                if (tierEl) tierEl.textContent = `${markers[i]}${tier.label}`;
+                const isClaimable =
+                    row.isKnown &&
+                    innSystem.isNotebookRewardClaimable(row.id, tier.id);
+                const isSelected =
+                    isClaimable &&
+                    this.selectedNotebookReward &&
+                    this.selectedNotebookReward.entryId === row.id &&
+                    this.selectedNotebookReward.tierId === tier.id;
+                const tierEl = document.createElement(isClaimable ? 'button' : 'span');
+                tierEl.className = 'notebook-tier';
+                tierEl.id = `notebookRow_${row.id}_tier${i}`;
+                tierEl.textContent = `${markers[i]}${tier.label}`;
+                if (isClaimable) {
+                    tierEl.type = 'button';
+                    tierEl.classList.add('notebook-tier-button');
+                    tierEl.onclick = () => this.selectNotebookReward(row.id, tier.id);
+                }
+                if (isSelected) {
+                    tierEl.classList.add('notebook-tier-selected');
+                }
+                if (tier.claimEnabled === false) {
+                    tierEl.title = '条件未確定';
+                }
+                tiersEl.appendChild(tierEl);
             });
+            rowEl.append(nameEl, countEl, tiersEl);
+            rowList.appendChild(rowEl);
         });
 
         const claimBtn = document.getElementById('btnNotebookClaim');
-        if (claimBtn) claimBtn.disabled = !innSystem.hasAnyClaimableNotebookReward();
+        if (claimBtn) claimBtn.disabled = this.selectedNotebookReward === null;
     },
 
     closeNotebookModal: function () {
         const modal = document.getElementById('notebookModal');
         if (modal) modal.style.display = 'none';
+        this.selectedNotebookReward = null;
     },
 
     saveGame: function (slot) {
@@ -1063,7 +1323,7 @@ const uiControl = {
         const saveData = localStorage.getItem(storageKey);
         if (!saveData) {
             this.addLog("記録が見つからなかった。", "damage");
-            return;
+            return false;
         }
 
         try {
@@ -1089,6 +1349,31 @@ const uiControl = {
                 debug: { ...defaultState.debug, ...(loadedState.debug || {}) },
                 saveMeta: { ...defaultState.saveMeta, ...(loadedState.saveMeta || {}) }
             };
+
+            const loadedFlags =
+                loadedState.flags &&
+                typeof loadedState.flags === "object" &&
+                !Array.isArray(loadedState.flags)
+                    ? loadedState.flags
+                    : {};
+            const notebookEntries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+                ? RPG.Assets.NOTEBOOK_ENTRIES
+                : [];
+            notebookEntries.forEach(entry => {
+                if (
+                    !entry.encounterFlag ||
+                    Object.prototype.hasOwnProperty.call(loadedFlags, entry.encounterFlag)
+                ) {
+                    return;
+                }
+                const counts =
+                    loadedState.defeatCounts &&
+                    loadedState.defeatCounts[entry.enemyId];
+                const total =
+                    (Number(counts && counts.cain) || 0) +
+                    (Number(counts && counts.owen) || 0);
+                mergedState.flags[entry.encounterFlag] = total >= 1;
+            });
 
             // Retired keys may still exist in older saves; do not reintroduce
             // confirmed-unreferenced state into the live runtime object.
@@ -1124,8 +1409,10 @@ const uiControl = {
             this.addLog(`${sourceLabel}から旅を再開した。`, "item");
             this.updateUI();
             this.closeSaveModal();
+            return true;
         } catch (error) {
             this.addLog("記録の読み込みに失敗した。", "damage");
+            return false;
         }
     },
 

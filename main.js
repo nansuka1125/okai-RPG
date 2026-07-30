@@ -46,6 +46,70 @@ const debugSystem = {
 
 // 🚩ーー【初期化：完全版】ーー
 window.onload = () => {
+    const resumeTargets = {
+        suspend: {
+            storageKey: "okai_rpg_suspend",
+            sourceLabel: "中断記録"
+        },
+        1: {
+            storageKey: "okai_rpg_save_1",
+            sourceLabel: "第一頁"
+        },
+        2: {
+            storageKey: "okai_rpg_save_2",
+            sourceLabel: "第二頁"
+        },
+        3: {
+            storageKey: "okai_rpg_save_3",
+            sourceLabel: "第三頁"
+        },
+        4: {
+            storageKey: "okai_rpg_save_4",
+            sourceLabel: "第四頁"
+        },
+        5: {
+            storageKey: "okai_rpg_save_5",
+            sourceLabel: "第五頁"
+        }
+    };
+    const resumeParam = new URLSearchParams(window.location.search).get("resume");
+    const resumeTarget = (
+        resumeParam &&
+        Object.prototype.hasOwnProperty.call(resumeTargets, resumeParam)
+    )
+        ? resumeTargets[resumeParam]
+        : null;
+
+    if (resumeParam === null) {
+        let hasStoredRecord = false;
+        try {
+            hasStoredRecord = Object.values(resumeTargets).some(target => (
+                localStorage.getItem(target.storageKey) !== null
+            ));
+        } catch (error) {
+            hasStoredRecord = false;
+        }
+
+        if (hasStoredRecord) {
+            window.location.replace("index.html");
+            return;
+        }
+    }
+
+    if (resumeTarget) {
+        const loaded = uiControl.loadFromStorage(
+            resumeTarget.storageKey,
+            resumeTarget.sourceLabel
+        );
+        if (loaded) {
+            document.body.classList.remove("intro-opening", "intro-title-card");
+            return;
+        }
+
+        window.location.replace("index.html?resumeError=1");
+        return;
+    }
+
     // 強制初期化
     RPG.State.location = "宿屋《琥珀亭》";
     RPG.State.isAtInn = true;

@@ -95,7 +95,7 @@ test.describe('okai-RPG smoke test', () => {
 
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
     expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight * 1.5);
-    await expect(page.locator('.start-button')).toBeInViewport();
+    await expect(page.locator('#freshStartButton')).toBeInViewport();
     await expect(page.locator('.characters')).toBeInViewport();
   });
 

@@ -1,5 +1,109 @@
 # Work Log
 
+## Chapter 1 Development Recovery Baseline
+
+Status: confirmed development recovery baseline
+
+### Baseline
+
+- Branch and commit: `main@2536c9c`
+- This commit is the confirmed recovery point for continuing Chapter 1 development.
+- This is not a release build. It intentionally includes a debug acquisition route, development tools, provisional balance values, partially implemented systems, and known unimplemented work.
+- `DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10=true` at this baseline. Claiming the rat-10 notebook reward grants the normal three herbs plus one Vampire Amber for development access.
+- The working tree was clean and the locally recorded `origin/main` matched `2536c9c` when the baseline audit was completed.
+- The complete automated Playwright suite passed: `224 passed`, with no failures or skips.
+- Integrated manual gameplay verification of this combined state has not yet been completed; it is the next human gate.
+- All runtime and test JavaScript passed `node --check`; `git diff --check` passed.
+- This section is the canonical implementation-state record for the Git codebase. The sections below retain detailed implementation and manual-verification notes, but must not be read as overriding this baseline.
+
+### Currently implemented
+
+- Chapter 1 record selection and non-destructive new-game startup through `chapter1.html?new=1`; starting over preserves all five journal pages and the suspend record.
+- The five-entry bounty notebook: rat, weasel, amber sap, amberized rat, and amberized weasel, including their currently defined normal reward tiers.
+- Rat and weasel ALL progression, including unlock conversations, independent post-unlock progress, claimable rewards, and final-normal-random-enemy suppression after completion.
+- Vampire Amber equipment, combat drain and Cain-only damage multiplier, battle-chain handling, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence.
+- The Vampire Amber / matatabi conflict: mutual use/equip blocking and the repeatable post-battle accident route.
+- Inn-repair progression through both inn-rat battles, the innkeeper consultation, the three damage inspections, the report, forest-8m amber-tree timber retrieval, timber delivery, and receipt of Shiny Oil and Hardening Oil.
+- Level-11 opening of the Hard Bottle through its opening flourish.
+- Owen intervention text currently in code: four freeze lines, the two-line freeze activation, the frozen-turn line, wolf attack/swallow wording, the consolidated disappearance line, and the intimidation wording.
+- The existing Chapter 1 backgrounds, amber trade/appraisal and hardened-enemy systems, journal/suspend saves, forest presentation layer, inn conversation availability rules, phase-7 legacy handoff, and current Former Highway route described below.
+
+### Confirmed current specifications
+
+- Rat ALL unlocks after the rat-20 reward has been received and the notebook is next opened. Its independent target is five Cain defeats and its reward is one Grateful Talisman.
+- Weasel ALL unlocks after the weasel-20 reward has been received and the notebook is next opened. Its independent target is three Cain defeats and its reward is three High Herbs.
+- Owen defeats and matatabi weasel escapes do not advance rat/weasel ALL progress. Completing an ALL target suppresses only the matching final normal random encounter; amberized variants and fixed battles remain available.
+- The amber-sap-20 reward is the Hard Bottle. Rat ALL is the Grateful Talisman reward.
+- Vampire Amber drains 10%, 15%, and 20% of maximum HP at the start of chain battles 1, 4, and 6 without reducing Cain below 1 HP. Cain's damage multiplier is 1.5x for battles 1-5 and 2x for battle 6. Glowing Cat Rabbit battles are excluded.
+- A normal defeat before battle 6 resets the Vampire Amber chain without removing the amber. Completing battle 6 removes it. Entering the inn, manually detaching it, or swapping it out also resets the chain.
+- If matatabi would activate at a battle ending while Vampire Amber is equipped, the accident takes priority. The accident removes the amber, bypasses normal EXP, rewards, drops, kill/death counts, and matatabi activation, then returns Cain to the inn at 10% HP with poison cleared.
+- New-game startup through `?new=1` does not delete existing records. Existing saves continue through the default-state merge path, which supplies defaults for fields missing from older saves.
+- Inn-repair damage inspection requires the innkeeper consultation, receipt of the rat-20 reward, and mining the amber-tree coin. Timber delivery consumes one Amber-Tree Timber and grants one Shiny Oil plus one Hardening Oil.
+
+### Test-only and provisional implementation
+
+- `DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10=true` is an active development-only acquisition route.
+- Fresh state includes the usable `debug_poison` and `debug_lvl10` items. The encounter toggle, Glowing Cat Rabbit spawn hook, and Space-key dialogue acceleration remain development tools.
+- The debug-poison description says it sets HP to 1, while the current implementation sets HP to 30. This is a known text/behavior mismatch in development tooling.
+- Amberized rat/weasel replacement remains a provisional 25% roll.
+- Hardened-part durability remains provisional: Hungry Amber Tree 50, amberized rat 20, and amberized weasel 30.
+
+### Partially implemented
+
+- The Hard Bottle can be opened at level 11, but it is retained and has no implemented contents.
+- The inn-repair thread reaches timber delivery and receipt of both oils, but the oils have no implemented use and the repair is not completed.
+- Rare-amber equipment UI is implemented. Vampire Amber has a combat effect; the other rare-amber effects described in item data are not implemented.
+- The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
+
+### Unimplemented
+
+- ALL conditions, independent progress, unlock conversations, and claims for amber sap, amberized rat, and amberized weasel; their tiers remain disabled.
+- The Hard Bottle's contents and any post-opening result.
+- Uses for Shiny Oil and Hardening Oil, repair nails, the actual inn repair completion, and any repair-sign follow-up.
+- Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Blue, Bee, and Ignored Amber.
+- Acquisition events for Bee Amber and Ignored Amber.
+- The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
+- A boss-specific defeat/retry route for `amber_husk_giant_larva`, plus the proposed late-battle lethal-attack and blood-loss pressure.
+
+### On hold
+
+- Hard Bottle contents.
+- Remaining ALL conditions and rewards beyond the definitions currently disabled in code.
+- Inn-repair continuation after both oils are received.
+- Final values for the provisional amberized-enemy replacement rate and hardened-part durability.
+- The morning wagon-departure scene pending its latest text, exact interaction flow, and handoff decision.
+- Final-boss defeat handling pending the Director-provided defeat scene and retry/return destination.
+
+### Do not do at this baseline
+
+- Do not infer or implement unresolved story, reward, bottle-content, repair, or remaining-ALL specifications.
+- Do not remove the legacy `finale_wagon_encounter` before the new morning departure route is implemented and tested.
+- Do not alter `transitionToHighway()` or the Former Highway event block unless the approved departure handoff requires it.
+- Do not implement the final-boss follow-up before the Director supplies the defeat scene.
+- Do not expand final-boss work into ordinary-enemy defeat behavior or the shared three-defeat bad-end system.
+- Do not redesign `EVENT_DATA`, UI logging, save format, script order, or the runtime architecture as incidental cleanup.
+
+### Deferred cleanup candidates
+
+- Update the stale `inn.js` comment that still calls the inn-repair thread not yet implemented.
+- Narrow the broad amber test name that says rare amber has no gameplay effect even though the test covers Hated Amber and Vampire Amber now has an effect.
+- Review the `state.js` `Chapter 1 Complete` label against the still-pending morning departure cutover and final-boss defeat route.
+- Keep these as later cleanup candidates; do not change the code, test name, or build label as part of this documentation-only baseline update.
+
+### Next human gate
+
+- Before any further implementation or development-slice selection, the Director must manually play the integrated `main@2536c9c` state and confirm that the implemented features behave as intended together.
+- Manual confirmation targets:
+  - `【はじめから】` starts a new game without deleting existing journal or suspend records.
+  - All five bounty-notebook entries appear, and rat/weasel ALL unlock, progress, suppression, and reward flows work as specified.
+  - The rat-10 debug reward grants Vampire Amber while `DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10=true`.
+  - Vampire Amber's combat effect, conversations, sixth-battle forced removal, and save/load persistence work through normal play.
+  - Vampire Amber and matatabi mutually block each other, and the conflict accident returns Cain to the inn in the documented state.
+  - The inn-repair thread reaches timber delivery and grants both Shiny Oil and Hardening Oil once.
+  - Owen's freeze, transparent-wolf, and intimidation battle text appears as intended.
+- Record any visible or progression mismatch before selecting the next development slice.
+- Morning wagon-departure decisions and selection of the next development slice remain post-verification candidates only.
+
 ## Chapter 1 Location Backgrounds
 
 Status: implemented; Director visual and gameplay verification pending
@@ -20,7 +124,7 @@ Status: implemented; Director visual and gameplay verification pending
 
 - All runtime and test JavaScript passes `node --check`; `git diff --check` reports no whitespace errors.
 - All CSS WebP references resolve to repository files.
-- The complete Playwright suite passes 21 tests, including new scene-resolution, stale-class cleanup, and responsive herb-entrance coverage.
+- Focused browser coverage includes scene resolution, stale-class cleanup, and responsive herb-entrance behavior. The current complete-suite result is recorded in the recovery-baseline section.
 - Automated browser checks loaded the inn-front, highway, and both herb-entrance variants without page errors.
 
 ### Director verification
@@ -42,18 +146,18 @@ Status: implemented; Director gameplay and pacing verification pending
 - Moved the amber-trader vignette to the first inn `様子を見る` after obtaining one silver coin. Knife borrowing and first appraisal remain forced `様子を見る` events; the one-time return action is labeled `ナイフを返す`. Appraisal/exchange/trade-in commands unlock only after the trader moves to forest 0m.
 - Added the borrowed knife route, 8m coin mining, first guaranteed sparkling appraisal with a non-interactive exchange preview, one-time knife return attempt, and the merchant's move to the forest entrance after one stay.
 - Added free single/bulk appraisal with the confirmed 70/15/15 result weights. Appraised sparkling, junk, and insect amber are stored by the merchant and their counts remain visible in the merchant menu.
-- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Amber-case equipment and all rare-amber combat/exploration effects remain deferred.
+- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Rare-amber equipment UI is implemented. Vampire Amber now has its dedicated combat effect; effects for the other rare amber remain unimplemented.
 - Added the cumulative three-junk reward that renames the borrowed knife to the mining knife without changing its performance.
 - Added amberized rat/weasel variants after the thief-boy encounter, using a tunable provisional 25% replacement roll and provisional hardened-part durability values of 20/30. The Hungry Amber Tree uses provisional durability 50.
 - Added shared hardened-part damage, overflow, break, and critical-bypass handling. Player-facing logs use `硬化した皮膚` or `硬化した樹皮`; the internal design term is not displayed.
 - Amberized beasts always award one unknown amber, including Owen instant-death victories; Owen victories retain the existing no-EXP rule.
 - Added progression-aware journey memos for borrowing the knife, returning to 8m, and showing the unknown amber to the merchant.
-- No amber-case UI, equipment slots, rare-amber effects, bee/ignored acquisition events, or old-save migration was added.
+- Bee/Ignored Amber acquisition events and non-Vampire rare-amber effects remain unimplemented. Rare-amber equipment and the shared old-save default merge are now implemented; current compatibility limits are recorded in the recovery-baseline section.
 
 ### Verification completed
 
 - All runtime JavaScript and the new amber Playwright spec pass `node --check`; `git diff --check` reports no whitespace errors.
-- The complete Playwright suite passes all 18 tests, including the Hungry Amber Tree's restored two-choice branch and leave dialogue, the thief-boy encounter gate, the one-silver-coin merchant recognition boundary, the inn command labels, the first appraisal preview, and the forest-entrance menu unlock.
+- Focused coverage includes the Hungry Amber Tree's restored two-choice branch and leave dialogue, the thief-boy encounter gate, the one-silver-coin merchant recognition boundary, the inn command labels, the first appraisal preview, and the forest-entrance menu unlock. The current complete-suite result is recorded in the recovery-baseline section.
 
 ### Director verification
 
@@ -61,7 +165,7 @@ Status: implemented; Director gameplay and pacing verification pending
 - Confirm the merchant menus remain readable on the target phone, especially the six-item exchange list.
 - Fight the Hungry Amber Tree and both amberized beasts; judge the provisional 50/20/30 durability and the 25% replacement frequency.
 - Confirm normal hits, overflow hits, critical bypass, Cain victory, Owen instant death, defeat, and rematch all show the intended logs and reset hardened durability per battle.
-- Save to a spare slot after appraisal, reload it, and confirm merchant storage, knife state, and amber progression remain intact. Old pre-amber saves are intentionally outside this implementation scope.
+- Save to a spare slot after appraisal, reload it, and confirm merchant storage, knife state, amber progression, and rare-amber equipment remain intact. The current old-save default merge and its remaining Vampire Amber coverage gap are recorded in the recovery-baseline section.
 
 ## Amber Inn Scene Backgrounds
 

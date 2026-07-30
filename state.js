@@ -17,6 +17,7 @@ RPG.Config = {
     SMOKE_BOMB_STEP_COUNT: 10,
     MIKAWASHI_STEP_COUNT: 3,
     DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10: true,
+    AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
     EVASION_RATE: {
         normal: 0.1,
         nightMedicine: 0.5,

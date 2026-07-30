@@ -1006,8 +1006,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         cleanupBattle();
 
         Math.random = () => 0;
-        const ratTemplate = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'rat');
-        const amberizedTemplate = battleSystem.maybeUseAmberizedVariant(ratTemplate);
+        const amberizedTemplate = battleSystem.rollAmberVariantEncounter();
         const amberRandomStarted = battleSystem.startBattle(
           amberizedTemplate.id,
           { randomEncounter: true }

@@ -780,21 +780,21 @@ test.describe('Chapter 1 amber system', () => {
         isAtInn: false,
         isInDungeon: true,
         explorationArea: 'forest',
+        currentDistance: 5,
         location: '琥珀の森',
       });
       RPG.State.flags.amberTreeCoinMined = true;
       RPG.State.flags.metThiefBoy = false;
-      const rat = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'rat');
       const originalRandom = Math.random;
       Math.random = () => 0;
-      const beforeThief = battleSystem.maybeUseAmberizedVariant(rat).id;
+      const beforeThief = battleSystem.rollAmberVariantEncounter();
       RPG.State.flags.metThiefBoy = true;
-      const afterThief = battleSystem.maybeUseAmberizedVariant(rat).id;
+      const afterThief = battleSystem.rollAmberVariantEncounter();
       Math.random = originalRandom;
-      return { beforeThief, afterThief };
+      return { beforeThief, afterThief: afterThief && afterThief.id };
     });
 
-    expect(result).toEqual({ beforeThief: 'rat', afterThief: 'amber_rat' });
+    expect(result).toEqual({ beforeThief: null, afterThief: 'amber_rat' });
   });
 
   test('the glowing brooch equips one owned rare amber from its inventory detail', async ({ page }) => {
@@ -2069,6 +2069,283 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({
         equipped: null, chainCount: 0, matamatabiActive: false, vampireAmberCount: 1,
       });
+    });
+  });
+
+  test.describe('independent amberized rat/weasel encounters (Decouple amberized forest encounters)', () => {
+    async function setForestZone(page, overrides = {}) {
+      return page.evaluate((ov) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: ov.currentDistance ?? 5,
+        });
+        RPG.State.flags.chapter1Cleared = false;
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.flags.metThiefBoy = ov.metThiefBoy ?? true;
+        // Keep the unrelated glowing-cat-rabbit rare roll from competing with the
+        // mocked Math.random sequence these tests use to drive the amber roll.
+        RPG.State.flags.glowCatRabbitBadEndSeen = true;
+      }, overrides);
+    }
+
+    test('amberized variants stay locked before the thief-boy event completes', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: false });
+      const result = await page.evaluate(() => {
+        const originalRandom = Math.random;
+        Math.random = () => 0; // would force a roll through if the lock were not enforced
+        const roll = battleSystem.rollAmberVariantEncounter();
+        Math.random = originalRandom;
+        return roll;
+      });
+      expect(result).toBeNull();
+    });
+
+    test('amberized rat and weasel both become reachable once the thief-boy event (metThiefBoy) is complete', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: true });
+      const result = await page.evaluate(() => {
+        const originalRandom = Math.random;
+        const rollWith = (values) => {
+          let i = 0;
+          Math.random = () => values[Math.min(i++, values.length - 1)];
+          return battleSystem.rollAmberVariantEncounter();
+        };
+        const rat = rollWith([0, 0]).id;
+        const weasel = rollWith([0, 0.9]).id;
+        Math.random = originalRandom;
+        return { rat, weasel };
+      });
+      expect(result).toEqual({ rat: 'amber_rat', weasel: 'amber_weasel' });
+    });
+
+    test('normal rat ALL completion does not block the independent amber_rat draw', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: true });
+      const result = await page.evaluate(() => {
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+        Object.assign(RPG.State.flags, {
+          ratBountyAllUnlocked: true,
+          ratBountyAllProgress: 5,
+        });
+        const originalRandom = Math.random;
+        let i = 0;
+        const values = [0, 0];
+        Math.random = () => values[Math.min(i++, values.length - 1)];
+        const started = battleSystem.startBattle();
+        const enemyId = RPG.State.currentEnemy?.id || null;
+        Math.random = originalRandom;
+        cleanupBattle();
+        return { started, enemyId };
+      });
+      expect(result).toEqual({ started: true, enemyId: 'amber_rat' });
+    });
+
+    test('normal weasel ALL completion does not block the independent amber_weasel draw', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: true });
+      const result = await page.evaluate(() => {
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+        Object.assign(RPG.State.flags, {
+          weaselBountyAllUnlocked: true,
+          weaselBountyAllProgress: 3,
+        });
+        const originalRandom = Math.random;
+        let i = 0;
+        const values = [0, 0.9];
+        Math.random = () => values[Math.min(i++, values.length - 1)];
+        const started = battleSystem.startBattle();
+        const enemyId = RPG.State.currentEnemy?.id || null;
+        Math.random = originalRandom;
+        cleanupBattle();
+        return { started, enemyId };
+      });
+      expect(result).toEqual({ started: true, enemyId: 'amber_weasel' });
+    });
+
+    test('both amberized species stay available even while both normal species are fully suppressed', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: true });
+      const result = await page.evaluate(() => {
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+        Object.assign(RPG.State.flags, {
+          ratBountyAllUnlocked: true,
+          ratBountyAllProgress: 5,
+          weaselBountyAllUnlocked: true,
+          weaselBountyAllProgress: 3,
+        });
+        const originalRandom = Math.random;
+        const rollWith = (values) => {
+          let i = 0;
+          Math.random = () => values[Math.min(i++, values.length - 1)];
+          const started = battleSystem.startBattle();
+          const enemyId = RPG.State.currentEnemy?.id || null;
+          cleanupBattle();
+          return { started, enemyId };
+        };
+        const ratResult = rollWith([0, 0]);
+        const weaselResult = rollWith([0, 0.9]);
+        const normalRatStarted = battleSystem.startBattle('rat', { randomEncounter: true });
+        cleanupBattle();
+        const normalWeaselStarted = battleSystem.startBattle('weasel', { randomEncounter: true });
+        cleanupBattle();
+        Math.random = originalRandom;
+        return { ratResult, weaselResult, normalRatStarted, normalWeaselStarted };
+      });
+      expect(result).toEqual({
+        ratResult: { started: true, enemyId: 'amber_rat' },
+        weaselResult: { started: true, enemyId: 'amber_weasel' },
+        normalRatStarted: false,
+        normalWeaselStarted: false,
+      });
+    });
+
+    test('battles started with an explicit enemyId (fixed, boss, and event battles) are never replaced by the amber roll', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: true });
+      const result = await page.evaluate(() => {
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+        const originalRandom = Math.random;
+        Math.random = () => 0; // would force an amber roll if the explicit-id path ever reached it
+        const ratStarted = battleSystem.startBattle('rat');
+        const ratEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        const weaselStarted = battleSystem.startBattle('weasel');
+        const weaselEnemy = RPG.State.currentEnemy?.id || null;
+        cleanupBattle();
+
+        Math.random = originalRandom;
+        return { ratStarted, ratEnemy, weaselStarted, weaselEnemy };
+      });
+      expect(result).toEqual({
+        ratStarted: true, ratEnemy: 'rat',
+        weaselStarted: true, weaselEnemy: 'weasel',
+      });
+    });
+
+    test('defeating an amberized variant only increments its own defeatCounts key', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = { id: 'amber_rat', name: '琥珀化ネズミ', hp: 0, xp: 15, gold: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
+        RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+        RPG.State.isBattling = true;
+        RPG.State.mode = 'battle';
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.battleState = {};
+        battleSystem.executeStandardVictory('amber_rat');
+        return {
+          amberRat: { ...RPG.State.defeatCounts.amber_rat },
+          rat: { ...RPG.State.defeatCounts.rat },
+        };
+      });
+      expect(result).toEqual({
+        amberRat: { cain: 1, owen: 0 },
+        rat: { cain: 0, owen: 0 },
+      });
+    });
+
+    test('defeating an amberized variant does not add to the normal species ALL progress', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State.flags, {
+          ratBountyAllUnlocked: true,
+          ratBountyAllProgress: 2,
+        });
+        RPG.State.currentEnemy = { id: 'amber_rat', name: '琥珀化ネズミ', hp: 0, xp: 15, gold: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
+        RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+        RPG.State.isBattling = true;
+        RPG.State.mode = 'battle';
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.battleState = {};
+        battleSystem.executeStandardVictory('amber_rat');
+        return {
+          ratProgress: RPG.State.flags.ratBountyAllProgress,
+          ratDefeatCount: { ...RPG.State.defeatCounts.rat },
+        };
+      });
+      expect(result).toEqual({ ratProgress: 2, ratDefeatCount: { cain: 0, owen: 0 } });
+    });
+
+    test('a Cain kill on an amberized variant still grants the guaranteed unknown amber drop', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'amber_rat');
+        RPG.State.currentEnemy = { ...template, hp: 0, armorHp: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
+        RPG.State.inventory.unknownAmber = 0;
+        RPG.State.isBattling = true;
+        RPG.State.mode = 'battle';
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.battleState = {};
+        battleSystem.executeStandardVictory('amber_rat');
+        return {
+          unknownAmber: RPG.State.inventory.unknownAmber,
+          cainDefeats: RPG.State.defeatCounts.amber_rat.cain,
+        };
+      });
+      expect(result).toEqual({ unknownAmber: 1, cainDefeats: 1 });
+    });
+
+    test('old saves preserve or default the thief-boy completion flag that unlocks amber variants', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.flags.metThiefBoy = true;
+        const completedSave = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_amber_unlock_test_completed', JSON.stringify(completedSave));
+
+        const legacySave = JSON.parse(JSON.stringify(completedSave));
+        delete legacySave.flags.metThiefBoy;
+        localStorage.setItem('okai_rpg_amber_unlock_test_legacy', JSON.stringify(legacySave));
+
+        RPG.State.flags.metThiefBoy = false;
+        uiControl.loadFromStorage('okai_rpg_amber_unlock_test_completed', '完了済みセーブ');
+        const afterCompletedLoad = RPG.State.flags.metThiefBoy;
+
+        RPG.State.flags.metThiefBoy = true;
+        uiControl.loadFromStorage('okai_rpg_amber_unlock_test_legacy', '旧セーブ');
+        const afterLegacyLoad = RPG.State.flags.metThiefBoy;
+
+        return { afterCompletedLoad, afterLegacyLoad };
+      });
+      expect(result).toEqual({ afterCompletedLoad: true, afterLegacyLoad: false });
+    });
+
+    test('normal weighted random encounters are unaffected when amber variants are locked', async ({ page }) => {
+      await setForestZone(page, { metThiefBoy: false });
+      const result = await page.evaluate(() => {
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+        const originalRandom = Math.random;
+        Math.random = () => 0; // would trigger the amber roll if the lock leaked through
+        const started = battleSystem.startBattle();
+        const enemyId = RPG.State.currentEnemy?.id || null;
+        Math.random = originalRandom;
+        cleanupBattle();
+        return { started, enemyId };
+      });
+      expect(result.started).toBe(true);
+      expect(['amber_rat', 'amber_weasel']).not.toContain(result.enemyId);
     });
   });
 });

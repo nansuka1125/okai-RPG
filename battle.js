@@ -348,23 +348,37 @@ const battleSystem = {
         return [{ text, type: "ambient" }];
     },
 
-    maybeUseAmberizedVariant: function (template) {
-        const canAppear =
+    isAmberVariantEncounterUnlocked: function () {
+        return (
             RPG.State.flags.metThiefBoy === true &&
             RPG.State.isInDungeon === true &&
             RPG.State.explorationArea === "forest" &&
-            RPG.State.location !== "かつての街道";
-        const provisionalReplacementRate = 0.25;
-        if (!canAppear || Math.random() >= provisionalReplacementRate) return template;
+            RPG.State.location !== "かつての街道"
+        );
+    },
 
-        const variantIds = {
-            rat: "amber_rat",
-            weasel: "amber_weasel"
-        };
-        const variantId = variantIds[template && template.id];
-        return variantId
-            ? (RPG.Assets.ENEMIES.find(enemy => enemy.id === variantId) || template)
-            : template;
+    isAmberVariantEncounterZone: function () {
+        return ["rat", "weasel"].some(baseId => {
+            const base = RPG.Assets.ENEMIES.find(e => e.id === baseId);
+            return (
+                Array.isArray(base && base.area) &&
+                RPG.State.currentDistance >= base.area[0] &&
+                RPG.State.currentDistance <= base.area[1]
+            );
+        });
+    },
+
+    // Amberized rat/weasel are a separate brood spawned by the amber tree's
+    // power, not a rare mutation of the normal beasts, so they roll as an
+    // independent candidate rather than replacing a normal draw result.
+    rollAmberVariantEncounter: function () {
+        if (!this.isAmberVariantEncounterUnlocked() || !this.isAmberVariantEncounterZone()) {
+            return null;
+        }
+        if (Math.random() >= RPG.Config.AMBER_VARIANT_ENCOUNTER_RATE) return null;
+
+        const variantId = Math.random() < 0.5 ? "amber_rat" : "amber_weasel";
+        return RPG.Assets.ENEMIES.find(e => e.id === variantId) || null;
     },
 
     isNotebookAllRandomEncounterExcluded: function (enemyId) {
@@ -585,6 +599,10 @@ const battleSystem = {
         }
 
         if (!template) {
+            template = this.rollAmberVariantEncounter();
+        }
+
+        if (!template) {
             const candidates = RPG.Assets.ENEMIES.filter(e =>
                 e.area && // Build 12.0.6: Safety check
                 RPG.State.currentDistance >= e.area[0] &&
@@ -603,8 +621,6 @@ const battleSystem = {
                     break;
                 }
             }
-
-            template = this.maybeUseAmberizedVariant(template);
         }
 
         if (

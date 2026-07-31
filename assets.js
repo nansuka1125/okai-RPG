@@ -167,7 +167,9 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 items: [{ itemId: "shinyOil", qty: 3 }]
             },
             {
-                id: "20", label: "20", target: 20, claimedFlag: "sapBounty20Received",
+                // Tier id/label read "15" (matches the new target); claimedFlag is kept as
+                // sapBounty20Received (unrenamed) so old-save receipt state stays valid.
+                id: "15", label: "15", target: 15, claimedFlag: "sapBounty20Received",
                 items: [{ itemId: "hardBottle", qty: 1 }]
             },
             {

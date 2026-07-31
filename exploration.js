@@ -219,6 +219,18 @@ const explorationSystem = {
         );
     },
 
+    // After the thief-boy encounter, the forest's 7m-9m depths are where the amber sap and its
+    // spreading source are meant to be easy to find. This only ever gates the plain random-step
+    // battle roll below - fixed/boss/event battles never pass through this check.
+    isDeepForestPostThiefBoyZone: function () {
+        return (
+            RPG.State.flags.metThiefBoy === true &&
+            RPG.State.location !== "かつての街道" &&
+            RPG.State.currentDistance >= 7 &&
+            RPG.State.currentDistance <= 9
+        );
+    },
+
     tryHerbGardenEncounter: function (distance, options = {}) {
         if (this.isRandomEncounterSuppressed(options)) return false;
         if (distance === 3 || distance <= 0) return false;
@@ -1366,7 +1378,10 @@ const explorationSystem = {
             RPG.State.currentDistance > 0 &&
             RPG.State.currentDistance < 10
         ) {
-            if (Math.random() < RPG.Assets.CONFIG.BATTLE_RATE) {
+            const effectiveBattleRate = this.isDeepForestPostThiefBoyZone()
+                ? RPG.Config.DEEP_FOREST_POST_THIEF_BOY_BATTLE_RATE
+                : RPG.Assets.CONFIG.BATTLE_RATE;
+            if (Math.random() < effectiveBattleRate) {
                 const battleStarted = battleSystem.startBattle(null, {
                     mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
                 });

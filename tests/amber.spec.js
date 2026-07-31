@@ -2416,17 +2416,17 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.sapSourceAwarenessSeen).toBe(false);
     });
 
-    test('does not fire at a cumulative sap kill count of 19', async ({ page }) => {
+    test('does not fire at a cumulative sap kill count of 14', async ({ page }) => {
       const result = await runVictory(page, {
         enemyId: 'sap',
-        defeatCounts: { cain: 18, owen: 0 },
+        defeatCounts: { cain: 13, owen: 0 },
         treeDefeated: true,
         amberTreeCoinMined: true,
         sapSourceAwarenessSeen: false,
       });
       expect(result).toMatchObject({
         sapSourceAwarenessSeen: false,
-        sapDefeatCounts: { cain: 19, owen: 0 },
+        sapDefeatCounts: { cain: 14, owen: 0 },
       });
     });
 
@@ -3013,6 +3013,313 @@ test.describe('Chapter 1 amber system', () => {
         amberRatThreeKillTalkSeen: false,
         amberWeaselFirstKillTalkSeen: false,
       });
+    });
+  });
+
+  test.describe('deep forest post-thief-boy amber sap tuning (Tune deep forest amber sap encounters)', () => {
+    async function attemptMoveEncounter(page, cfg) {
+      return page.evaluate((c) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: c.location ?? '琥珀の森',
+          currentDistance: c.distance - 1,
+          storyPhase: 2,
+        });
+        Object.assign(RPG.State.flags, {
+          metThiefBoy: c.metThiefBoy,
+          isDebugEncountersOff: false,
+          onWagon: false,
+          matamatabiActive: false,
+          silverDelivered: true,
+        });
+        RPG.State.inventory.silverCoin = 0;
+
+        const originalRandom = Math.random;
+        const originalCheckEvents = explorationSystem.checkEvents;
+        const originalTreeEncounter = scenarioEvents.treeEventSystem.handleEncounter;
+        const originalStartBattle = battleSystem.startBattle;
+        let battles = 0;
+
+        Math.random = () => c.randomValue;
+        explorationSystem.checkEvents = () => false;
+        scenarioEvents.treeEventSystem.handleEncounter = () => false;
+        battleSystem.startBattle = () => {
+          battles += 1;
+          return false;
+        };
+
+        explorationSystem.move(1, { skipTravelCue: true });
+
+        Math.random = originalRandom;
+        explorationSystem.checkEvents = originalCheckEvents;
+        scenarioEvents.treeEventSystem.handleEncounter = originalTreeEncounter;
+        battleSystem.startBattle = originalStartBattle;
+
+        return battles;
+      }, cfg);
+    }
+
+    // --- encounter rate zone ---
+
+    test('the 7m-9m encounter rate is unchanged before the thief-boy encounter', async ({ page }) => {
+      const belowBaseline = await attemptMoveEncounter(page, {
+        distance: 8, metThiefBoy: false, randomValue: 0.5,
+      });
+      const aboveBaseline = await attemptMoveEncounter(page, {
+        distance: 8, metThiefBoy: false, randomValue: 0.65,
+      });
+      expect({ belowBaseline, aboveBaseline }).toEqual({ belowBaseline: 1, aboveBaseline: 0 });
+    });
+
+    test('the 7m-9m encounter rate is raised after the thief-boy encounter', async ({ page }) => {
+      const result = await attemptMoveEncounter(page, {
+        distance: 8, metThiefBoy: true, randomValue: 0.65,
+      });
+      expect(result).toBe(1);
+    });
+
+    test('1m-6m keep the baseline encounter rate even after the thief-boy encounter', async ({ page }) => {
+      const result = await attemptMoveEncounter(page, {
+        distance: 5, metThiefBoy: true, randomValue: 0.65,
+      });
+      expect(result).toBe(0);
+    });
+
+    test('the deep-forest zone never applies on the former highway', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, { location: 'かつての街道', currentDistance: 8 });
+        RPG.State.flags.metThiefBoy = true;
+        return explorationSystem.isDeepForestPostThiefBoyZone();
+      });
+      expect(result).toBe(false);
+    });
+
+    test('fixed battles are unaffected by the deep-forest zone and sap weight', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: 8,
+        });
+        RPG.State.flags.metThiefBoy = true;
+        RPG.State.flags.chapter1Cleared = false;
+        const originalRandom = Math.random;
+        Math.random = () => 0;
+        battleSystem.startBattle('rat');
+        const enemyId = RPG.State.currentEnemy?.id || null;
+        Math.random = originalRandom;
+        RPG.State.isBattling = false;
+        RPG.State.currentEnemy = null;
+        RPG.State.battleState = null;
+        RPG.State.mode = 'base';
+        return enemyId;
+      });
+      expect(result).toBe('rat');
+    });
+
+    // --- sap draw weight ---
+
+    test('sap draws a much heavier share in the deep-forest zone, without excluding rat or weasel', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: 8,
+        });
+        Object.assign(RPG.State.flags, {
+          metThiefBoy: true,
+          chapter1Cleared: false,
+          matamatabiActive: false,
+          glowCatRabbitBadEndSeen: true,
+          ratBountyAllUnlocked: false,
+          weaselBountyAllUnlocked: false,
+        });
+
+        const originalRandom = Math.random;
+        const originalBeginBattle = battleSystem.beginBattle;
+        // sap (unlike rat/weasel) queues an ambient pre-battle line before beginBattle(), so
+        // intercept beginBattle() directly - it captures the chosen template either way,
+        // synchronously for rat/weasel or after one extra tap for sap's queued dialogue.
+        const drawWith = (value) => {
+          Math.random = () => value;
+          let pickedId = null;
+          battleSystem.beginBattle = template => {
+            pickedId = template && template.id;
+          };
+          battleSystem.startBattle(null, { randomEncounter: true });
+          if (pickedId === null && RPG.State.mode === 'event') {
+            uiControl.handlePlayerInput();
+          }
+          RPG.State.mode = 'base';
+          RPG.State.dialogueQueue = [];
+          return pickedId;
+        };
+
+        // Effective weights in this zone: rat=10, weasel=3, sap=15 (boosted from 5), total=28.
+        const ratPick = drawWith(0.3);   // 0.3*28=8.4  -> within rat's [0,10)
+        const weaselPick = drawWith(0.4); // 0.4*28=11.2 -> within weasel's [10,13)
+        const sapPick = drawWith(0.7);    // 0.7*28=19.6 -> within sap's boosted [13,28)
+
+        Math.random = originalRandom;
+        battleSystem.beginBattle = originalBeginBattle;
+        return { ratPick, weaselPick, sapPick };
+      });
+      expect(result).toEqual({ ratPick: 'rat', weaselPick: 'weasel', sapPick: 'sap' });
+    });
+
+    // --- sap notebook 15-tier ---
+
+    test('the sap second tier does not unlock at 14 kills', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.defeatCounts.sap = { cain: 14, owen: 0 };
+        RPG.State.flags.sapBounty20Received = false;
+        return innSystem.isNotebookRewardClaimable('sap', '15');
+      });
+      expect(result).toBe(false);
+    });
+
+    test('the sap second tier unlocks at 15 kills and grants the hard bottle', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.defeatCounts.sap = { cain: 15, owen: 0 };
+        RPG.State.flags.sapBounty20Received = false;
+        RPG.State.inventory.hardBottle = 0;
+        const claimable = innSystem.isNotebookRewardClaimable('sap', '15');
+        innSystem.claimNotebookRewards('sap', '15');
+        return {
+          claimable,
+          hardBottle: RPG.State.inventory.hardBottle,
+          received: RPG.State.flags.sapBounty20Received,
+        };
+      });
+      expect(result).toEqual({ claimable: true, hardBottle: 1, received: true });
+    });
+
+    test('an already-claimed old save (sapBounty20Received) is not granted the reward again', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.defeatCounts.sap = { cain: 20, owen: 0 };
+        RPG.State.flags.sapBounty20Received = true;
+        RPG.State.inventory.hardBottle = 0;
+        innSystem.claimNotebookRewards('sap', '15');
+        return {
+          hardBottle: RPG.State.inventory.hardBottle,
+          received: RPG.State.flags.sapBounty20Received,
+        };
+      });
+      expect(result).toEqual({ hardBottle: 0, received: true });
+    });
+
+    // --- sap_source_awareness threshold ---
+
+    test('sap_source_awareness does not fire at 14 cumulative sap kills', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'battle', isBattling: true,
+          currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
+          battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
+        });
+        RPG.State.defeatCounts.sap = { cain: 13, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true, amberTreeCoinMined: true, sapSourceAwarenessSeen: false,
+          matamatabiActive: false, vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true, vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [], pendingBattleCountEvents: [],
+        });
+        battleSystem.executeStandardVictory('sap');
+        return {
+          seen: RPG.State.flags.sapSourceAwarenessSeen,
+          sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
+        };
+      });
+      expect(result).toEqual({ seen: false, sapDefeatCounts: { cain: 14, owen: 0 } });
+    });
+
+    test('sap_source_awareness fires once cumulative sap kills reach 15', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'battle', isBattling: true,
+          currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
+          battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
+        });
+        RPG.State.defeatCounts.sap = { cain: 14, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true, amberTreeCoinMined: true, sapSourceAwarenessSeen: false,
+          matamatabiActive: false, vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true, vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [], pendingBattleCountEvents: [],
+        });
+        battleSystem.executeStandardVictory('sap');
+        return {
+          seen: RPG.State.flags.sapSourceAwarenessSeen,
+          sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
+        };
+      });
+      expect(result).toEqual({ seen: true, sapDefeatCounts: { cain: 15, owen: 0 } });
+    });
+
+    test('sap_source_awareness fires on the next sap win for an old save already past 15 kills', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'battle', isBattling: true,
+          currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
+          battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
+        });
+        RPG.State.defeatCounts.sap = { cain: 25, owen: 5 };
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true, amberTreeCoinMined: true, sapSourceAwarenessSeen: false,
+          matamatabiActive: false, vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true, vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [], pendingBattleCountEvents: [],
+        });
+        battleSystem.executeStandardVictory('sap');
+        return RPG.State.flags.sapSourceAwarenessSeen;
+      });
+      expect(result).toBe(true);
+    });
+
+    test('post_tree_fatigue still takes priority over sap_source_awareness at the new 15-kill threshold', async ({ page }) => {
+      const runVictory = async (cfg) => page.evaluate((c) => {
+        Object.assign(RPG.State, {
+          mode: 'battle', isBattling: true,
+          currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
+          battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
+        });
+        RPG.State.defeatCounts.sap = c.defeatCounts;
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true, amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: c.sapSourceAwarenessSeen,
+          matamatabiActive: false, vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true, vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [], pendingBattleCountEvents: [],
+        });
+        RPG.State.postTreeBattles = c.postTreeBattles;
+        battleSystem.executeStandardVictory('sap');
+        return {
+          readyForThiefBoy: RPG.State.flags.readyForThiefBoy,
+          postTreeBattles: RPG.State.postTreeBattles,
+          sapSourceAwarenessSeen: RPG.State.flags.sapSourceAwarenessSeen,
+        };
+      }, cfg);
+
+      const first = await runVictory({
+        defeatCounts: { cain: 14, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 4,
+      });
+      expect(first).toMatchObject({
+        readyForThiefBoy: true, postTreeBattles: 'DONE', sapSourceAwarenessSeen: false,
+      });
+
+      const second = await runVictory({
+        defeatCounts: { cain: 15, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 'DONE',
+      });
+      expect(second.sapSourceAwarenessSeen).toBe(true);
     });
   });
 });

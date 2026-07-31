@@ -422,6 +422,20 @@ const battleSystem = {
         return true;
     },
 
+    // Keeps sap_source_awareness's threshold in sync with the sap notebook entry's second
+    // tier target (currently 15) instead of duplicating the number as a separate hardcoded
+    // constant. Looked up by claimedFlag since that name stays stable across target changes.
+    getSapSecondTierTarget: function () {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        const sapEntry = entries.find(entry => entry.enemyId === "sap");
+        const secondTier = sapEntry && sapEntry.tiers.find(
+            tier => tier.claimedFlag === "sapBounty20Received"
+        );
+        return Number.isFinite(secondTier && secondTier.target) ? secondTier.target : 15;
+    },
+
     getHighwayFixedBattleSpec: function (distance) {
         const specs = {
             2: {
@@ -610,12 +624,21 @@ const battleSystem = {
             );
             if (candidates.length === 0) return false;
 
-            const totalWeight = candidates.reduce((sum, e) => sum + e.weight, 0);
+            // In the post-thief-boy 7m-9m depths, sap draws a heavier weight than its normal 5
+            // so it is easier to find without excluding the other normal candidates.
+            const useDeepForestSapWeight = explorationSystem.isDeepForestPostThiefBoyZone();
+            const getEncounterWeight = enemy => (
+                useDeepForestSapWeight && enemy.id === "sap"
+                    ? RPG.Config.DEEP_FOREST_POST_THIEF_BOY_SAP_WEIGHT
+                    : enemy.weight
+            );
+
+            const totalWeight = candidates.reduce((sum, e) => sum + getEncounterWeight(e), 0);
             let random = Math.random() * totalWeight;
             template = candidates[0];
 
             for (const e of candidates) {
-                random -= e.weight;
+                random -= getEncounterWeight(e);
                 if (random < 0) {
                     template = e;
                     break;
@@ -2455,7 +2478,7 @@ const battleSystem = {
             enemyId === "sap" &&
             RPG.State.flags.treeDefeated === true &&
             RPG.State.flags.amberTreeCoinMined === true &&
-            sapDefeatCount >= 20 &&
+            sapDefeatCount >= this.getSapSecondTierTarget() &&
             RPG.State.flags.sapSourceAwarenessSeen !== true
         ) {
             const sapSourceEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "sap_source_awareness");

@@ -18,6 +18,11 @@ RPG.Config = {
     MIKAWASHI_STEP_COUNT: 3,
     DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10: true,
     AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
+    // Provisional Chapter 1 balance values: after metThiefBoy, the forest's 7m-9m depths raise
+    // the base BATTLE_RATE (0.6) and give sap a heavier draw weight than its normal 5, so the
+    // amber sap source is easier to find without ever excluding the other normal candidates.
+    DEEP_FOREST_POST_THIEF_BOY_BATTLE_RATE: 0.8,
+    DEEP_FOREST_POST_THIEF_BOY_SAP_WEIGHT: 15,
     EVASION_RATE: {
         normal: 0.1,
         nightMedicine: 0.5,

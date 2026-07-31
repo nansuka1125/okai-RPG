@@ -100,6 +100,45 @@ test.describe('okai-RPG smoke test', () => {
     await expect(page.locator('.characters')).toBeInViewport();
   });
 
+  test('guide page opens from the top and keeps answers folded initially', async ({ page }) => {
+    await page.goto('/');
+    const guideLink = page.getByRole('link', { name: '攻略で困ったとき' });
+    await expect(guideLink).toHaveAttribute('href', 'guide.html');
+    await guideLink.click();
+
+    await expect(page).toHaveURL(/\/guide\.html$/);
+    await expect(page.getByRole('heading', { name: '攻略・FAQ' })).toBeVisible();
+
+    const disclosures = page.locator('.guide-disclosures details');
+    await expect(disclosures).toHaveCount(5);
+    expect(await disclosures.evaluateAll(elements => elements.every(element => !element.open))).toBe(true);
+
+    const firstQuestion = disclosures.first();
+    await firstQuestion.locator('summary').click();
+    expect(await firstQuestion.evaluate(element => element.open)).toBe(true);
+    await expect(firstQuestion).toContainText('内容は後から追加します。');
+
+    await firstQuestion.locator('summary').click();
+    expect(await firstQuestion.evaluate(element => element.open)).toBe(false);
+    await expect(page.getByRole('link', { name: 'Googleフォーム' })).toHaveAttribute('href', '#');
+  });
+
+  test('guide page has no horizontal overflow on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/guide.html');
+
+    const layout = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+
+    await expect(page.getByRole('heading', { name: 'よくある質問' })).toBeInViewport();
+    const bottomLink = page.getByRole('link', { name: '公式トップへ戻る' });
+    await bottomLink.scrollIntoViewIfNeeded();
+    await expect(bottomLink).toBeInViewport();
+  });
+
   test('loads with the expected default state', async ({ page }) => {
     await page.goto('/chapter1.html');
     const state = await page.evaluate(() => window.RPG.State);

@@ -12,6 +12,7 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 ## Page Entrypoints
 
 - `index.html`: GitHub Pages top page and chapter navigation.
+- `guide.html`: Static official guide and FAQ page.
 - `chapter1-records.html`: Chapter 1 new-game and saved-record selection.
 - `chapter1.html`: Chapter 1 game entrypoint. It loads the existing runtime and keeps the script order below.
 
@@ -34,6 +35,7 @@ This document is the stable map of the current project. Use `WORKLOG.md` for the
 | File | Primary responsibility | Important contracts |
 | --- | --- | --- |
 | `index.html` | GitHub Pages top page | Keep chapter links relative so they work under the repository Pages path. |
+| `guide.html` | Official guide and FAQ | Keep FAQ entries in native `details` elements and the future Google Form URL in one link. |
 | `top.css` | Top-page presentation | Keep it separate from the game stylesheet. |
 | `chapter1-records.html` | Chapter 1 record selection | Keep new-game first and preserve the existing save-slot keys and resume query values. |
 | `chapter1-records.js` | Chapter 1 record menu behavior | Routes new games through `chapter1.html?new=1` without deleting records, and saved records through the existing `chapter1.html?resume=...` loader. |

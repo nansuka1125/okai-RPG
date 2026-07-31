@@ -2467,6 +2467,64 @@ const battleSystem = {
             }
         }
 
+        // Amberized beast conversations: same lowest-priority pattern as sap source awareness
+        // above - checked last, gated on !hasPostBattleEvent, and each flag only set once its
+        // own dialogue actually wins the slot. If it loses, it stays unset and re-evaluates on
+        // the next matching victory. amber_rat's equipped-talk is checked ahead of its
+        // three-kill talk so both cannot fire in the same battle.
+        const amberRatDefeatCount = RPG.State.defeatCounts.amber_rat
+            ? (RPG.State.defeatCounts.amber_rat.cain + RPG.State.defeatCounts.amber_rat.owen)
+            : 0;
+        const amberWeaselDefeatCount = RPG.State.defeatCounts.amber_weasel
+            ? (RPG.State.defeatCounts.amber_weasel.cain + RPG.State.defeatCounts.amber_weasel.owen)
+            : 0;
+
+        if (
+            !hasPostBattleEvent &&
+            enemyId === "amber_rat" &&
+            amberRatDefeatCount >= 1 &&
+            RPG.State.equippedRareAmberId !== null &&
+            RPG.State.flags.amberRatEquippedTalkSeen !== true
+        ) {
+            const amberRatEquippedEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "amber_rat_equipped_talk");
+            if (amberRatEquippedEvent) {
+                amberRatEquippedEvent.action(RPG.State);
+                RPG.State.mode = "event";
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
+        }
+
+        if (
+            !hasPostBattleEvent &&
+            enemyId === "amber_rat" &&
+            amberRatDefeatCount >= 3 &&
+            RPG.State.flags.amberRatThreeKillTalkSeen !== true
+        ) {
+            const amberRatThreeKillEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "amber_rat_three_kill_talk");
+            if (amberRatThreeKillEvent) {
+                amberRatThreeKillEvent.action(RPG.State);
+                RPG.State.mode = "event";
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
+        }
+
+        if (
+            !hasPostBattleEvent &&
+            enemyId === "amber_weasel" &&
+            amberWeaselDefeatCount >= 1 &&
+            RPG.State.flags.amberWeaselFirstKillTalkSeen !== true
+        ) {
+            const amberWeaselFirstKillEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "amber_weasel_first_kill_talk");
+            if (amberWeaselFirstKillEvent) {
+                amberWeaselFirstKillEvent.action(RPG.State);
+                RPG.State.mode = "event";
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
+        }
+
         uiControl.advanceVampireAmberChainOnBattleEnd();
 
         // Final State Cleanup

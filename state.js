@@ -200,6 +200,9 @@ RPG.State = {
         borrowedMiningKnifeReceived: false,
         amberTreeCoinMined: false,
         sapSourceAwarenessSeen: false, // One-time post-battle talk realizing the amber sap has another source; also the start condition for the amber root thread
+        amberRatEquippedTalkSeen: false, // One-time post-battle talk after an amber_rat win while a rare amber is equipped
+        amberRatThreeKillTalkSeen: false, // One-time post-battle talk once cumulative amber_rat kills reach 3
+        amberWeaselFirstKillTalkSeen: false, // One-time post-battle talk after the first cumulative amber_weasel kill
         firstAmberAppraisalDone: false,
         vampireAmberAppraisalSeen: false,
         vampireAmberChainBattleCount: 0, // 0-5; battles completed in a row while vampireAmber is equipped. Next battle fought is this+1

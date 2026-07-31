@@ -1680,6 +1680,55 @@ RPG.Assets.EVENT_DATA = [
             state.flags.sapSourceAwarenessSeen = true; // Set flag: prevents replay and gates the future amber root thread
         }
     },
+    // Amber Rat Equipped Talk: fires manually from battleSystem.executeStandardVictory() after an
+    // amber_rat win once cumulative amber_rat kills reach 1 and Cain currently has any rare amber
+    // equipped (equippedRareAmberId !== null).
+    {
+        id: "amber_rat_equipped_talk",
+        condition: () => false, // Manually triggered
+        action: (state) => {
+            state.dialogueQueue = [
+                { text: "カイン「でかいし、背中に琥珀がついてるし、やたら強そうになったな」", delay: 1200 },
+                { text: "オーエン「おまえも琥珀つけてるもんね」", delay: 1000, color: "#a020f0" },
+                { text: "カイン「かっこいいか？」", delay: 1000 },
+                { text: "カインは、琥珀のはまったブローチを見せびらかした！", delay: 1000 },
+                { text: "オーエン「僕の宝石の方が大きいし」", delay: 1000, color: "#a020f0" },
+                { text: "オーエンは宝石のふさ飾りをつまんだ。", delay: 1000 }
+            ];
+            state.flags.amberRatEquippedTalkSeen = true; // Set flag: prevents replay
+        }
+    },
+    // Amber Rat Three-Kill Talk: fires manually from battleSystem.executeStandardVictory() after
+    // an amber_rat win once cumulative amber_rat kills reach 3.
+    {
+        id: "amber_rat_three_kill_talk",
+        condition: () => false, // Manually triggered
+        action: (state) => {
+            state.dialogueQueue = [
+                { text: "カイン「元は魔界のネズミだよな？　琥珀の樹液にまみれて、わざと体を固めたのか？」", delay: 1200 },
+                { text: "オーエン「雑魚なりの工夫だね」", delay: 1000, color: "#a020f0" },
+                { text: "カイン（……それにしたって、変わるのが早すぎる）", delay: 1000 },
+                { text: "カイン（樹液の方に、何か起きてるのか？）", delay: 1000 }
+            ];
+            state.flags.amberRatThreeKillTalkSeen = true; // Set flag: prevents replay
+        }
+    },
+    // Amber Weasel First-Kill Talk: fires manually from battleSystem.executeStandardVictory()
+    // after an amber_weasel win once cumulative amber_weasel kills reach 1.
+    {
+        id: "amber_weasel_first_kill_talk",
+        condition: () => false, // Manually triggered
+        action: (state) => {
+            state.dialogueQueue = [
+                { text: "カイン「……透明じゃなくなった分、少しは楽だな。すばしっこいのは変わらないが」", delay: 1200 },
+                { text: "オーエン「急に石ころに襲われてるみたいで面白い」", delay: 1000, color: "#a020f0" },
+                { text: "カイン「魔界では石ころも襲ってくるのか？」", delay: 1000 },
+                { text: "オーエン「襲うし、人も食うよ。たぶん」", delay: 1000, color: "#a020f0" },
+                { text: "カイン（……魔界、油断ならないな）", delay: 1000 }
+            ];
+            state.flags.amberWeaselFirstKillTalkSeen = true; // Set flag: prevents replay
+        }
+    },
     // 9m Scream Event (Thief Boy Rescue - Part 1)
     {
         id: "thief_rescue_9m_scream",

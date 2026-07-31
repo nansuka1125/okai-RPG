@@ -2643,4 +2643,376 @@ test.describe('Chapter 1 amber system', () => {
       });
     });
   });
+
+  test.describe('amberized beast battle conversations (Add amberized beast battle conversations)', () => {
+    async function runVictory(page, cfg) {
+      return page.evaluate((config) => {
+        const enemyId = config.enemyId;
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === enemyId);
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: 0, ...(config.currentEnemyOverrides || {}) },
+          battleState: config.battleState || {},
+          equippedRareAmberId: config.equippedRareAmberId ?? null,
+          lastBlowBy: config.lastBlowBy || 'Cain',
+        });
+        if (!RPG.State.defeatCounts) RPG.State.defeatCounts = {};
+        RPG.State.defeatCounts[enemyId] = config.defeatCounts;
+        Object.entries(config.otherDefeatCounts || {}).forEach(([id, counts]) => {
+          RPG.State.defeatCounts[id] = counts;
+        });
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: true,
+          amberRatEquippedTalkSeen: config.amberRatEquippedTalkSeen ?? false,
+          amberRatThreeKillTalkSeen: config.amberRatThreeKillTalkSeen ?? false,
+          amberWeaselFirstKillTalkSeen: config.amberWeaselFirstKillTalkSeen ?? false,
+          matamatabiActive: false,
+          vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true,
+          vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [],
+          pendingBattleCountEvents: [],
+          ...(config.flagOverrides || {}),
+        });
+        battleSystem.executeStandardVictory(enemyId);
+        return {
+          mode: RPG.State.mode,
+          amberRatEquippedTalkSeen: RPG.State.flags.amberRatEquippedTalkSeen,
+          amberRatThreeKillTalkSeen: RPG.State.flags.amberRatThreeKillTalkSeen,
+          amberWeaselFirstKillTalkSeen: RPG.State.flags.amberWeaselFirstKillTalkSeen,
+          amberRatDefeatCounts: { ...(RPG.State.defeatCounts.amber_rat || {}) },
+          amberWeaselDefeatCounts: { ...(RPG.State.defeatCounts.amber_weasel || {}) },
+          ratDefeatCounts: { ...(RPG.State.defeatCounts.rat || {}) },
+          ratAllProgress: RPG.State.flags.ratBountyAllProgress,
+        };
+      }, cfg);
+    }
+
+    // --- amber_rat equipped talk ---
+
+    test('does not fire on the first amber_rat kill without a rare amber equipped', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: null,
+      });
+      expect(result.amberRatEquippedTalkSeen).toBe(false);
+    });
+
+    test('fires on the next amber_rat win once a rare amber becomes equipped', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: null,
+      });
+      expect(first.amberRatEquippedTalkSeen).toBe(false);
+
+      const second = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 1, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+      });
+      expect(second.amberRatEquippedTalkSeen).toBe(true);
+    });
+
+    test('fires on the very first amber_rat win when already equipped', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+      });
+      expect(result.amberRatEquippedTalkSeen).toBe(true);
+    });
+
+    test('is not limited to one specific rare amber type', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: 'hatedAmber',
+      });
+      expect(result.amberRatEquippedTalkSeen).toBe(true);
+    });
+
+    test('the equipped talk does not replay once already seen', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 1, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(result).toMatchObject({ mode: 'base', amberRatEquippedTalkSeen: true });
+    });
+
+    test('the equipped-talk seen flag survives a save/load round trip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.flags.amberRatEquippedTalkSeen = true;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_amber_rat_equipped_talk_test', JSON.stringify(snapshot));
+
+        RPG.State.flags.amberRatEquippedTalkSeen = false;
+        uiControl.loadFromStorage('okai_rpg_amber_rat_equipped_talk_test', '琥珀装備会話テスト');
+
+        return RPG.State.flags.amberRatEquippedTalkSeen;
+      });
+      expect(result).toBe(true);
+    });
+
+    // --- amber_rat three-kill talk ---
+
+    test('does not fire at 2 cumulative amber_rat kills', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 1, owen: 0 },
+        equippedRareAmberId: null,
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(result).toMatchObject({
+        amberRatThreeKillTalkSeen: false,
+        amberRatDefeatCounts: { cain: 2, owen: 0 },
+      });
+    });
+
+    test('fires once cumulative amber_rat kills reach 3', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 2, owen: 0 },
+        equippedRareAmberId: null,
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(result).toMatchObject({
+        amberRatThreeKillTalkSeen: true,
+        amberRatDefeatCounts: { cain: 3, owen: 0 },
+      });
+    });
+
+    test('fires on the next amber_rat win for an old save already past 3 kills', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 10, owen: 5 },
+        equippedRareAmberId: null,
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(result.amberRatThreeKillTalkSeen).toBe(true);
+    });
+
+    test('the three-kill talk does not replay once already seen', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 3, owen: 0 },
+        equippedRareAmberId: null,
+        amberRatEquippedTalkSeen: true,
+        amberRatThreeKillTalkSeen: true,
+      });
+      expect(result).toMatchObject({ mode: 'base', amberRatThreeKillTalkSeen: true });
+    });
+
+    test('when both amber_rat talks qualify in the same battle, the equipped talk fires first and the three-kill talk is deferred to the next win', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 2, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+      });
+      expect(first).toMatchObject({
+        amberRatEquippedTalkSeen: true,
+        amberRatThreeKillTalkSeen: false,
+        amberRatDefeatCounts: { cain: 3, owen: 0 },
+      });
+
+      const second = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 3, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(second.amberRatThreeKillTalkSeen).toBe(true);
+    });
+
+    // --- amber_weasel first-kill talk ---
+
+    test('does not fire while amber_weasel has zero cumulative kills', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        otherDefeatCounts: { amber_weasel: { cain: 0, owen: 0 } },
+        equippedRareAmberId: null,
+      });
+      expect(result.amberWeaselFirstKillTalkSeen).toBe(false);
+    });
+
+    test('fires once cumulative amber_weasel kills reach 1', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_weasel',
+        defeatCounts: { cain: 0, owen: 0 },
+      });
+      expect(result).toMatchObject({
+        amberWeaselFirstKillTalkSeen: true,
+        amberWeaselDefeatCounts: { cain: 1, owen: 0 },
+      });
+    });
+
+    test('fires even without a rare amber equipped', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_weasel',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: null,
+      });
+      expect(result.amberWeaselFirstKillTalkSeen).toBe(true);
+    });
+
+    test('the amber_weasel talk does not replay once already seen', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_weasel',
+        defeatCounts: { cain: 1, owen: 0 },
+        amberWeaselFirstKillTalkSeen: true,
+      });
+      expect(result).toMatchObject({ mode: 'base', amberWeaselFirstKillTalkSeen: true });
+    });
+
+    test('the amber_weasel talk seen flag survives a save/load round trip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.flags.amberWeaselFirstKillTalkSeen = true;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_amber_weasel_first_kill_talk_test', JSON.stringify(snapshot));
+
+        RPG.State.flags.amberWeaselFirstKillTalkSeen = false;
+        uiControl.loadFromStorage('okai_rpg_amber_weasel_first_kill_talk_test', '琥珀化イタチ会話テスト');
+
+        return RPG.State.flags.amberWeaselFirstKillTalkSeen;
+      });
+      expect(result).toBe(true);
+    });
+
+    test('fires on the next amber_weasel win for an old save already past 1 kill', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_weasel',
+        defeatCounts: { cain: 5, owen: 3 },
+        amberWeaselFirstKillTalkSeen: false,
+      });
+      expect(result.amberWeaselFirstKillTalkSeen).toBe(true);
+    });
+
+    // --- competition and regression ---
+
+    test('a competing vampire-amber talk defers the amber_rat equipped talk instead of losing it', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+        battleState: { vampireAmberDamageMultiplier: 1.5 },
+        flagOverrides: {
+          vampireAmberPendingTalkStages: [1],
+          vampireAmberStage1TalkSeen: false,
+        },
+      });
+      expect(first.amberRatEquippedTalkSeen).toBe(false);
+
+      const second = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 1, owen: 0 },
+        equippedRareAmberId: 'sweetAmber',
+      });
+      expect(second.amberRatEquippedTalkSeen).toBe(true);
+    });
+
+    test('a vampire-amber matamatabi accident bypasses the amber_rat conversations entirely', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'amber_rat');
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: 0 },
+          battleState: { playerTookDamage: true },
+          equippedRareAmberId: 'vampireAmber',
+        });
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 0;
+        RPG.State.inventory.matamatabiBranch = 1;
+        RPG.State.defeatCounts.amber_rat = { cain: 2, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          matamatabiActive: false,
+          amberRatEquippedTalkSeen: false,
+          amberRatThreeKillTalkSeen: false,
+        });
+        battleSystem.executeStandardVictory('amber_rat');
+        return {
+          amberRatEquippedTalkSeen: RPG.State.flags.amberRatEquippedTalkSeen,
+          amberRatThreeKillTalkSeen: RPG.State.flags.amberRatThreeKillTalkSeen,
+          amberRatDefeatCounts: { ...RPG.State.defeatCounts.amber_rat },
+        };
+      });
+      expect(result).toEqual({
+        amberRatEquippedTalkSeen: false,
+        amberRatThreeKillTalkSeen: false,
+        amberRatDefeatCounts: { cain: 2, owen: 0 },
+      });
+    });
+
+    test('an Owen kill counts toward the combined amber_rat total just like a Cain kill', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 1, owen: 1 },
+        lastBlowBy: 'Owen',
+        equippedRareAmberId: null,
+        amberRatEquippedTalkSeen: true,
+      });
+      expect(result).toMatchObject({
+        amberRatThreeKillTalkSeen: true,
+        amberRatDefeatCounts: { cain: 1, owen: 2 },
+      });
+    });
+
+    test('defeating amber_rat does not add to the normal rat defeat count or ALL progress', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'amber_rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        otherDefeatCounts: { rat: { cain: 0, owen: 0 } },
+        equippedRareAmberId: 'sweetAmber',
+        flagOverrides: {
+          ratBountyAllUnlocked: true,
+          ratBountyAllProgress: 2,
+        },
+      });
+      expect(result).toMatchObject({
+        ratDefeatCounts: { cain: 0, owen: 0 },
+        ratAllProgress: 2,
+      });
+    });
+
+    test('old saves missing any of the three new flags default them safely to false', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State.flags, {
+          amberRatEquippedTalkSeen: true,
+          amberRatThreeKillTalkSeen: true,
+          amberWeaselFirstKillTalkSeen: true,
+        });
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        const legacySave = JSON.parse(JSON.stringify(snapshot));
+        delete legacySave.flags.amberRatEquippedTalkSeen;
+        delete legacySave.flags.amberRatThreeKillTalkSeen;
+        delete legacySave.flags.amberWeaselFirstKillTalkSeen;
+        localStorage.setItem('okai_rpg_amberized_talks_legacy_test', JSON.stringify(legacySave));
+
+        Object.assign(RPG.State.flags, {
+          amberRatEquippedTalkSeen: true,
+          amberRatThreeKillTalkSeen: true,
+          amberWeaselFirstKillTalkSeen: true,
+        });
+        uiControl.loadFromStorage('okai_rpg_amberized_talks_legacy_test', '琥珀化会話旧セーブテスト');
+
+        return {
+          amberRatEquippedTalkSeen: RPG.State.flags.amberRatEquippedTalkSeen,
+          amberRatThreeKillTalkSeen: RPG.State.flags.amberRatThreeKillTalkSeen,
+          amberWeaselFirstKillTalkSeen: RPG.State.flags.amberWeaselFirstKillTalkSeen,
+        };
+      });
+      expect(result).toEqual({
+        amberRatEquippedTalkSeen: false,
+        amberRatThreeKillTalkSeen: false,
+        amberWeaselFirstKillTalkSeen: false,
+      });
+    });
+  });
 });

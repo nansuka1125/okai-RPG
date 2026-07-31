@@ -3580,4 +3580,316 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.isBattling).toBe(false);
     });
   });
+
+  test.describe('amber root discovery (Add amber root discovery interactions)', () => {
+    async function setForestRootState(page, cfg) {
+      await page.evaluate((c) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: c.distance,
+        });
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: c.sapSourceAwarenessSeen,
+        });
+        RPG.State.amberRootState = c.amberRootState
+          ? { ...c.amberRootState }
+          : { 6: 'unexamined', 7: 'unexamined', 8: 'unexamined' };
+        if (typeof c.shinyOil === 'number') {
+          RPG.State.inventory.shinyOil = c.shinyOil;
+        }
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      }, cfg);
+    }
+
+    async function callTalk(page) {
+      await page.evaluate(() => explorationSystem.talk());
+    }
+
+    async function closeRootChoices(page) {
+      await page.evaluate(() => document.getElementById('btnAmberRootCancel')?.click());
+    }
+
+    // --- unlock condition ---
+
+    test('the amber root does not appear before sap_source_awareness completes', async ({ page }) => {
+      await setForestRootState(page, { distance: 6, sapSourceAwarenessSeen: false });
+      await callTalk(page);
+      const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(log).not.toContain('【琥珀樹の根】');
+    });
+
+    test('the amber root appears at 6m, 7m, and 8m once sap_source_awareness is complete', async ({ page }) => {
+      for (const distance of [6, 7, 8]) {
+        await setForestRootState(page, { distance, sapSourceAwarenessSeen: true });
+        await callTalk(page);
+        const endMode = await drainDialogue(page);
+        const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+        expect(log).toContain('【琥珀樹の根】');
+        expect(endMode).toBe('choice');
+        await closeRootChoices(page);
+      }
+    });
+
+    test('the three sites can be inspected in any order and are tracked independently', async ({ page }) => {
+      await setForestRootState(page, { distance: 8, sapSourceAwarenessSeen: true });
+      await callTalk(page);
+      await drainDialogue(page);
+      await closeRootChoices(page);
+
+      await page.evaluate(() => { RPG.State.currentDistance = 6; });
+      await callTalk(page);
+      await drainDialogue(page);
+      await closeRootChoices(page);
+
+      const rootState = await page.evaluate(() => RPG.State.amberRootState);
+      expect(rootState).toEqual({ 6: 'examined', 7: 'unexamined', 8: 'examined' });
+    });
+
+    // --- first inspection vs. re-inspection ---
+
+    test('only the first inspection shows the Cain/Owen conversation', async ({ page }) => {
+      await setForestRootState(page, { distance: 7, sapSourceAwarenessSeen: true });
+      await callTalk(page);
+      await drainDialogue(page);
+      const firstLog = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(firstLog).toContain('足元にはグロテスクに隆起した根がある。');
+      expect(firstLog).toContain('カイン「この根…もしかして琥珀樹の根か？」');
+      expect(firstLog).toContain('オーエン「さあね」');
+      await closeRootChoices(page);
+
+      await page.evaluate(() => { document.getElementById('logContainer').innerHTML = ''; });
+      await callTalk(page);
+      await drainDialogue(page);
+      const secondLog = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(secondLog).not.toContain('カイン「この根…もしかして琥珀樹の根か？」');
+      expect(secondLog).not.toContain('オーエン「さあね」');
+      expect(secondLog).toContain('根は硬い樹皮に覆われたままだ。');
+      await closeRootChoices(page);
+    });
+
+    // --- choice menu contents ---
+
+    test('without shinyOil, only fire/knife/cancel are offered', async ({ page }) => {
+      await setForestRootState(page, { distance: 6, sapSourceAwarenessSeen: true, shinyOil: 0 });
+      await callTalk(page);
+      await drainDialogue(page);
+      const ids = await page.evaluate(() => (
+        [...document.querySelectorAll('#action-buttons button')].map(b => b.id)
+      ));
+      expect(ids).toEqual(['btnAmberRootFire', 'btnAmberRootKnife', 'btnAmberRootCancel']);
+      await closeRootChoices(page);
+    });
+
+    test('with shinyOil owned, the oil choice is also offered', async ({ page }) => {
+      await setForestRootState(page, { distance: 6, sapSourceAwarenessSeen: true, shinyOil: 1 });
+      await callTalk(page);
+      await drainDialogue(page);
+      const ids = await page.evaluate(() => (
+        [...document.querySelectorAll('#action-buttons button')].map(b => b.id)
+      ));
+      expect(ids).toEqual(['btnAmberRootFire', 'btnAmberRootKnife', 'btnAmberRootOil', 'btnAmberRootCancel']);
+      await closeRootChoices(page);
+    });
+
+    // --- fire ---
+
+    test('the fire choice shows its text and changes neither state nor inventory', async ({ page }) => {
+      await setForestRootState(page, { distance: 6, sapSourceAwarenessSeen: true, shinyOil: 1 });
+      await callTalk(page);
+      await drainDialogue(page);
+      await page.evaluate(() => document.getElementById('btnAmberRootFire')?.click());
+      const endMode = await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        rootState: RPG.State.amberRootState,
+        shinyOil: RPG.State.inventory.shinyOil,
+      }));
+      expect(endMode).toBe('base');
+      expect(result.log).toContain('カインは火打ち石で火種を作り、根の表面へ近づけた。');
+      expect(result.log).toContain('樹皮の表面が黒く焦げたが、火はすぐに消えた。');
+      expect(result.log).toContain('カイン「…火がつかない」');
+      expect(result.log).toContain('（表面に傷をつけたら燃えるだろうか）');
+      expect(result.rootState).toEqual({ 6: 'examined', 7: 'unexamined', 8: 'unexamined' });
+      expect(result.shinyOil).toBe(1);
+    });
+
+    // --- knife ---
+
+    test('the knife choice shows its text and changes neither state nor inventory', async ({ page }) => {
+      await setForestRootState(page, { distance: 7, sapSourceAwarenessSeen: true, shinyOil: 1 });
+      await callTalk(page);
+      await drainDialogue(page);
+      await page.evaluate(() => document.getElementById('btnAmberRootKnife')?.click());
+      const endMode = await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        rootState: RPG.State.amberRootState,
+        shinyOil: RPG.State.inventory.shinyOil,
+      }));
+      expect(endMode).toBe('base');
+      expect(result.log).toContain('カインはナイフで表面を傷つけようとした。');
+      expect(result.log).toContain('カイン「…！硬いな！？傷ひとつつかない」');
+      expect(result.log).not.toContain('借りたナイフ');
+      expect(result.log).not.toContain('採掘ナイフ');
+      expect(result.rootState).toEqual({ 6: 'unexamined', 7: 'examined', 8: 'unexamined' });
+      expect(result.shinyOil).toBe(1);
+    });
+
+    // --- shinyOil ---
+
+    test('using shinyOil shows its text, consumes exactly one, and scars only the current site', async ({ page }) => {
+      await setForestRootState(page, { distance: 7, sapSourceAwarenessSeen: true, shinyOil: 2 });
+      await callTalk(page);
+      await drainDialogue(page);
+      await page.evaluate(() => document.getElementById('btnAmberRootOil')?.click());
+      const endMode = await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        rootState: RPG.State.amberRootState,
+        shinyOil: RPG.State.inventory.shinyOil,
+      }));
+      expect(endMode).toBe('base');
+      expect(result.log).toContain('カインはピカピカ油をナイフに塗った。');
+      expect(result.log).toContain('もう一度、根へ刃を押し当てる。');
+      expect(result.log).toContain('今度は硬い樹皮に深い傷が入った。');
+      expect(result.log).toContain('割れ目の奥に、琥珀色のものが見える。');
+      expect(result.log).toContain('カイン「中が琥珀になってるのか……」');
+      expect(result.rootState).toEqual({ 6: 'unexamined', 7: 'scarred', 8: 'unexamined' });
+      expect(result.shinyOil).toBe(1);
+    });
+
+    test('shinyOil cannot be used again on an already-scarred root (no double consumption)', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.amberRootState = { 6: 'scarred', 7: 'unexamined', 8: 'unexamined' };
+        RPG.State.inventory.shinyOil = 3;
+        explorationSystem.useShinyOilOnAmberRoot(6);
+        return {
+          shinyOil: RPG.State.inventory.shinyOil,
+          rootState: RPG.State.amberRootState,
+        };
+      });
+      expect(result).toEqual({
+        shinyOil: 3,
+        rootState: { 6: 'scarred', 7: 'unexamined', 8: 'unexamined' },
+      });
+    });
+
+    // --- scarred root re-inspection ---
+
+    test('a scarred root shows the scar-only line and returns straight to exploration', async ({ page }) => {
+      await setForestRootState(page, {
+        distance: 8, sapSourceAwarenessSeen: true,
+        amberRootState: { 6: 'unexamined', 7: 'unexamined', 8: 'scarred' },
+      });
+      await callTalk(page);
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        log: document.getElementById('logContainer')?.textContent || '',
+        buttons: document.querySelectorAll('#action-buttons button').length,
+      }));
+      expect(result.mode).toBe('base');
+      expect(result.log).toContain('【琥珀樹の根】');
+      expect(result.log).toContain('樹皮の割れ目から、琥珀化した根が覗いている。');
+      expect(result.buttons).toBe(0);
+    });
+
+    // --- cancel ---
+
+    test('cancel changes neither inventory nor the state set by opening the menu, and returns to exploration', async ({ page }) => {
+      await setForestRootState(page, { distance: 6, sapSourceAwarenessSeen: true, shinyOil: 1 });
+      await callTalk(page);
+      await drainDialogue(page);
+      await closeRootChoices(page);
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        rootState: RPG.State.amberRootState,
+        shinyOil: RPG.State.inventory.shinyOil,
+      }));
+      expect(result.mode).toBe('base');
+      expect(result.rootState).toEqual({ 6: 'examined', 7: 'unexamined', 8: 'unexamined' });
+      expect(result.shinyOil).toBe(1);
+    });
+
+    // --- save/load ---
+
+    test('root state and shinyOil survive a save/load round trip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.amberRootState = { 6: 'scarred', 7: 'examined', 8: 'unexamined' };
+        RPG.State.inventory.shinyOil = 2;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_amber_root_test', JSON.stringify(snapshot));
+
+        RPG.State.amberRootState = { 6: 'unexamined', 7: 'unexamined', 8: 'unexamined' };
+        RPG.State.inventory.shinyOil = 0;
+        uiControl.loadFromStorage('okai_rpg_amber_root_test', '根テスト');
+
+        return {
+          rootState: RPG.State.amberRootState,
+          shinyOil: RPG.State.inventory.shinyOil,
+        };
+      });
+      expect(result).toEqual({
+        rootState: { 6: 'scarred', 7: 'examined', 8: 'unexamined' },
+        shinyOil: 2,
+      });
+    });
+
+    test('an old save without amberRootState defaults all three sites to unexamined', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        const legacySave = JSON.parse(JSON.stringify(snapshot));
+        delete legacySave.amberRootState;
+        localStorage.setItem('okai_rpg_amber_root_legacy_test', JSON.stringify(legacySave));
+
+        RPG.State.amberRootState = { 6: 'scarred', 7: 'scarred', 8: 'scarred' };
+        uiControl.loadFromStorage('okai_rpg_amber_root_legacy_test', '旧セーブ根テスト');
+
+        return RPG.State.amberRootState;
+      });
+      expect(result).toEqual({ 6: 'unexamined', 7: 'unexamined', 8: 'unexamined' });
+    });
+
+    // --- integration with existing 8m events ---
+
+    test('a pending inn-repair timber quest at 8m still takes priority over the amber root', async ({ page }) => {
+      await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: 8,
+        });
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          innRepairInspectionReported: true,
+          innRepairTimberSearchUnlocked: true,
+          innRepairTimberObtained: false,
+          sapSourceAwarenessSeen: true,
+        });
+        RPG.State.amberRootState = { 6: 'unexamined', 7: 'unexamined', 8: 'unexamined' };
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+      });
+      await callTalk(page);
+      await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        rootState8: RPG.State.amberRootState[8],
+        timberObtained: RPG.State.flags.innRepairTimberObtained,
+      }));
+      expect(result.log).not.toContain('【琥珀樹の根】');
+      expect(result.rootState8).toBe('unexamined');
+      expect(result.timberObtained).toBe(true);
+    });
+  });
 });

@@ -1554,6 +1554,182 @@ const explorationSystem = {
         return null;
     },
 
+    // --- Amber root discovery (6m/7m/8m), unlocked by sap_source_awareness ---
+
+    getAmberRootState: function (distance) {
+        if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+        return RPG.State.amberRootState[distance] || "unexamined";
+    },
+
+    inspectAmberRoot: function (distance) {
+        const state = this.getAmberRootState(distance);
+
+        if (state === "scarred") {
+            uiControl.addLog("【琥珀樹の根】", "marker", "#f1e6c8");
+            uiControl.addLog("樹皮の割れ目から、琥珀化した根が覗いている。", "ambient");
+            uiControl.updateUI();
+            return;
+        }
+
+        RPG.State.mode = "event";
+        if (state === "examined") {
+            RPG.State.dialogueQueue = [
+                { text: "【琥珀樹の根】", type: "marker", color: "#f1e6c8" },
+                { text: "根は硬い樹皮に覆われたままだ。" },
+                {
+                    text: null,
+                    action: () => {
+                        this.showAmberRootChoices(distance);
+                    }
+                }
+            ];
+        } else {
+            if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+            RPG.State.amberRootState[distance] = "examined";
+            RPG.State.dialogueQueue = [
+                { text: "【琥珀樹の根】", type: "marker", color: "#f1e6c8" },
+                { text: "足元にはグロテスクに隆起した根がある。" },
+                { text: "カイン「この根…もしかして琥珀樹の根か？」" },
+                { text: "オーエン「さあね」", color: "#a020f0" },
+                {
+                    text: null,
+                    action: () => {
+                        this.showAmberRootChoices(distance);
+                    }
+                }
+            ];
+        }
+        this.playDialogueLoop();
+    },
+
+    closeAmberRootChoices: function () {
+        const container = document.getElementById('action-buttons');
+        if (container) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+        }
+    },
+
+    showAmberRootChoices: function (distance) {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        const exploreUI = document.getElementById('exploreUI');
+        const innUI = document.getElementById('innUI');
+        const choiceUI = document.getElementById('choiceUI');
+        if (exploreUI) exploreUI.style.display = 'none';
+        if (innUI) innUI.style.display = 'none';
+        if (choiceUI) choiceUI.style.display = 'none';
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const btnFire = document.createElement('button');
+        btnFire.id = 'btnAmberRootFire';
+        btnFire.className = 'btn btn-full';
+        btnFire.textContent = '【火をつける】';
+        btnFire.onclick = () => {
+            this.closeAmberRootChoices();
+            this.tryAmberRootFire(distance);
+        };
+        container.appendChild(btnFire);
+
+        const btnKnife = document.createElement('button');
+        btnKnife.id = 'btnAmberRootKnife';
+        btnKnife.className = 'btn btn-full';
+        btnKnife.textContent = '【ナイフで傷をつける】';
+        btnKnife.onclick = () => {
+            this.closeAmberRootChoices();
+            this.tryAmberRootKnife(distance);
+        };
+        container.appendChild(btnKnife);
+
+        if ((RPG.State.inventory.shinyOil || 0) > 0) {
+            const btnOil = document.createElement('button');
+            btnOil.id = 'btnAmberRootOil';
+            btnOil.className = 'btn btn-full';
+            btnOil.textContent = '【ピカピカ油を使う】';
+            btnOil.onclick = () => {
+                this.closeAmberRootChoices();
+                this.useShinyOilOnAmberRoot(distance);
+            };
+            container.appendChild(btnOil);
+        }
+
+        const btnCancel = document.createElement('button');
+        btnCancel.id = 'btnAmberRootCancel';
+        btnCancel.className = 'btn btn-full';
+        btnCancel.textContent = '【やめる】';
+        btnCancel.onclick = () => {
+            this.closeAmberRootChoices();
+            RPG.State.mode = "base";
+            uiControl.updateUI();
+        };
+        container.appendChild(btnCancel);
+
+        RPG.State.mode = "choice";
+    },
+
+    tryAmberRootFire: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "カインは火打ち石で火種を作り、根の表面へ近づけた。" },
+            { text: "樹皮の表面が黒く焦げたが、火はすぐに消えた。" },
+            { text: "カイン「…火がつかない」" },
+            { text: "（表面に傷をつけたら燃えるだろうか）" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    tryAmberRootKnife: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "カインはナイフで表面を傷つけようとした。" },
+            { text: "カイン「…！硬いな！？傷ひとつつかない」" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    useShinyOilOnAmberRoot: function (distance) {
+        if ((RPG.State.inventory.shinyOil || 0) <= 0) return;
+        if (this.getAmberRootState(distance) === "scarred") return;
+
+        RPG.State.inventory.shinyOil -= 1;
+        if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+        RPG.State.amberRootState[distance] = "scarred";
+
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "カインはピカピカ油をナイフに塗った。" },
+            { text: "もう一度、根へ刃を押し当てる。" },
+            { text: "今度は硬い樹皮に深い傷が入った。" },
+            { text: "割れ目の奥に、琥珀色のものが見える。" },
+            { text: "カイン「中が琥珀になってるのか……」" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
     talk: function () {
         if (RPG.State.mode !== "base") return;
 
@@ -1712,6 +1888,20 @@ const explorationSystem = {
                 return { text: line };
             });
             this.playDialogueLoop();
+            return;
+        }
+
+        // Build: Amber root discovery. Unlocked once sap_source_awareness has played (Cain
+        // suspects another source), independent of the thief-boy encounter alone. Placed after
+        // the 8m coin/timber quest events above so those keep priority while still pending, but
+        // before the generic ambient observation fallback so the root becomes explicitly
+        // selectable at 6m/7m/8m once unlocked.
+        if (
+            (dist === 6 || dist === 7 || dist === 8) &&
+            RPG.State.location !== "かつての街道" &&
+            flags.sapSourceAwarenessSeen === true
+        ) {
+            this.inspectAmberRoot(dist);
             return;
         }
 

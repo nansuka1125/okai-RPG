@@ -52,6 +52,10 @@ RPG.State = {
     dialogueIndex: 0,      // Current position in dialogue queue
     storyPhase: 0,         // Build 14.2.0: Story progression tracking (0-9+)
     highwayBattleCount: {}, // Build 14.2.2: Track fixed encounters on highway
+    // 《琥珀樹の根》 discovery progress at each forest distance, independent per site.
+    // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used).
+    // Structured so later states (e.g. burning/defeated) can be added without a migration.
+    amberRootState: { 6: "unexamined", 7: "unexamined", 8: "unexamined" },
     herbUseCount: 0,       // Build 15.2.25: Track herb use dialogue milestones
     matamatabiUseCount: 0, // Build 15.2.67: Track sequential manual-use dialogue for the matamatabi branch
     observeIndex: 0,       // Build 15.2.29: Next phase candidate for inn observe dialogue

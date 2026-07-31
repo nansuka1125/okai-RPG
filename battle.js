@@ -342,6 +342,14 @@ const battleSystem = {
         return !!enemy && enemy.id === "sap" && RPG.State.flags.metThiefBoy === true;
     },
 
+    // Marks only the current distance's root as defeated - the other two sites are untouched.
+    // Called from both the Cain/burn victory path (executeStandardVictory) and the Owen instant
+    // -kill path (endBattle's !playerWin branch), since either can finish an amber_burning_root.
+    markAmberRootDefeated: function (distance) {
+        if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+        RPG.State.amberRootState[distance] = "defeated";
+    },
+
     buildPreBattleDialogue: function (template) {
         if (Array.isArray(template.preBattleDialogue)) {
             return template.preBattleDialogue.map(line => ({ ...line }));
@@ -1056,6 +1064,13 @@ const battleSystem = {
                 if (RPG.State.currentEnemy.frozenTurns > 0) {
                     RPG.State.currentEnemy.frozenTurns--;
                     uiControl.addLog(`${RPG.State.currentEnemy.name}は氷の鎖に縛られて動けない！`, "");
+                    // A frozen enemy never reaches enemyTurn()/BATTLE_AI.execute() this turn, so
+                    // give any custom AI a chance to still act on the skipped turn (e.g. the
+                    // amber_burning_root's self-burn damage keeps ticking while frozen).
+                    const enemyAI = RPG.Assets.BATTLE_AI[RPG.State.currentEnemy.id];
+                    if (enemyAI && typeof enemyAI.onSkippedTurn === "function") {
+                        enemyAI.onSkippedTurn(this);
+                    }
                     const delay = RPG.State.debug.isSkipping ? 50 : 1000;
                     setTimeout(() => this.runBattleLoop(), delay);
                 } else {
@@ -2165,6 +2180,10 @@ const battleSystem = {
             }
             RPG.State.defeatCounts[enemyId].owen++;
             uiControl.addLog(`${RPG.State.currentEnemy.name}は跡形もなく消えた。`);
+            if (enemyId === "amber_burning_root") {
+                uiControl.addLog("燃える琥珀樹の根は焼け落ちた。");
+                this.markAmberRootDefeated(RPG.State.currentDistance);
+            }
             this.grantGuaranteedEnemyDrop();
             vampireAmberTalkQueue = this.buildVampireAmberPostBattleTalkQueue();
             uiControl.advanceVampireAmberChainOnBattleEnd();
@@ -2241,6 +2260,13 @@ const battleSystem = {
             uiControl.addLog("カインの剣が、骸の腹部にめりこんだ！");
             uiControl.addLog("グシャッ");
             uiControl.addLog("空っぽの人体を砕くような、嫌な手応え。飢えた触手樹は動かなくなった。");
+        }
+
+        // Fires for both a Cain finishing blow and a self-burn kill (lastBlowBy stays unset for
+        // the latter, so this is intentionally not gated on lastBlowBy).
+        if (enemyId === 'amber_burning_root') {
+            uiControl.addLog("燃える琥珀樹の根は焼け落ちた。");
+            this.markAmberRootDefeated(RPG.State.currentDistance);
         }
 
         if (RPG.State.lastBlowBy === "Owen") {

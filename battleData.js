@@ -52,6 +52,9 @@ RPG.Assets.BATTLE_TEXT = {
         waiting: "琥珀樹は不気味にざわめいている…",
         strongAttack: "樹の全力のしなりが叩きつけられた！"
     },
+    amber_burning_root: {
+        standardAttack: "焼けた根が打ち付けてきた！"
+    },
     sap: {
         beforeTreeDefeat: "樹液は何かを引きずるように、森の奥へ向かって蠢いている。",
         afterTreeDefeat: "主を失った樹液が、行き先もなく森を這い回っている。",
@@ -305,6 +308,57 @@ RPG.Assets.BATTLE_AI = {
                     setTimeout(() => sys.runBattleLoop(), loopDelay);
                 }, bossDelay);
             }
+        }
+    },
+    // Deliberately simple: a single standard attack each turn, then the fixed self-burn damage
+    // below. No phases, no escalation, no special moves - see task scope for amber_burning_root.
+    amber_burning_root: {
+        applySelfBurnDamage: function (sys) {
+            const enemy = RPG.State.currentEnemy;
+            if (!RPG.State.isBattling || !enemy || enemy.id !== "amber_burning_root") return;
+            if (enemy.hp <= 0) return;
+            const burnDamage = Number(enemy.selfBurnDamage) || 0;
+            if (burnDamage <= 0) return;
+            enemy.hp = Math.max(0, enemy.hp - burnDamage);
+            uiControl.addLog(`${enemy.name}は自らの炎に焼かれている！（HP -${burnDamage}）`, "enemy-action");
+            uiControl.updateUI();
+        },
+
+        // Called from runBattleLoop's frozen-turn skip, since a frozen enemy never reaches
+        // execute() at all but must still take its self-burn damage for that turn.
+        onSkippedTurn: function (sys) {
+            this.applySelfBurnDamage(sys);
+            sys.checkBattleEnd();
+        },
+
+        execute: function (sys) {
+            const enemy = RPG.State.currentEnemy;
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_burning_root.standardAttack, "enemy-action");
+            setTimeout(() => {
+                if (sys.tryNightMedicineDodge()) {
+                    if (sys.checkBattleEnd()) return;
+                    this.applySelfBurnDamage(sys);
+                    if (sys.checkBattleEnd()) return;
+                    RPG.State.battleTurn++;
+                    setTimeout(() => sys.runBattleLoop(), delay);
+                    return;
+                }
+
+                const def = RPG.State.defense || 0;
+                const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
+                uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
+                sys.applyEnemyDirectDamage(damage);
+                uiControl.updateUI();
+                if (sys.checkBattleEnd()) return;
+
+                this.applySelfBurnDamage(sys);
+                if (sys.checkBattleEnd()) return;
+
+                RPG.State.battleTurn++;
+                setTimeout(() => sys.runBattleLoop(), delay);
+            }, delay);
         }
     },
     amber_husk_giant_larva: {
@@ -586,6 +640,20 @@ RPG.Assets.ENEMIES = [
         armorLabel: "硬化した樹皮",
         armorBreakText: "硬化した樹皮はほとんど剥がれ落ちた！",
         onDeathEvent: "amber_tree_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
+    },
+    // Fixed-battle boss for an amber root once ignited with hardOil. Not in the weighted random
+    // pool (area: null) and intentionally absent from NOTEBOOK_ENTRIES - per-site defeat state
+    // lives on RPG.State.amberRootState instead of defeatCounts/notebook tracking.
+    {
+        id: "amber_burning_root",
+        name: "燃える琥珀樹の根",
+        symbol: "🔥",
+        maxHp: 200, // Provisional Chapter 1 balance value
+        atk: 22, // Provisional Chapter 1 balance value
+        xp: 150, // Provisional Chapter 1 balance value
+        area: null,
+        isBoss: true,
+        selfBurnDamage: 10 // Provisional Chapter 1 balance value: fixed self-damage after every enemy turn opportunity
     },
     {
         id: "glowing_cat_rabbit",

@@ -1564,10 +1564,35 @@ const explorationSystem = {
     inspectAmberRoot: function (distance) {
         const state = this.getAmberRootState(distance);
 
+        if (state === "ignited") {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "【琥珀樹の根】", type: "marker", color: "#f1e6c8" },
+                { text: "焦げた根が、地面から隆起している。" },
+                {
+                    text: null,
+                    action: () => {
+                        this.showIgnitedAmberRootChoices(distance);
+                    }
+                }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
         if (state === "scarred") {
-            uiControl.addLog("【琥珀樹の根】", "marker", "#f1e6c8");
-            uiControl.addLog("樹皮の割れ目から、琥珀化した根が覗いている。", "ambient");
-            uiControl.updateUI();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "【琥珀樹の根】", type: "marker", color: "#f1e6c8" },
+                { text: "樹皮の割れ目から、琥珀化した根が覗いている。" },
+                {
+                    text: null,
+                    action: () => {
+                        this.showScarredAmberRootChoices(distance);
+                    }
+                }
+            ];
+            this.playDialogueLoop();
             return;
         }
 
@@ -1706,7 +1731,7 @@ const explorationSystem = {
 
     useShinyOilOnAmberRoot: function (distance) {
         if ((RPG.State.inventory.shinyOil || 0) <= 0) return;
-        if (this.getAmberRootState(distance) === "scarred") return;
+        if (this.getAmberRootState(distance) !== "examined") return;
 
         RPG.State.inventory.shinyOil -= 1;
         if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
@@ -1728,6 +1753,158 @@ const explorationSystem = {
             }
         ];
         this.playDialogueLoop();
+    },
+
+    showScarredAmberRootChoices: function (distance) {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        const exploreUI = document.getElementById('exploreUI');
+        const innUI = document.getElementById('innUI');
+        const choiceUI = document.getElementById('choiceUI');
+        if (exploreUI) exploreUI.style.display = 'none';
+        if (innUI) innUI.style.display = 'none';
+        if (choiceUI) choiceUI.style.display = 'none';
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const btnFire = document.createElement('button');
+        btnFire.id = 'btnAmberRootFire';
+        btnFire.className = 'btn btn-full';
+        btnFire.textContent = '【火をつける】';
+        btnFire.onclick = () => {
+            this.closeAmberRootChoices();
+            this.tryScarredAmberRootFire();
+        };
+        container.appendChild(btnFire);
+
+        if ((RPG.State.inventory.hardOil || 0) > 0) {
+            const btnHardOil = document.createElement('button');
+            btnHardOil.id = 'btnAmberRootHardOil';
+            btnHardOil.className = 'btn btn-full';
+            btnHardOil.textContent = '【カチカチ油を使う】';
+            btnHardOil.onclick = () => {
+                this.closeAmberRootChoices();
+                this.useHardOilOnAmberRoot(distance);
+            };
+            container.appendChild(btnHardOil);
+        }
+
+        const btnCancel = document.createElement('button');
+        btnCancel.id = 'btnAmberRootCancel';
+        btnCancel.className = 'btn btn-full';
+        btnCancel.textContent = '【やめる】';
+        btnCancel.onclick = () => {
+            this.closeAmberRootChoices();
+            RPG.State.mode = "base";
+            uiControl.updateUI();
+        };
+        container.appendChild(btnCancel);
+
+        RPG.State.mode = "choice";
+    },
+
+    tryScarredAmberRootFire: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "傷ついた樹皮に火がついた。" },
+            { text: "だが炎はすぐに小さくなって消えた。" },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    // hardOil is treated as one bottle with enough for all three roots - it is intentionally
+    // NOT decremented here (first, second, or third use, including rematches). Whether it gets
+    // consumed/removed once all three roots are down is left to the finite-supply follow-up work.
+    useHardOilOnAmberRoot: function (distance) {
+        if ((RPG.State.inventory.hardOil || 0) <= 0) return;
+        if (this.getAmberRootState(distance) !== "scarred") return;
+
+        const isFirstIgnitionEver = !Object.values(RPG.State.amberRootState || {}).some(
+            s => s === "ignited" || s === "defeated"
+        );
+
+        if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+        RPG.State.amberRootState[distance] = "ignited";
+
+        const lines = [
+            { text: "カインは琥珀樹の根へ、カチカチ油をかけた。" },
+            { text: "火を近づけると、根は一気に燃え上がった。" },
+            {
+                text: "地面が揺れた。",
+                action: () => {
+                    uiControl.screenShake();
+                }
+            }
+        ];
+        if (isFirstIgnitionEver) {
+            lines.push(
+                { text: "カイン「……動くのか！」" },
+                { text: "オーエン「やっぱりね」", color: "#a020f0" }
+            );
+        } else {
+            lines.push({ text: "カイン「来るぞ！」" });
+        }
+        lines.push({
+            text: null,
+            action: () => {
+                this.startAmberBurningRootBattle();
+            }
+        });
+
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = lines;
+        this.playDialogueLoop();
+    },
+
+    showIgnitedAmberRootChoices: function (distance) {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        const exploreUI = document.getElementById('exploreUI');
+        const innUI = document.getElementById('innUI');
+        const choiceUI = document.getElementById('choiceUI');
+        if (exploreUI) exploreUI.style.display = 'none';
+        if (innUI) innUI.style.display = 'none';
+        if (choiceUI) choiceUI.style.display = 'none';
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const btnRetry = document.createElement('button');
+        btnRetry.id = 'btnAmberRootRetry';
+        btnRetry.className = 'btn btn-full';
+        btnRetry.textContent = '【再戦する】';
+        btnRetry.onclick = () => {
+            this.closeAmberRootChoices();
+            this.startAmberBurningRootBattle();
+        };
+        container.appendChild(btnRetry);
+
+        const btnCancel = document.createElement('button');
+        btnCancel.id = 'btnAmberRootCancel';
+        btnCancel.className = 'btn btn-full';
+        btnCancel.textContent = '【やめる】';
+        btnCancel.onclick = () => {
+            this.closeAmberRootChoices();
+            RPG.State.mode = "base";
+            uiControl.updateUI();
+        };
+        container.appendChild(btnCancel);
+
+        RPG.State.mode = "choice";
+    },
+
+    startAmberBurningRootBattle: function () {
+        battleSystem.startBattle('amber_burning_root');
     },
 
     talk: function () {
@@ -1899,7 +2076,8 @@ const explorationSystem = {
         if (
             (dist === 6 || dist === 7 || dist === 8) &&
             RPG.State.location !== "かつての街道" &&
-            flags.sapSourceAwarenessSeen === true
+            flags.sapSourceAwarenessSeen === true &&
+            this.getAmberRootState(dist) !== "defeated"
         ) {
             this.inspectAmberRoot(dist);
             return;

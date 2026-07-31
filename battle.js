@@ -334,6 +334,14 @@ const battleSystem = {
         return RPG.Assets.ENEMIES.find(e => e.id === "weasel") || null;
     },
 
+    // The amber sap (id "sap") is empowered once metThiefBoy is true - not on any fixed
+    // post-tree battle count, and not renamed/re-identified as a different enemy. Intentionally
+    // independent of postTreeBattles/post_tree_fatigue so it keeps working if their own trigger
+    // conditions change later.
+    isEmpoweredSap: function (enemy) {
+        return !!enemy && enemy.id === "sap" && RPG.State.flags.metThiefBoy === true;
+    },
+
     buildPreBattleDialogue: function (template) {
         if (Array.isArray(template.preBattleDialogue)) {
             return template.preBattleDialogue.map(line => ({ ...line }));
@@ -345,7 +353,11 @@ const battleSystem = {
         const text = RPG.State.flags.treeDefeated === true
             ? sapText.afterTreeDefeat
             : sapText.beforeTreeDefeat;
-        return [{ text, type: "ambient" }];
+        const lines = [{ text, type: "ambient" }];
+        if (this.isEmpoweredSap(template)) {
+            lines.push({ text: sapText.empoweredIntro, type: "ambient" });
+        }
+        return lines;
     },
 
     isAmberVariantEncounterUnlocked: function () {
@@ -716,6 +728,11 @@ const battleSystem = {
             rabbitEnemyTurnCount: 0,
             rabbitExposed: false
         };
+        if (this.isEmpoweredSap(RPG.State.currentEnemy)) {
+            RPG.State.currentEnemy.atk = Math.round(
+                template.atk * RPG.Config.EMPOWERED_SAP_ATK_MULTIPLIER
+            );
+        }
         // Build 9.0.0: Battle State container
         const usesNightMedicineEvasion =
             (RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0 &&
@@ -1317,7 +1334,10 @@ const battleSystem = {
             "enemy-action"
         );
 
+        const hpBeforeAttack = RPG.State.currentHP;
         const damageResult = this.applyEnemyDirectDamage(dmg);
+        this.applyEmpoweredSapDrain(Math.max(0, hpBeforeAttack - RPG.State.currentHP));
+
         if (damageResult.talismanActivated) {
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(onComplete, delay);
@@ -1347,6 +1367,26 @@ const battleSystem = {
 
         const delay = RPG.State.debug.isSkipping ? 50 : 1000;
         setTimeout(onComplete, delay);
+    },
+
+    // Only the empowered (post-thief-boy) amber sap drains HP from a landed hit. Heals by
+    // exactly the HP Cain actually lost this hit (never the nominal attack value, and never
+    // beyond the enemy's own max HP), and stays silent when nothing was actually healed.
+    applyEmpoweredSapDrain: function (actualDamage) {
+        const enemy = RPG.State.currentEnemy;
+        if (!RPG.State.isBattling || !this.isEmpoweredSap(enemy)) return;
+        if (!Number.isFinite(actualDamage) || actualDamage <= 0) return;
+        if (!Number.isFinite(enemy.hp) || !Number.isFinite(enemy.maxHp)) return;
+
+        const healAmount = Math.min(actualDamage, Math.max(0, enemy.maxHp - enemy.hp));
+        if (healAmount <= 0) return;
+
+        enemy.hp += healAmount;
+        uiControl.addLog(
+            `${enemy.name}はカインのHPを吸収し、HPが${healAmount}回復した！`,
+            "enemy-action"
+        );
+        uiControl.updateUI();
     },
 
     runGlowingCatRabbitTurn: function (callback) {

@@ -54,7 +54,8 @@ RPG.Assets.BATTLE_TEXT = {
     },
     sap: {
         beforeTreeDefeat: "樹液は何かを引きずるように、森の奥へ向かって蠢いている。",
-        afterTreeDefeat: "主を失った樹液が、行き先もなく森を這い回っている。"
+        afterTreeDefeat: "主を失った樹液が、行き先もなく森を這い回っている。",
+        empoweredIntro: "琥珀の樹液は脈打っている……"
     },
     amber_husk_giant_larva: {
         standardAttack: "琥珀の殻を軋ませながら、巨大な鎌が振り下ろされる！",

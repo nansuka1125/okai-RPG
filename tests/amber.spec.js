@@ -3144,9 +3144,10 @@ test.describe('Chapter 1 amber system', () => {
 
         const originalRandom = Math.random;
         const originalBeginBattle = battleSystem.beginBattle;
-        // sap (unlike rat/weasel) queues an ambient pre-battle line before beginBattle(), so
-        // intercept beginBattle() directly - it captures the chosen template either way,
-        // synchronously for rat/weasel or after one extra tap for sap's queued dialogue.
+        // sap (unlike rat/weasel) queues one or two ambient pre-battle lines before beginBattle()
+        // (an extra "empowered" line once metThiefBoy is true), so intercept beginBattle()
+        // directly - it captures the chosen template either way, synchronously for rat/weasel or
+        // after however many taps sap's queued dialogue needs.
         const drawWith = (value) => {
           Math.random = () => value;
           let pickedId = null;
@@ -3154,7 +3155,7 @@ test.describe('Chapter 1 amber system', () => {
             pickedId = template && template.id;
           };
           battleSystem.startBattle(null, { randomEncounter: true });
-          if (pickedId === null && RPG.State.mode === 'event') {
+          for (let i = 0; i < 5 && pickedId === null && RPG.State.mode === 'event'; i++) {
             uiControl.handlePlayerInput();
           }
           RPG.State.mode = 'base';
@@ -3320,6 +3321,263 @@ test.describe('Chapter 1 amber system', () => {
         defeatCounts: { cain: 15, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 'DONE',
       });
       expect(second.sapSourceAwarenessSeen).toBe(true);
+    });
+  });
+
+  test.describe('empowered amber sap after the thief encounter (Empower amber sap after thief encounter)', () => {
+    async function startSapBattleDialogue(page, metThiefBoy) {
+      await page.evaluate((mtb) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isBattling: false,
+          currentEnemy: null,
+          battleState: null,
+        });
+        RPG.State.flags.treeDefeated = true;
+        RPG.State.flags.metThiefBoy = mtb;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        battleSystem.startBattle('sap');
+      }, metThiefBoy);
+      const endMode = await drainDialogue(page);
+      const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      return { endMode, log };
+    }
+
+    async function beginSapBattle(page, metThiefBoy) {
+      return page.evaluate((mtb) => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        RPG.State.flags.metThiefBoy = mtb;
+        battleSystem.beginBattle(template);
+        return {
+          id: RPG.State.currentEnemy.id,
+          name: RPG.State.currentEnemy.name,
+          atk: RPG.State.currentEnemy.atk,
+          maxHp: RPG.State.currentEnemy.maxHp,
+        };
+      }, metThiefBoy);
+    }
+
+    async function runSapAttack(page, cfg) {
+      return page.evaluate((c) => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: c.enemyHp, atk: c.atk, armorHp: 0 },
+          battleState: { skippedTurns: 0, playerTookDamage: false },
+          currentHP: c.currentHP,
+          maxHP: c.maxHP ?? 100,
+          hasOwenSavedLife: c.hasOwenSavedLife ?? true,
+          isPoisoned: false,
+          battleTurn: 1,
+        });
+        RPG.State.flags.metThiefBoy = c.metThiefBoy;
+        RPG.State.inventory.gratefulTalisman = 0;
+        RPG.State.inventory.charm = c.charm ?? 0;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+
+        const originalRandom = Math.random;
+        Math.random = () => c.randomValue ?? 0.9;
+        battleSystem.runJourneyEnemyTurn(() => {});
+        Math.random = originalRandom;
+
+        return {
+          enemyHp: RPG.State.currentEnemy.hp,
+          currentHP: RPG.State.currentHP,
+          log: document.getElementById('logContainer')?.textContent || '',
+          hpFillWidth: document.getElementById('enemyTopHpFill')?.style.width,
+        };
+      }, cfg);
+    }
+
+    // --- unlock condition (battle-start text + attack power) ---
+
+    test('does not show the empowered intro line before the thief encounter', async ({ page }) => {
+      const result = await startSapBattleDialogue(page, false);
+      expect(result.endMode).toBe('battle');
+      expect(result.log).toContain('主を失った樹液が、行き先もなく森を這い回っている。');
+      expect(result.log).not.toContain('琥珀の樹液は脈打っている……');
+    });
+
+    test('attack power stays at the normal value before the thief encounter', async ({ page }) => {
+      const result = await beginSapBattle(page, false);
+      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 8 });
+    });
+
+    test('no drain occurs before the thief encounter, even on a landed hit', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: false, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 8, randomValue: 0.9,
+      });
+      expect(result.enemyHp).toBe(30);
+      expect(result.currentHP).toBe(92);
+    });
+
+    test('shows the empowered intro line exactly once, alongside the normal battle-start text', async ({ page }) => {
+      const result = await startSapBattleDialogue(page, true);
+      expect(result.endMode).toBe('battle');
+      expect(result.log).toContain('主を失った樹液が、行き先もなく森を這い回っている。');
+      const occurrences = result.log.split('琥珀の樹液は脈打っている……').length - 1;
+      expect(occurrences).toBe(1);
+    });
+
+    test('attack power rises to the configured empowered value after the thief encounter', async ({ page }) => {
+      const result = await beginSapBattle(page, true);
+      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 12 });
+    });
+
+    test('attack power does not accumulate across repeated battles', async ({ page }) => {
+      const first = await beginSapBattle(page, true);
+      const second = await beginSapBattle(page, true);
+      expect(first.atk).toBe(12);
+      expect(second.atk).toBe(12);
+    });
+
+    test('attack power does not duplicate across a save/load round trip', async ({ page }) => {
+      // currentEnemy is battle-transient (not persisted), so the real risk of "duplicating on
+      // save/load" is the metThiefBoy flag itself misbehaving across the round trip and/or the
+      // multiplier being applied more than once when a fresh battle starts afterward.
+      const result = await page.evaluate(() => {
+        RPG.State.flags.metThiefBoy = true;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_empowered_sap_atk_test', JSON.stringify(snapshot));
+
+        RPG.State.flags.metThiefBoy = false;
+        uiControl.loadFromStorage('okai_rpg_empowered_sap_atk_test', '凶暴化樹液テスト');
+        const metThiefBoyAfterLoad = RPG.State.flags.metThiefBoy;
+
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        battleSystem.beginBattle(template);
+
+        return { metThiefBoyAfterLoad, atkAfterLoadThenBegin: RPG.State.currentEnemy.atk };
+      });
+      expect(result).toEqual({ metThiefBoyAfterLoad: true, atkAfterLoadThenBegin: 12 });
+    });
+
+    // --- drain ---
+
+    test('heals the enemy by exactly the HP Cain actually lost', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
+      });
+      expect(result.enemyHp).toBe(42);
+      expect(result.currentHP).toBe(88);
+      expect(result.log).toContain('HPを吸収し、HPが12回復した');
+    });
+
+    test('when the nominal attack would overkill Cain, the drain uses only the HP actually lost', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 3, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
+        hasOwenSavedLife: true, charm: 1,
+      });
+      expect(result.enemyHp).toBe(33);
+      expect(result.log).toContain('HPが3回復した');
+    });
+
+    test('the drain heal never exceeds the enemy max HP', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 55, atk: 12, randomValue: 0.9,
+      });
+      expect(result.enemyHp).toBe(60);
+      expect(result.log).toContain('HPが5回復した');
+    });
+
+    test('no drain and no log line when the enemy is already at max HP', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 60, atk: 12, randomValue: 0.9,
+      });
+      expect(result.enemyHp).toBe(60);
+      expect(result.log).not.toContain('HPを吸収');
+    });
+
+    test('applyEmpoweredSapDrain(0) does nothing and logs nothing', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        RPG.State.currentEnemy = { ...template, hp: 30, atk: 12 };
+        RPG.State.isBattling = true;
+        RPG.State.flags.metThiefBoy = true;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        battleSystem.applyEmpoweredSapDrain(0);
+        return {
+          enemyHp: RPG.State.currentEnemy.hp,
+          log: document.getElementById('logContainer')?.textContent || '',
+        };
+      });
+      expect(result).toEqual({ enemyHp: 30, log: '' });
+    });
+
+    test('a dodged attack neither damages Cain nor drains the enemy', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.01,
+      });
+      expect(result).toMatchObject({ enemyHp: 30, currentHP: 100 });
+    });
+
+    test('the enemy HP bar in the UI reflects the healed HP after a drain', async ({ page }) => {
+      const result = await runSapAttack(page, {
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
+      });
+      expect(result.enemyHp).toBe(42);
+      expect(result.hpFillWidth).toBe('70%'); // 42/60 max HP
+    });
+
+    // --- identity, kill counting, and Owen path ---
+
+    test('the empowered sap keeps the same enemy id and display name', async ({ page }) => {
+      const result = await beginSapBattle(page, true);
+      expect(result.id).toBe('sap');
+      expect(result.name).toBe('琥珀の樹液');
+      const sapEntries = await page.evaluate(() => RPG.Assets.ENEMIES.filter(e => e.id === 'sap').length);
+      expect(sapEntries).toBe(1);
+    });
+
+    test('defeating the empowered sap adds exactly one kill under the existing sap defeatCounts key', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        RPG.State.flags.metThiefBoy = true;
+        battleSystem.beginBattle(template);
+        RPG.State.currentEnemy.hp = 0;
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.defeatCounts.sap = { cain: 4, owen: 0 };
+        battleSystem.executeStandardVictory('sap');
+        return {
+          sapCounts: { ...RPG.State.defeatCounts.sap },
+          otherSapKeys: Object.keys(RPG.State.defeatCounts).filter(
+            key => key !== 'sap' && key.toLowerCase().includes('sap')
+          ),
+        };
+      });
+      expect(result).toEqual({ sapCounts: { cain: 5, owen: 0 }, otherSapKeys: [] });
+    });
+
+    test('Owen defeating the sap does not misfire the drain handler', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        RPG.State.flags.metThiefBoy = true;
+        battleSystem.beginBattle(template);
+        RPG.State.currentEnemy.hp = 30;
+        RPG.State.currentHP = 100;
+        RPG.State.maxHP = 100;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+
+        RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = () => true;
+        RPG.Assets.OWEN_BEHAVIOR.decideAction = () => 'kill';
+        RPG.State.hasOwenIntervened = false;
+        battleSystem.processOwenAction(() => {});
+
+        return {
+          enemyHp: RPG.State.currentEnemy?.hp ?? null,
+          currentHP: RPG.State.currentHP,
+          log: document.getElementById('logContainer')?.textContent || '',
+          isBattling: RPG.State.isBattling,
+        };
+      });
+      expect(result.currentHP).toBe(100);
+      expect(result.log).not.toContain('HPを吸収');
+      expect(result.isBattling).toBe(false);
     });
   });
 });

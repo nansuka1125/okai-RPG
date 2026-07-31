@@ -23,6 +23,10 @@ RPG.Config = {
     // amber sap source is easier to find without ever excluding the other normal candidates.
     DEEP_FOREST_POST_THIEF_BOY_BATTLE_RATE: 0.8,
     DEEP_FOREST_POST_THIEF_BOY_SAP_WEIGHT: 15,
+    // Provisional Chapter 1 balance value: sap's attack power once empowered (metThiefBoy true),
+    // applied fresh to the per-battle enemy copy in beginBattle() - never written back onto the
+    // shared ENEMIES template, so it can't stack across battles or duplicate on save/load.
+    EMPOWERED_SAP_ATK_MULTIPLIER: 1.5,
     EVASION_RATE: {
         normal: 0.1,
         nightMedicine: 0.5,

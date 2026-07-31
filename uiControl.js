@@ -3,7 +3,6 @@
 const uiControl = {
     pendingOverwriteSlot: null,
     overwriteResetTimer: null,
-    selectedNotebookReward: null,
 
     scrollLogToLatest: function (container) {
         if (!container) return;
@@ -1244,38 +1243,22 @@ const uiControl = {
     },
 
     showNotebookModal: function () {
-        this.selectedNotebookReward = null;
         this.refreshNotebookModal();
         const modal = document.getElementById('notebookModal');
         if (modal) modal.style.display = 'flex';
     },
 
-    selectNotebookReward: function (entryId, tierId) {
-        if (!innSystem.isNotebookRewardClaimable(entryId, tierId)) return;
-        this.selectedNotebookReward = { entryId, tierId };
-        this.refreshNotebookModal();
-    },
-
-    claimSelectedNotebookReward: function () {
-        const selected = this.selectedNotebookReward;
-        if (!selected) return;
-        innSystem.claimNotebookRewards(selected.entryId, selected.tierId);
+    // Claims the earliest achieved-but-unclaimed reward across every notebook entry, one tier
+    // at a time. No tier selection step - claimNotebookRewards() with no args already picks the
+    // next reward in definition order, so this button just re-invokes it until none are left.
+    claimNextNotebookReward: function () {
+        innSystem.claimNotebookRewards();
     },
 
     refreshNotebookModal: function () {
         const rowList = document.getElementById('notebookRowList');
         if (!rowList) return;
         rowList.innerHTML = '';
-
-        if (
-            this.selectedNotebookReward &&
-            !innSystem.isNotebookRewardClaimable(
-                this.selectedNotebookReward.entryId,
-                this.selectedNotebookReward.tierId
-            )
-        ) {
-            this.selectedNotebookReward = null;
-        }
 
         this.getNotebookRows().forEach(row => {
             const actualKills = row.isKnown
@@ -1300,26 +1283,12 @@ const uiControl = {
             const tiersEl = document.createElement('div');
             tiersEl.className = 'notebook-row-tiers';
             row.tiers.forEach((tier, i) => {
-                const isClaimable =
-                    row.isKnown &&
-                    innSystem.isNotebookRewardClaimable(row.id, tier.id);
-                const isSelected =
-                    isClaimable &&
-                    this.selectedNotebookReward &&
-                    this.selectedNotebookReward.entryId === row.id &&
-                    this.selectedNotebookReward.tierId === tier.id;
-                const tierEl = document.createElement(isClaimable ? 'button' : 'span');
+                // Tiers are status indicators only - claiming happens through the single
+                // shared button below, so these are never buttons/clickable.
+                const tierEl = document.createElement('span');
                 tierEl.className = 'notebook-tier';
                 tierEl.id = `notebookRow_${row.id}_tier${i}`;
                 tierEl.textContent = `${markers[i]}${tier.label}`;
-                if (isClaimable) {
-                    tierEl.type = 'button';
-                    tierEl.classList.add('notebook-tier-button');
-                    tierEl.onclick = () => this.selectNotebookReward(row.id, tier.id);
-                }
-                if (isSelected) {
-                    tierEl.classList.add('notebook-tier-selected');
-                }
                 if (tier.claimEnabled === false) {
                     tierEl.title = '条件未確定';
                 }
@@ -1330,13 +1299,12 @@ const uiControl = {
         });
 
         const claimBtn = document.getElementById('btnNotebookClaim');
-        if (claimBtn) claimBtn.disabled = this.selectedNotebookReward === null;
+        if (claimBtn) claimBtn.disabled = !innSystem.hasAnyClaimableNotebookReward();
     },
 
     closeNotebookModal: function () {
         const modal = document.getElementById('notebookModal');
         if (modal) modal.style.display = 'none';
-        this.selectedNotebookReward = null;
     },
 
     saveGame: function (slot) {

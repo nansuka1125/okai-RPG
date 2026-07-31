@@ -603,8 +603,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         ratMarker: document.getElementById('notebookRow_rat_tier2')?.textContent,
         weaselCount: document.getElementById('notebookRow_weasel_count')?.textContent,
         weaselMarker: document.getElementById('notebookRow_weasel_tier2')?.textContent,
-        claimableButtons: [...document.querySelectorAll('.notebook-tier-button')]
-          .filter(element => element.textContent.includes('ALL')).length,
+        claimBtnDisabled: document.getElementById('btnNotebookClaim')?.disabled,
       };
 
       RPG.State.flags.ratBountyAllReceived = true;
@@ -634,7 +633,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       ratMarker: '！ALL',
       weaselCount: '3/3',
       weaselMarker: '！ALL',
-      claimableButtons: 2,
+      claimBtnDisabled: false,
     });
     expect(result.claimed).toEqual({ ratMarker: '✓ALL', weaselMarker: '✓ALL' });
   });
@@ -815,7 +814,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
-  test('the player selects an achieved tier before using the shared claim button', async ({ page }) => {
+  test('the shared claim button is enabled the moment a reward is achieved, with no tier selection step', async ({ page }) => {
     const state = await page.evaluate(() => {
       Object.assign(RPG.State, { mode: 'base', isAtInn: true });
       Object.assign(RPG.State.flags, {
@@ -823,25 +822,164 @@ test.describe('討伐ノート (bounty notebook)', () => {
         ratBounty10Received: false,
         ratBounty20Received: false,
       });
-      RPG.State.defeatCounts.rat = { cain: 20, owen: 0 };
+      RPG.State.defeatCounts.rat = { cain: 4, owen: 0 };
       uiControl.openNotebookModal();
+      const disabledBelowTarget = document.getElementById('btnNotebookClaim')?.disabled;
 
-      const claimButton = document.getElementById('btnNotebookClaim');
-      const disabledBeforeSelection = claimButton?.disabled;
-      const rat20 = document.getElementById('notebookRow_rat_tier1');
-      rat20?.click();
+      RPG.State.defeatCounts.rat = { cain: 20, owen: 0 };
+      uiControl.refreshNotebookModal();
 
+      const tierEl = document.getElementById('notebookRow_rat_tier1');
       return {
-        disabledBeforeSelection,
-        disabledAfterSelection: claimButton?.disabled,
-        selectedText: document.querySelector('.notebook-tier-selected')?.textContent,
+        disabledBelowTarget,
+        disabledAtTarget: document.getElementById('btnNotebookClaim')?.disabled,
+        tierTagName: tierEl?.tagName,
+        tierText: tierEl?.textContent,
+        tierIsButtonClass: tierEl?.classList.contains('notebook-tier-button'),
       };
     });
 
     expect(state).toEqual({
-      disabledBeforeSelection: true,
-      disabledAfterSelection: false,
-      selectedText: '！20',
+      disabledBelowTarget: true,
+      disabledAtTarget: false,
+      tierTagName: 'SPAN',
+      tierText: '！20',
+      tierIsButtonClass: false,
+    });
+  });
+
+  test('clicking a small tier indicator does nothing and does not claim the reward', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      RPG.State.flags.ratBounty10Received = false;
+      RPG.State.defeatCounts.rat = { cain: 10, owen: 0 };
+      RPG.State.inventory.herb = 0;
+      uiControl.openNotebookModal();
+
+      document.getElementById('notebookRow_rat_tier0')?.click();
+
+      return {
+        received: RPG.State.flags.ratBounty10Received,
+        herb: RPG.State.inventory.herb,
+        mode: RPG.State.mode,
+      };
+    });
+    expect(result).toEqual({ received: false, herb: 0, mode: 'base' });
+  });
+
+  test('the claim button auto-selects the earliest unclaimed tier and only grants one tier per click', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty10Received: false,
+        ratBounty20Received: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 25, owen: 0 };
+      RPG.State.inventory.herb = 0;
+      RPG.State.inventory.fakeWoundMedicine = 0;
+      uiControl.openNotebookModal();
+
+      uiControl.claimNextNotebookReward();
+      const afterFirst = {
+        herb: RPG.State.inventory.herb,
+        medicine: RPG.State.inventory.fakeWoundMedicine,
+        rat10: RPG.State.flags.ratBounty10Received,
+        rat20: RPG.State.flags.ratBounty20Received,
+      };
+
+      // ratBounty20Received is about to become true, which would make rat eligible for the
+      // unrelated ALL-unlock cutscene via openNotebookModal(); go through refreshNotebookModal()
+      // directly instead so this test stays focused on the claim button itself.
+      RPG.State.mode = 'base';
+      uiControl.refreshNotebookModal();
+      uiControl.claimNextNotebookReward();
+      const afterSecond = {
+        herb: RPG.State.inventory.herb,
+        medicine: RPG.State.inventory.fakeWoundMedicine,
+        rat10: RPG.State.flags.ratBounty10Received,
+        rat20: RPG.State.flags.ratBounty20Received,
+      };
+
+      return { afterFirst, afterSecond };
+    });
+
+    expect(result.afterFirst).toEqual({
+      herb: 3, medicine: 0, rat10: true, rat20: false,
+    });
+    expect(result.afterSecond).toEqual({
+      herb: 3, medicine: 3, rat10: true, rat20: true,
+    });
+  });
+
+  test('after a claim, reopening the notebook enables the button again only while another reward remains', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBounty10Received: false,
+        ratBounty20Received: false,
+      });
+      RPG.State.defeatCounts.rat = { cain: 25, owen: 0 };
+      uiControl.openNotebookModal();
+      uiControl.claimNextNotebookReward();
+
+      // ratBounty20Received is about to become true, which would make rat eligible for the
+      // unrelated ALL-unlock cutscene via openNotebookModal(); go through refreshNotebookModal()
+      // directly instead so this test stays focused on the claim button itself.
+      RPG.State.mode = 'base';
+      uiControl.refreshNotebookModal();
+      const disabledWithOneLeft = document.getElementById('btnNotebookClaim')?.disabled;
+
+      uiControl.claimNextNotebookReward();
+      RPG.State.mode = 'base';
+      uiControl.refreshNotebookModal();
+      const disabledWithNoneLeft = document.getElementById('btnNotebookClaim')?.disabled;
+
+      return { disabledWithOneLeft, disabledWithNoneLeft };
+    });
+    expect(result).toEqual({ disabledWithOneLeft: false, disabledWithNoneLeft: true });
+  });
+
+  test('tiers with claimEnabled:false are never offered by the shared claim button', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.defeatCounts.sap = { cain: 999, owen: 999 };
+      RPG.State.defeatCounts.amber_rat = { cain: 999, owen: 999 };
+      RPG.State.defeatCounts.amber_weasel = { cain: 999, owen: 999 };
+      Object.assign(RPG.State.flags, {
+        sapBountyAllReceived: false,
+        amberRatBountyAllReceived: false,
+        amberWeaselBountyAllReceived: false,
+      });
+      return innSystem.getClaimableNotebookRewards()
+        .filter(reward => reward.tierId === 'all')
+        .map(reward => reward.entryId);
+    });
+    expect(result).toEqual([]);
+  });
+
+  test('the ALL reward is claimed through the same shared claim button as the other tiers', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBountyAllUnlocked: true,
+        ratBountyAllProgress: 5,
+        ratBountyAllReceived: false,
+      });
+      RPG.State.inventory.gratefulTalisman = 0;
+      uiControl.openNotebookModal();
+      const disabledBefore = document.getElementById('btnNotebookClaim')?.disabled;
+
+      uiControl.claimNextNotebookReward();
+
+      return {
+        disabledBefore,
+        gratefulTalisman: RPG.State.inventory.gratefulTalisman,
+        ratAllReceived: RPG.State.flags.ratBountyAllReceived,
+      };
+    });
+    expect(result).toEqual({
+      disabledBefore: false,
+      gratefulTalisman: 1,
+      ratAllReceived: true,
     });
   });
 
@@ -1279,8 +1417,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         allMarkers: [...document.querySelectorAll('.notebook-tier')]
           .filter(element => element.textContent.includes('ALL'))
           .map(element => element.textContent),
-        allButtons: [...document.querySelectorAll('.notebook-tier-button')]
-          .filter(element => element.textContent.includes('ALL')).length,
+        claimBtnDisabled: document.getElementById('btnNotebookClaim')?.disabled,
       };
     });
 
@@ -1335,7 +1472,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.gratefulTalisman).toBe(0);
     expect(result.ratAllReceived).toBe(false);
     expect(result.allMarkers).toEqual(['！ALL', '！ALL', '－ALL', '－ALL', '－ALL']);
-    expect(result.allButtons).toBe(2);
+    expect(result.claimBtnDisabled).toBe(false);
   });
 
   test('old saves default every ALL state safely and keep received-20 tiers pending for unlock', async ({ page }) => {

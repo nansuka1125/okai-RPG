@@ -2348,4 +2348,299 @@ test.describe('Chapter 1 amber system', () => {
       expect(['amber_rat', 'amber_weasel']).not.toContain(result.enemyId);
     });
   });
+
+  test.describe('amber sap source awareness event (Add amber sap source discovery event)', () => {
+    async function runVictory(page, cfg) {
+      return page.evaluate((config) => {
+        const enemyId = config.enemyId;
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === enemyId);
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: 0, ...(config.currentEnemyOverrides || {}) },
+          battleState: config.battleState || {},
+          equippedRareAmberId: config.equippedRareAmberId ?? null,
+          lastBlowBy: config.lastBlowBy || 'Cain',
+        });
+        if (!RPG.State.defeatCounts) RPG.State.defeatCounts = {};
+        RPG.State.defeatCounts[enemyId] = config.defeatCounts;
+        if (enemyId !== 'sap' && config.sapDefeatCounts) {
+          RPG.State.defeatCounts.sap = config.sapDefeatCounts;
+        }
+        Object.assign(RPG.State.flags, {
+          treeDefeated: config.treeDefeated,
+          amberTreeCoinMined: config.amberTreeCoinMined,
+          sapSourceAwarenessSeen: config.sapSourceAwarenessSeen,
+          matamatabiActive: false,
+          vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true,
+          vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [],
+          pendingBattleCountEvents: [],
+          ...(config.flagOverrides || {}),
+        });
+        if (typeof config.postTreeBattles !== 'undefined') {
+          RPG.State.postTreeBattles = config.postTreeBattles;
+        }
+        battleSystem.executeStandardVictory(enemyId);
+        return {
+          mode: RPG.State.mode,
+          sapSourceAwarenessSeen: RPG.State.flags.sapSourceAwarenessSeen,
+          readyForThiefBoy: RPG.State.flags.readyForThiefBoy,
+          postTreeBattles: RPG.State.postTreeBattles,
+          sapDefeatCounts: { ...(RPG.State.defeatCounts.sap || {}) },
+          exp: RPG.State.exp,
+        };
+      }, cfg);
+    }
+
+    test('does not fire when treeDefeated is false', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 19, owen: 0 },
+        treeDefeated: false,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result.sapSourceAwarenessSeen).toBe(false);
+    });
+
+    test('does not fire when amberTreeCoinMined is false', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 19, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: false,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result.sapSourceAwarenessSeen).toBe(false);
+    });
+
+    test('does not fire at a cumulative sap kill count of 19', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 18, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result).toMatchObject({
+        sapSourceAwarenessSeen: false,
+        sapDefeatCounts: { cain: 19, owen: 0 },
+      });
+    });
+
+    test('fires once the combined Cain+Owen sap kill count reaches 20', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 10, owen: 9 },
+        lastBlowBy: 'Owen',
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result).toMatchObject({
+        mode: 'event',
+        sapSourceAwarenessSeen: true,
+        sapDefeatCounts: { cain: 10, owen: 10 },
+      });
+    });
+
+    test('does not fire when the defeated enemy is not sap', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'rat',
+        defeatCounts: { cain: 0, owen: 0 },
+        sapDefeatCounts: { cain: 25, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result.sapSourceAwarenessSeen).toBe(false);
+    });
+
+    test('fires on the next sap win even for an old save already far past 20 kills', async ({ page }) => {
+      const result = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 30, owen: 5 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(result.sapSourceAwarenessSeen).toBe(true);
+    });
+
+    test('does not replay once already seen', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 19, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(first.sapSourceAwarenessSeen).toBe(true);
+
+      const second = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 20, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: true,
+      });
+      expect(second).toMatchObject({ mode: 'base', sapSourceAwarenessSeen: true });
+    });
+
+    test('the seen flag survives a save/load round trip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.flags.sapSourceAwarenessSeen = true;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_sap_source_awareness_test', JSON.stringify(snapshot));
+
+        RPG.State.flags.sapSourceAwarenessSeen = false;
+        uiControl.loadFromStorage('okai_rpg_sap_source_awareness_test', '気づきイベントテスト');
+
+        return RPG.State.flags.sapSourceAwarenessSeen;
+      });
+      expect(result).toBe(true);
+    });
+
+    test('old saves missing the new flag default it safely to false', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.flags.sapSourceAwarenessSeen = true;
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        const legacySave = JSON.parse(JSON.stringify(snapshot));
+        delete legacySave.flags.sapSourceAwarenessSeen;
+        localStorage.setItem('okai_rpg_sap_source_awareness_legacy_test', JSON.stringify(legacySave));
+
+        RPG.State.flags.sapSourceAwarenessSeen = true;
+        uiControl.loadFromStorage('okai_rpg_sap_source_awareness_legacy_test', '旧セーブテスト');
+
+        return RPG.State.flags.sapSourceAwarenessSeen;
+      });
+      expect(result).toBe(false);
+    });
+
+    test('post_tree_fatigue takes priority in the same battle, and the awareness event is deferred (not consumed) to the next sap victory', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 19, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+        postTreeBattles: 4,
+      });
+      expect(first).toMatchObject({
+        readyForThiefBoy: true,
+        postTreeBattles: 'DONE',
+        sapSourceAwarenessSeen: false,
+      });
+
+      const second = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 20, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+        postTreeBattles: 'DONE',
+      });
+      expect(second.sapSourceAwarenessSeen).toBe(true);
+    });
+
+    test('a competing vampire-amber talk does not cause the awareness event to be lost', async ({ page }) => {
+      const first = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 19, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+        battleState: { vampireAmberDamageMultiplier: 1.5 },
+        flagOverrides: {
+          vampireAmberPendingTalkStages: [1],
+          vampireAmberStage1TalkSeen: false,
+        },
+      });
+      expect(first.sapSourceAwarenessSeen).toBe(false);
+
+      const second = await runVictory(page, {
+        enemyId: 'sap',
+        defeatCounts: { cain: 20, owen: 0 },
+        treeDefeated: true,
+        amberTreeCoinMined: true,
+        sapSourceAwarenessSeen: false,
+      });
+      expect(second.sapSourceAwarenessSeen).toBe(true);
+    });
+
+    test('a vampire-amber matamatabi accident bypasses the awareness event entirely', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: 0 },
+          battleState: { playerTookDamage: true },
+          equippedRareAmberId: 'vampireAmber',
+        });
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.vampireAmber = 0;
+        RPG.State.inventory.matamatabiBranch = 1;
+        RPG.State.defeatCounts.sap = { cain: 19, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          matamatabiActive: false,
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: false,
+        });
+        battleSystem.executeStandardVictory('sap');
+        return {
+          sapSourceAwarenessSeen: RPG.State.flags.sapSourceAwarenessSeen,
+          sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
+        };
+      });
+      expect(result).toEqual({
+        sapSourceAwarenessSeen: false,
+        sapDefeatCounts: { cain: 19, owen: 0 },
+      });
+    });
+
+    test('normal defeat-count, EXP, and drop bookkeeping still work correctly alongside the new event', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'sap');
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isBattling: true,
+          currentEnemy: { ...template, hp: 0, drop: { id: 'herb', rate: 1 } },
+          battleState: {},
+          equippedRareAmberId: null,
+          lastBlowBy: 'Cain',
+          exp: 0,
+        });
+        RPG.State.inventory.herb = 0;
+        RPG.State.defeatCounts.sap = { cain: 19, owen: 0 };
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: false,
+          matamatabiActive: false,
+          vampireAmberChainBattleCount: 0,
+          vampireAmberStage1TalkSeen: true,
+          vampireAmberStage2TalkSeen: true,
+          vampireAmberPendingTalkStages: [],
+          pendingBattleCountEvents: [],
+        });
+        battleSystem.executeStandardVictory('sap');
+        return {
+          sapSourceAwarenessSeen: RPG.State.flags.sapSourceAwarenessSeen,
+          sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
+          exp: RPG.State.exp,
+          herb: RPG.State.inventory.herb,
+        };
+      });
+      expect(result).toEqual({
+        sapSourceAwarenessSeen: true,
+        sapDefeatCounts: { cain: 20, owen: 0 },
+        exp: 18,
+        herb: 1,
+      });
+    });
+  });
 });

@@ -1657,6 +1657,29 @@ RPG.Assets.EVENT_DATA = [
             state.postTreeBattles = "DONE"; // Permanently disable counter
         }
     },
+    // Amber Sap Source Awareness Event: fires manually from battleSystem.executeStandardVictory()
+    // after a sap kill once treeDefeated, amberTreeCoinMined, and the cumulative sap kill count
+    // (defeatCounts.sap.cain + defeatCounts.sap.owen) are all satisfied. Start condition for the
+    // future amber root thread.
+    {
+        id: "sap_source_awareness",
+        condition: () => false, // Manually triggered
+        action: (state) => {
+            state.dialogueQueue = [
+                { text: "琥珀の樹液は形を失い、足元の泥へと落ちていった。", delay: 1000 },
+                { text: "カインは剣についた樹液を拭った。", delay: 1000 },
+                { text: "カイン（前から思ってたが、傷みそうで嫌だな）", delay: 1000 },
+                { text: "カイン「この樹液の塊みたいなやつ、全然減らないな…もう本体は倒したのに」", delay: 1200 },
+                { text: "オーエン「本体？」", delay: 1000, color: "#a020f0" },
+                { text: "カイン「倒しただろ？銀貨の埋まってたやつ。琥珀樹。」", delay: 1200 },
+                { text: "オーエン「あれは本体じゃないだろ」", delay: 1000, color: "#a020f0" },
+                { text: "カイン「…本体じゃない？どういうことだ？」", delay: 1200 },
+                { text: "オーエン「…さあね。自分で調べたら？」", delay: 1200, color: "#a020f0" },
+                { text: "カイン（…他に発生源があるのか？もう少し調べてみよう）", delay: 1000 }
+            ];
+            state.flags.sapSourceAwarenessSeen = true; // Set flag: prevents replay and gates the future amber root thread
+        }
+    },
     // 9m Scream Event (Thief Boy Rescue - Part 1)
     {
         id: "thief_rescue_9m_scream",

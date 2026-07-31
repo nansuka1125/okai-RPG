@@ -199,6 +199,7 @@ RPG.State = {
         amberMerchantRecognized: false,
         borrowedMiningKnifeReceived: false,
         amberTreeCoinMined: false,
+        sapSourceAwarenessSeen: false, // One-time post-battle talk realizing the amber sap has another source; also the start condition for the amber root thread
         firstAmberAppraisalDone: false,
         vampireAmberAppraisalSeen: false,
         vampireAmberChainBattleCount: 0, // 0-5; battles completed in a row while vampireAmber is equipped. Next battle fought is this+1

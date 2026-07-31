@@ -2444,6 +2444,29 @@ const battleSystem = {
             hasPostBattleEvent = true;
         }
 
+        // Amber sap source awareness: deliberately checked last (lowest priority) so it never
+        // preempts post_tree_fatigue or any other post-battle event above. If it loses the slot
+        // this battle, the flag stays unset and the same check re-runs on the next sap victory.
+        const sapDefeatCount = RPG.State.defeatCounts.sap
+            ? (RPG.State.defeatCounts.sap.cain + RPG.State.defeatCounts.sap.owen)
+            : 0;
+        if (
+            !hasPostBattleEvent &&
+            enemyId === "sap" &&
+            RPG.State.flags.treeDefeated === true &&
+            RPG.State.flags.amberTreeCoinMined === true &&
+            sapDefeatCount >= 20 &&
+            RPG.State.flags.sapSourceAwarenessSeen !== true
+        ) {
+            const sapSourceEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "sap_source_awareness");
+            if (sapSourceEvent) {
+                sapSourceEvent.action(RPG.State);
+                RPG.State.mode = "event";
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
+        }
+
         uiControl.advanceVampireAmberChainOnBattleEnd();
 
         // Final State Cleanup

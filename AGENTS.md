@@ -56,9 +56,12 @@ Read these files when relevant:
 
 - `PROJECT_MAP.md`: stable architecture, ownership, data flow, and protected contracts
 - `WORKLOG.md`: current development boundary, temporary decisions, and unfinished handoffs
+- `CHAPTER1_SCOPE.md`: current Chapter 1 implementation boundary, removed features, out-of-scope features, and required implementation order
 - `TEST_CHECKLIST.md`: manual verification menu and handoff format
 
-If these documents conflict with live code, report the mismatch and treat the code as current behavior until the Director decides otherwise.
+Before Chapter 1 design or implementation work, read `CHAPTER1_SCOPE.md`. Do not implement features it marks removed or out of scope.
+
+If the documents conflict with live code, report the mismatch. Treat live code as current behavior, `WORKLOG.md` as implementation history, `PROJECT_MAP.md` as stable architecture, and `CHAPTER1_SCOPE.md` as the approved future scope until the Director decides otherwise.
 
 8. Verification Responsibilities
 The Director performs gameplay testing unless explicitly delegated otherwise.

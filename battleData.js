@@ -233,10 +233,8 @@ RPG.Assets.BATTLE_AI = {
             }
 
             // Standard Attack: Body Slam (Multiplier 1.2x - 1.6x)
-            const def = RPG.State.defense || 0;
             const multiplier = (1.5 + (Math.random() * 0.5)) * 0.8;
-            const rawDmg = (enemy.atk * multiplier) - (def / 2);
-            const damage = Math.floor(Math.max(1, rawDmg));
+            const damage = sys.resolveEnemyDirectDamage(enemy.atk * multiplier, { allowParry: false }).damage;
 
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.bodySlam, "enemy-action");
             setTimeout(() => {
@@ -273,8 +271,7 @@ RPG.Assets.BATTLE_AI = {
                 }, bossDelay);
             } else if (roll < 0.4) {
                 // 10% Chance: Strong Attack (Multiplier 1.5x)
-                const def = RPG.State.defense || 0;
-                const damage = Math.floor(Math.max(1, (enemy.atk * 1.5) - (def / 2)));
+                const damage = sys.resolveEnemyDirectDamage(enemy.atk * 1.5, { allowParry: false }).damage;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.strongAttack, "enemy-action", "#ff4d4d");
                 setTimeout(() => {
                     if (sys.tryNightMedicineDodge()) {
@@ -291,8 +288,7 @@ RPG.Assets.BATTLE_AI = {
                 }, bossDelay);
             } else {
                 // 60% Chance: Standard Attack
-                const def = RPG.State.defense || 0;
-                const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
+                const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.standardAttack, "enemy-action");
                 setTimeout(() => {
                     if (sys.tryNightMedicineDodge()) {
@@ -346,8 +342,7 @@ RPG.Assets.BATTLE_AI = {
                     return;
                 }
 
-                const def = RPG.State.defense || 0;
-                const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
+                const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 sys.applyEnemyDirectDamage(damage);
                 uiControl.updateUI();
@@ -416,8 +411,7 @@ RPG.Assets.BATTLE_AI = {
                 return;
             }
 
-            const def = RPG.State.defense || 0;
-            const damage = Math.floor(Math.max(1, enemy.atk - (def / 2)));
+            const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.standardAttack, "enemy-action");
             setTimeout(() => {
                 if (sys.tryNightMedicineDodge()) {

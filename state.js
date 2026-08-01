@@ -31,7 +31,12 @@ RPG.Config = {
         normal: 0.1,
         nightMedicine: 0.5,
         mikawashiFeather: 0.5
-    }
+    },
+    // Provisional Chapter 1 balance values, pending playtest: fireproof gloves' flat defense
+    // bonus, and the two normal-parry damage multipliers (with/without the gloves).
+    FIREPROOF_GLOVES_DEFENSE_BONUS: 2,
+    NORMAL_PARRY_DAMAGE_RATE: 0.5,
+    FIREPROOF_GLOVES_PARRY_DAMAGE_RATE: 0.25
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする
@@ -56,6 +61,10 @@ RPG.State = {
     // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used).
     // Structured so later states (e.g. burning/defeated) can be added without a migration.
     amberRootState: { 6: "unexamined", 7: "unexamined", 8: "unexamined" },
+    // Single forest hut at 10m. "locked" (no in-game unlock path exists yet - a future old-key
+    // task will drive locked -> unlocked) -> "unlocked" -> "eventPlayed" (one-time snake scene
+    // seen) -> "gloveGranted" (fireproof gloves obtained, terminal).
+    forestHutState: "locked",
     herbUseCount: 0,       // Build 15.2.25: Track herb use dialogue milestones
     matamatabiUseCount: 0, // Build 15.2.67: Track sequential manual-use dialogue for the matamatabi branch
     observeIndex: 0,       // Build 15.2.29: Next phase candidate for inn observe dialogue
@@ -79,6 +88,7 @@ RPG.State = {
     currentHP: 140,        // Unified HP variable
     maxHP: 140,            // Unified max HP variable
     attack: 18,
+    defense: 0,            // Base defense; fireproofGloves' bonus is computed on top of this, never added into it
     exp: 0,
 
     // Debug flags
@@ -121,6 +131,7 @@ RPG.State = {
         amberTreeTimber: 0,
         shinyOil: 0,
         hardOil: 0,
+        fireproofGloves: 0,
         hatedAmber: 0,
         sweetAmber: 0,
         herbAmber: 0,

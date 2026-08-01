@@ -1561,6 +1561,70 @@ const explorationSystem = {
         return RPG.State.amberRootState[distance] || "unexamined";
     },
 
+    getForestHutState: function () {
+        return RPG.State.forestHutState || "locked";
+    },
+
+    // Returns true if the forest-hut examine was handled (a branch fired), false if the hut
+    // has nothing new to show (gloveGranted) so the caller should fall through to the generic
+    // dungeon-examine fallback text.
+    inspectForestHut: function () {
+        const hutState = this.getForestHutState();
+
+        if (hutState === "locked") {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = this.buildDialogueQueue(
+                RPG.Assets.GAME_TEXT.events.forestHutLocked
+            );
+            this.playDialogueLoop();
+            return true;
+        }
+
+        if (hutState === "unlocked") {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            // Owen's spoken lines get the same purple (#a020f0) used for her lines elsewhere
+            // (e.g. innRepairTimberObtain); the narration lines that merely mention her stay plain.
+            const snakeEventLines = RPG.Assets.GAME_TEXT.events.forestHutSnakeEvent || [];
+            RPG.State.dialogueQueue = snakeEventLines.map(line => (
+                line.startsWith("オーエン「")
+                    ? { text: line, color: "#a020f0" }
+                    : { text: line }
+            ));
+            RPG.State.dialogueQueue.push({
+                text: null,
+                action: () => {
+                    RPG.State.forestHutState = "eventPlayed";
+                    uiControl.updateUI();
+                }
+            });
+            this.playDialogueLoop();
+            return true;
+        }
+
+        if (hutState === "eventPlayed") {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                {
+                    text: "《耐火グローブ》を手に入れた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.fireproofGloves = (RPG.State.inventory.fireproofGloves || 0) + 1;
+                        RPG.State.forestHutState = "gloveGranted";
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+            this.playDialogueLoop();
+            return true;
+        }
+
+        return false;
+    },
+
     inspectAmberRoot: function (distance) {
         const state = this.getAmberRootState(distance);
 
@@ -2081,6 +2145,11 @@ const explorationSystem = {
         ) {
             this.inspectAmberRoot(dist);
             return;
+        }
+
+        if (dist === 10 && RPG.State.location !== "かつての街道") {
+            const hutHandled = this.inspectForestHut();
+            if (hutHandled) return;
         }
 
         const forestObservation = this.getForestObservation(dist);

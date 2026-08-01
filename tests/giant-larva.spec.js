@@ -110,6 +110,10 @@ test.describe('giant larva balance', () => {
             dodgeOptions = options;
             return false;
           },
+          // Delegates to the real defense/parry resolution (Add fireproof glove / parry
+          // -damage-reduction feature) so this test still isolates giant_larva's own branching
+          // (wait-vs-attack roll, dodge options) while exercising the real damage formula.
+          resolveEnemyDirectDamage: (baseDamage, options) => battleSystem.resolveEnemyDirectDamage(baseDamage, options),
           applyEnemyDirectDamage: damage => {
             appliedDamage = damage;
           },

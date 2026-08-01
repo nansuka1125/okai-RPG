@@ -269,7 +269,7 @@ test.describe('field utility items', () => {
         nightMedicineEvasionActive: true,
       };
       Math.random = () => 0.49;
-      const dodged = battleSystem.tryEnemyAttackDodge({ allowNormalEvasion: true });
+      const dodged = battleSystem.tryEnemyAttackDodge();
       const dodgeLog = logContainer?.textContent || '';
 
       RPG.State.mode = 'base';

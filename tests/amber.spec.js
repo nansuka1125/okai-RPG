@@ -3508,11 +3508,15 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({ enemyHp: 30, log: '' });
     });
 
-    test('a dodged attack neither damages Cain nor drains the enemy', async ({ page }) => {
+    // The normal-parry roll (previously a full dodge) now lands a reduced hit instead of
+    // avoiding it entirely (Add fireproof glove / parry-damage-reduction feature), so the
+    // sap's drain scales down to that reduced actual damage rather than draining nothing.
+    test('a parried attack lands for half damage and drains only that reduced amount', async ({ page }) => {
       const result = await runSapAttack(page, {
         metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.01,
       });
-      expect(result).toMatchObject({ enemyHp: 30, currentHP: 100 });
+      expect(result).toMatchObject({ enemyHp: 36, currentHP: 94 });
+      expect(result.log).toContain('カインは攻撃を剣で受け流した！');
     });
 
     test('the enemy HP bar in the UI reflects the healed HP after a drain', async ({ page }) => {

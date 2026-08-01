@@ -112,14 +112,6 @@ const battleSystem = {
             };
         }
 
-        if (options.allowNormalEvasion === true) {
-            return {
-                chance: RPG.Config.EVASION_RATE.normal,
-                log: "カインは攻撃を剣で受け流した！",
-                color: null
-            };
-        }
-
         return null;
     },
 
@@ -138,6 +130,46 @@ const battleSystem = {
 
     tryNightMedicineDodge: function (options = {}) {
         return this.tryEnemyAttackDodge(options);
+    },
+
+    // Base defense (RPG.State.defense, currently always 0) plus the fireproof gloves' bonus
+    // while held. Computed fresh every time rather than folded into RPG.State.defense itself,
+    // so inventory stays the single source of truth for the gloves' effect.
+    getEffectiveDefense: function () {
+        const base = RPG.State.defense || 0;
+        const hasFireproofGloves = (RPG.State.inventory.fireproofGloves || 0) > 0;
+        return base + (hasFireproofGloves ? RPG.Config.FIREPROOF_GLOVES_DEFENSE_BONUS : 0);
+    },
+
+    // The normal (10%) parry, independent of the mikawashi-feather/night-medicine full-avoidance
+    // dodges above. Unlike those, a successful parry does not skip damage - it only reduces it
+    // (see resolveEnemyDirectDamage). Judgement only - callers log their own flavor line using
+    // resolveEnemyDirectDamage's returned "parried" flag, so the attack announcement can stay
+    // in its natural place before the parry/damage lines.
+    tryNormalParry: function () {
+        return Math.random() < RPG.Config.EVASION_RATE.normal;
+    },
+
+    // Shared resolution for an enemy's direct attack against Cain: subtracts effective defense
+    // (floor 1), then - only when the caller opts in via allowParry and a normal parry actually
+    // lands - reduces the result further to a fraction of that (50%, or 25% with fireproof
+    // gloves), floored with a floor of 1. Not for poison/stomach-acid/event-fixed damage, which
+    // never call this at all. allowParry is false for every boss attack today, but any boss
+    // attack can opt in later without any structural change here. Logs nothing itself - the
+    // caller uses the returned "parried" flag to log its own parry line after the attack
+    // announcement.
+    resolveEnemyDirectDamage: function (baseDamage, options = {}) {
+        const def = this.getEffectiveDefense();
+        const afterDefense = Math.floor(Math.max(1, baseDamage - def));
+
+        if (options.allowParry === true && this.tryNormalParry()) {
+            const hasFireproofGloves = (RPG.State.inventory.fireproofGloves || 0) > 0;
+            const rate = hasFireproofGloves
+                ? RPG.Config.FIREPROOF_GLOVES_PARRY_DAMAGE_RATE
+                : RPG.Config.NORMAL_PARRY_DAMAGE_RATE;
+            return { damage: Math.floor(Math.max(1, afterDefense * rate)), parried: true };
+        }
+        return { damage: afterDefense, parried: false };
     },
 
     clearGratefulTalismanSurvivalOnDamage: function () {
@@ -1332,22 +1364,32 @@ const battleSystem = {
             visualDirector.playBattleCue("enemy-attack");
         }
 
-        if (this.tryEnemyAttackDodge({ allowNormalEvasion: true })) {
+        if (this.tryEnemyAttackDodge()) {
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(onComplete, delay);
             return;
         }
 
-        let dmg = RPG.State.currentEnemy.atk;
+        const attackResult = this.resolveEnemyDirectDamage(RPG.State.currentEnemy.atk, { allowParry: true });
+        let dmg = attackResult.damage;
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
         if (RPG.State.currentEnemy.id === "weasel") {
             msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
         }
 
-        uiControl.addLog(
-            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
-            "enemy-action"
-        );
+        if (attackResult.parried) {
+            // Parried: split into attack -> parry -> reduced-damage lines so they read as a
+            // natural sequence of events, instead of announcing the (already-reduced) damage
+            // before the parry that caused the reduction.
+            uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg}`, "enemy-action");
+            uiControl.addLog("カインは攻撃を剣で受け流した！", "", null);
+            uiControl.addLog(`カインは${dmg}のダメージ！`, "damage");
+        } else {
+            uiControl.addLog(
+                `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+                "enemy-action"
+            );
+        }
 
         const hpBeforeAttack = RPG.State.currentHP;
         const damageResult = this.applyEnemyDirectDamage(dmg);
@@ -2023,23 +2065,33 @@ const battleSystem = {
         }
 
         // Standard Enemy Logic (Others)
-        if (!isPreemptive && this.tryEnemyAttackDodge({ allowNormalEvasion: true })) {
+        if (!isPreemptive && this.tryEnemyAttackDodge()) {
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(() => this.runBattleLoop(), delay);
             return;
         }
 
-        let dmg = RPG.State.currentEnemy.atk;
+        const attackResult = this.resolveEnemyDirectDamage(RPG.State.currentEnemy.atk, { allowParry: true });
+        let dmg = attackResult.damage;
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
         // Build 6.3.2: Weasel Logic (Specific case kept inline for simplicity as it's minor)
         if (RPG.State.currentEnemy.id === "weasel") {
             msg = (RPG.State.battleTurn === 1) ? "目にも止まらぬ速さで先制攻撃！" : "カマで切り付けてきた";
         }
 
-        uiControl.addLog(
-            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
-            "enemy-action"
-        );
+        if (attackResult.parried) {
+            // Parried: split into attack -> parry -> reduced-damage lines so they read as a
+            // natural sequence of events, instead of announcing the (already-reduced) damage
+            // before the parry that caused the reduction.
+            uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg}`, "enemy-action");
+            uiControl.addLog("カインは攻撃を剣で受け流した！", "", null);
+            uiControl.addLog(`カインは${dmg}のダメージ！`, "damage");
+        } else {
+            uiControl.addLog(
+                `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+                "enemy-action"
+            );
+        }
 
         const damageResult = this.applyEnemyDirectDamage(dmg);
         if (damageResult.talismanActivated) {

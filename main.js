@@ -28,6 +28,24 @@ const debugSystem = {
         }
 
         battleSystem.startBattle('glowing_cat_rabbit');
+    },
+
+    // DEBUG ONLY: wipe every save slot and the suspend bookmark, then reload into a fresh game.
+    clearAllSaveData: function () {
+        if (!window.confirm("すべてのセーブデータ（第一頁〜第五頁・中断記録）を消去します。よろしいですか？")) {
+            return;
+        }
+
+        [
+            "okai_rpg_save_1",
+            "okai_rpg_save_2",
+            "okai_rpg_save_3",
+            "okai_rpg_save_4",
+            "okai_rpg_save_5",
+            "okai_rpg_suspend"
+        ].forEach(key => localStorage.removeItem(key));
+
+        window.location.reload();
     }
 };
 

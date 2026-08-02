@@ -40,6 +40,7 @@ RPG.Assets.CONFIG = {
         borrowedMiningKnife: "🔪《借りたナイフ》",
         miningKnife: "🔪《採掘ナイフ》",
         amberTreeTimber: "《🪵琥珀樹の木材》",
+        someonesDiary: "📓誰かの日記",
         shinyOil: "《ピカピカ油》",
         hardOil: "《カチカチ油》",
         fireproofGloves: "《耐火グローブ》",
@@ -85,6 +86,7 @@ RPG.Assets.CONFIG = {
         borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
         miningKnife: "琥珀を採掘するためのナイフ。借りた時から性能は変わっていない。",
         amberTreeTimber: "表面が琥珀化した、硬く丈夫な木材。",
+        someonesDiary: "森で拾った、1ページだけ書かれた日記帳。",
         shinyOil: "店主から受け取った、道具の手入れに使う油。",
         hardOil: "店主から受け取った、素材を硬く仕上げる油。",
         fireproofGloves: "受け流し時のダメージを減らす丈夫な手袋。拾った時のことは思い出したくない。",
@@ -1822,41 +1824,27 @@ RPG.Assets.EVENT_DATA = [
                 { text: "肩口の傷から、コールタールのような毒が滲んでいる。" },
                 { text: "少年「あ、あ……」", type: "talk", color: "#4d94ff" },
                 { text: "少年は恐怖に顔を歪めたまま、幼蟲の死骸を見つめていた。" },
-                { text: "半透明の身体からどろりとした体液が溢れ、カインが切り裂いた隙間から、見覚えのある革袋の端が覗いている。" },
+                { text: "半透明の身体からどろりとした体液が溢れ、飲み込まれていた物が泥の上へ散らばった。" },
+                { text: "きらり。", type: "ambient" },
+                { text: "その中で、何かが一瞬光ったように見えた。" },
+                { text: "カインが切り裂いた隙間からは、革袋の端が覗いている。" },
                 { text: "オーエンはためらいもなくその中に手を突っ込み、袋を引き抜いた。" },
                 { text: "オーエン「…あぁ、中は無事そう」", type: "talk", color: "#a020f0" },
-                { text: "少年「あああ、あげます！それはあげます！」", type: "talk", color: "#4d94ff" },
+                { text: "少年「あああ、あげます！　それは袋ごとあげます！」", type: "talk", color: "#4d94ff" },
                 { text: "少年は叫ぶなり、脱兎のごとく森の奥へ逃げ去っていった。" },
-                { text: "カイン「えっ!?…大丈夫なのか？」", type: "talk" },
-                { text: "オーエン「あの子は元気そうだね。…銀貨も入ってたよ。３枚」", type: "talk", color: "#a020f0" },
-                { text: "オーエンが袋から銀貨を取り出してみせる。" },
-                { text: "カイン「…２枚は、俺のだな」", type: "talk" },
-                { text: "オーエン「もらっとけば？…たった銀貨一枚なんて、英雄の命も随分値切られたね騎士様」", type: "talk", color: "#a020f0" },
-                { text: "オーエンは銀貨を袋に戻した。" },
+                { text: "カイン「えっ!?　…大丈夫なのか？」", type: "talk" },
+                { text: "オーエン「あの子は元気そうだね」", type: "talk", color: "#a020f0" },
+                { text: "そう言ってオーエンはカインの方を横目で見た。" },
                 {
-                    text: "🪙 銀貨を手に入れた！",
-                    type: "item",
-                    color: "#FFD700",
+                    text: "カインの視界が揺らぐ。",
                     action: () => {
-                        RPG.State.silverCoins = 3;
-                        if (RPG.State.inventory.silverCoin !== undefined) {
-                            RPG.State.inventory.silverCoin = 3;
-                        }
-                        uiControl.updateUI();
+                        uiControl.screenDizzy();
                     }
                 },
-                { text: "カイン「……う…っ」", type: "talk" },
+                { text: "カイン「うぅ…」", type: "talk" },
+                { text: "オーエンは革袋の中から薬草を引っ張り出して、カインに投げた。" },
                 {
-                    text: null, // Silent action
-                    action: () => {
-                        RPG.State.currentHP = Math.max(1, RPG.State.currentHP - 2);
-                        uiControl.flashFullScreen("#800080", 800);
-                        uiControl.updateUI();
-                    }
-                },
-                { text: "オーエンは革袋の中から薬草を引っ張り出してカインに投げた。" },
-                {
-                    text: "🌿 薬草を手に入れた！",
+                    text: "《🌿薬草を手に入れた！》",
                     type: "item",
                     color: "#00ff00",
                     action: () => {
@@ -1864,12 +1852,19 @@ RPG.Assets.EVENT_DATA = [
                         uiControl.updateUI();
                     }
                 },
-                { text: "オーエン「置いてくよ」", type: "talk", color: "#a020f0" },
-                { text: "カインはなんとか気力を振り絞って立ち上がった。" },
                 {
-                    text: "《さあ、宿屋に戻って銀貨を納品しよう。》",
-                    type: "system",
-                    color: "#cccccc",
+                    text: "《🪙銀貨を2枚取り戻した！》",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.silverCoins = (RPG.State.silverCoins || 0) + 2;
+                        RPG.State.inventory.silverCoin = (RPG.State.inventory.silverCoin || 0) + 2;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "カイン（あまり長く持ちそうにない。早く宿屋に戻らないと。けど、その前に気になるものがあるな）" },
+                {
+                    text: "カインはなんとか気力を振り絞って立ち上がった。",
                     action: () => {
                         // Mark the thief-boy route as resolved so old hooks stop firing
                         RPG.State.flags.thiefTrackActive = false;

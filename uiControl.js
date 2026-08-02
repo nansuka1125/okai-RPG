@@ -551,6 +551,11 @@ const uiControl = {
                     (RPG.State.inventory.borrowedMiningKnife || 0) > 0 ||
                     (RPG.State.inventory.miningKnife || 0) > 0
                 );
+            const canInspectGiantLarvaCorpse =
+                RPG.State.currentDistance === 10 &&
+                RPG.State.location !== "かつての街道" &&
+                RPG.State.flags.giantLarvaDefeated === true &&
+                (RPG.State.larvaCorpseStage || 0) < 3;
 
             if (!RPG.State.isInDungeon) {
                 if (btnEnterInn) btnEnterInn.style.display = 'flex';
@@ -646,6 +651,8 @@ const uiControl = {
                         ) ? "香草袋を試す" : "御者と話す";
                     } else if (isAmberTreeSecondInspect) {
                         btnTalk.textContent = "さらに調べる";
+                    } else if (canInspectGiantLarvaCorpse) {
+                        btnTalk.textContent = "大幼蟲の死骸を調べる";
                     }
                 }
             }
@@ -997,6 +1004,7 @@ const uiControl = {
             key === 'glowingBunnyEars' ||
             key === 'nightMedicine' ||
             key === 'hardBottle' ||
+            key === 'someonesDiary' ||
             canUseEmptyBottle ||
             canUseScentPouch ||
             canUseFakeWoundMedicine ||

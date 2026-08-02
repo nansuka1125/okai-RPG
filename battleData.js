@@ -603,7 +603,6 @@ RPG.Assets.ENEMIES = [
         area: null, // Build 12.0.6: Boss only summoned by event
         xp: 130,
         isBoss: true,
-        drop: { id: "herb", rate: 0.2 },
         msg: "大きな体をぶつけてきた！", // Default msg (Build 9.1)
         onDeathEvent: "thief_rescue_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
     },

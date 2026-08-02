@@ -65,6 +65,9 @@ RPG.State = {
     // task will drive locked -> unlocked) -> "unlocked" -> "eventPlayed" (one-time snake scene
     // seen) -> "gloveGranted" (fireproof gloves obtained, terminal).
     forestHutState: "locked",
+    // 泥這う大幼蟲の死骸調査。0=未調査(銀貨3枚目 未取得) -> 1=銀貨3枚目 取得
+    // -> 2=オーエンの一幕 済み -> 3=《誰かの日記》入手済み(終端)。
+    larvaCorpseStage: 0,
     herbUseCount: 0,       // Build 15.2.25: Track herb use dialogue milestones
     matamatabiUseCount: 0, // Build 15.2.67: Track sequential manual-use dialogue for the matamatabi branch
     observeIndex: 0,       // Build 15.2.29: Next phase candidate for inn observe dialogue
@@ -129,6 +132,7 @@ RPG.State = {
         borrowedMiningKnife: 0,
         miningKnife: 0,
         amberTreeTimber: 0,
+        someonesDiary: 0,
         shinyOil: 0,
         hardOil: 0,
         fireproofGloves: 0,
@@ -262,6 +266,8 @@ RPG.State = {
         hasSleptAfterThief: false, // Track if player slept after meeting thief
         heardScream: false, // Build 14.1.4: Track if 9m scream event is finished
         giantLarvaDefeated: false, // Build 14.1.3: Robust Boss Flag
+        someonesDiaryReadUnlocked: false, // 日記を持った状態で一泊を終えたら true
+        someonesDiaryFirstReadDone: false, // 初回読了キューを最後まで再生したら true
         onWagon: false, // Build 14.2.1: Track if player boarded wagon
         phase4TheftDiscovered: false, // Build 15.2.62: Theft has been noticed and the phase 4 inn route should begin
         phase4FortuneIntroDone: false, // Build 15.2.62: One-time automatic fortune-teller intro on entering the inn during phase 4

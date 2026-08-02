@@ -1102,6 +1102,24 @@ const explorationSystem = {
             return;
         }
 
+        // Hold Cain at the giant_larva corpse until the third silver coin is recovered.
+        // Repeated presses must not stack the same line endlessly.
+        if (
+            step < 0 &&
+            RPG.State.currentDistance === 10 &&
+            RPG.State.location !== "かつての街道" &&
+            RPG.State.flags.giantLarvaDefeated === true &&
+            (RPG.State.larvaCorpseStage || 0) < 1
+        ) {
+            const container = document.getElementById('logContainer');
+            const line = "カイン（さっき光ったものが気になるな…一応見ておくか）";
+            if (!container || container.lastElementChild?.textContent !== line) {
+                uiControl.addLog(line);
+            }
+            uiControl.updateUI();
+            return;
+        }
+
         if (
             step !== 0 &&
             !skipTravelCue &&
@@ -1623,6 +1641,87 @@ const explorationSystem = {
         }
 
         return false;
+    },
+
+    // Post-giant_larva 10m corpse examination, staged 0 -> 1 -> 2 -> 3 via larvaCorpseStage.
+    // Stage 3 is terminal; the talk() caller falls through to inspectForestHut() once reached.
+    inspectGiantLarvaCorpse: function () {
+        const stage = RPG.State.larvaCorpseStage || 0;
+
+        if (stage === 0) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "大幼蟲が飲み込んだらしい物が、泥と体液にまみれて散らばっている。" },
+                { text: "カイン「荷馬車の残骸、骨……さっきこの辺で何か光ったような」" },
+                { text: "カインは落ちていた枝で、泥の中をかき分けた。" },
+                { text: "錆びた金具。砕けた骨。潰れて形の分からなくなった硬貨。" },
+                { text: "その下で、泥にまみれた銀貨が一枚光っていた。" },
+                { text: "カイン「……あった」" },
+                {
+                    text: "《🪙銀貨を手に入れた！》",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.silverCoin = (RPG.State.inventory.silverCoin || 0) + 1;
+                        RPG.State.silverCoins = (RPG.State.silverCoins || 0) + 1;
+                        RPG.State.larvaCorpseStage = 1;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "《銀貨が三枚そろった！》", type: "marker", color: "#ffd166" },
+                { text: "オーエン「もらっとけば？　……たった銀貨一枚なんて、英雄の命も随分値切られたね、騎士様」", color: "#a020f0" }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        if (stage === 1) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "カイン（他に何かないかな）" },
+                { text: "オーエン「……痛くないの？それ」", color: "#a020f0" },
+                {
+                    text: "オーエンは肩口の傷を掴んだ！",
+                    action: () => {
+                        uiControl.flashFullScreen("#800080", 800);
+                        uiControl.screenShake();
+                    }
+                },
+                { text: "カイン「ぐあ…ｯ！？」" },
+                {
+                    text: "オーエン「あはは、変な声出た」",
+                    color: "#a020f0",
+                    action: () => {
+                        RPG.State.larvaCorpseStage = 2;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        if (stage === 2) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "カイン「ん…これは？」" },
+                {
+                    text: "《📓誰かの日記を手に入れた！》",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.someonesDiary = (RPG.State.inventory.someonesDiary || 0) + 1;
+                        RPG.State.larvaCorpseStage = 3;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "カイン（もう何もないな。宿屋に戻ろう）" }
+            ];
+            this.playDialogueLoop();
+        }
     },
 
     inspectAmberRoot: function (distance) {
@@ -2147,6 +2246,16 @@ const explorationSystem = {
             return;
         }
 
+        if (
+            dist === 10 &&
+            RPG.State.location !== "かつての街道" &&
+            flags.giantLarvaDefeated === true &&
+            (RPG.State.larvaCorpseStage || 0) < 3
+        ) {
+            this.inspectGiantLarvaCorpse();
+            return;
+        }
+
         if (dist === 10 && RPG.State.location !== "かつての街道") {
             const hutHandled = this.inspectForestHut();
             if (hutHandled) return;
@@ -2628,6 +2737,32 @@ const explorationSystem = {
         return null;
     },
 
+    buildSomeonesDiaryFirstReadQueue: function () {
+        return [
+            { text: "新しい日記帳だが、1ページしか書いてない。" },
+            { text: "ボスはかっこいい。はやくボスにほめられたい。", type: "marker", color: "#f1e6c8" },
+            { text: "ボスはフライドチキンが好き。けどフライドチキンを盗んできてもな。", type: "marker", color: "#f1e6c8" },
+            { text: "カイン「なんだこれ」" },
+            { text: "オーエン「フライドチキンが好きなボスがいるんじゃない？」", color: "#a020f0" },
+            { text: "カイン「…それはわかるが」" },
+            {
+                text: "カイン（それしかわからない）",
+                action: () => {
+                    RPG.State.flags.someonesDiaryFirstReadDone = true;
+                    uiControl.updateUI();
+                }
+            }
+        ];
+    },
+
+    buildSomeonesDiaryRepeatReadQueue: function () {
+        return [
+            { text: "新しい日記帳だが、1ページしか書いてない。" },
+            { text: "ボスはかっこいい。はやくボスにほめられたい。", type: "marker", color: "#f1e6c8" },
+            { text: "ボスはフライドチキンが好き。けどフライドチキンを盗んできてもな。", type: "marker", color: "#f1e6c8" }
+        ];
+    },
+
     getItemUseDialogue: function (itemId) {
         if (itemId === 'scentPouch') {
             if (this.canUseScentPouchOnHighway()) {
@@ -2696,6 +2831,12 @@ const explorationSystem = {
 
         if (["lightBook", "purpleMacaron", "glowingBunnyEars"].includes(itemId)) {
             return this.buildGlowingCatRabbitRewardUseQueue(itemId);
+        }
+
+        if (itemId === 'someonesDiary') {
+            return RPG.State.flags.someonesDiaryFirstReadDone === true
+                ? this.buildSomeonesDiaryRepeatReadQueue()
+                : this.buildSomeonesDiaryFirstReadQueue();
         }
 
         return null;
@@ -2862,6 +3003,15 @@ const explorationSystem = {
                 uiControl.addLog("バキッ！");
                 uiControl.addLog("ようやく開いた。");
                 RPG.State.flags.hardBottleOpened = true;
+                success = true;
+                consumeItem = false;
+                break;
+            case 'someonesDiary':
+                if (RPG.State.flags.someonesDiaryReadUnlocked !== true) {
+                    uiControl.addLog("カイン（今は読む気力がない）");
+                    uiControl.closeModal();
+                    return;
+                }
                 success = true;
                 consumeItem = false;
                 break;

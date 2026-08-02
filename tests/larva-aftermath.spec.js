@@ -229,6 +229,31 @@ test.describe('giant_larva aftermath - post-victory event', () => {
   });
 });
 
+test.describe('giant_larva aftermath - 10m talk button label', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+    });
+  });
+
+  test('the 10m examine button reads the plain "調べる" label at every pending corpse stage', async ({ page }) => {
+    const labels = await page.evaluate(() => {
+      const results = [];
+      [0, 1, 2].forEach(stage => {
+        RPG.State.larvaCorpseStage = stage;
+        uiControl.updateUI();
+        results.push(document.getElementById('btnTalk').textContent);
+      });
+      return results;
+    });
+    expect(labels).toEqual(['調べる', '調べる', '調べる']);
+  });
+});
+
 test.describe('giant_larva aftermath - corpse inspection stage 1 (third silver coin)', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {

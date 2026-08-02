@@ -232,9 +232,12 @@ const explorationSystem = {
     },
 
     // 雨そのものの継続を表す。占い師から少年の居場所を聞いた直後(thiefDiscoveryStatus>=1)に始まり、
-    // 銀貨納品後の一泊(phase6PostDeliverySleepDone)が明けるまで続く。大幼蟲を倒しても雨は止まらない
-    // ため、このヘルパーは giantLarvaDefeated を一切参照しない。ボス撃破前限定のフレーバーは
-    // 呼び出し側で `isRainActive() && flags.giantLarvaDefeated !== true` のように条件を重ねる。
+    // 銀貨納品後の一泊(phase6PostDeliverySleepDone)が明けるまで続く。大幼蟲を倒しても銀貨を納品
+    // しても雨は止まらないため、このヘルパーは giantLarvaDefeated / silverDelivered を一切参照
+    // しない。7mの開始演出「雨が降り始めた……」だけはボス撃破前の一度きりの体験にしたいので、
+    // その呼び出し側だけが `isRainActive() && flags.giantLarvaDefeated !== true` を重ねる
+    // （EVENT_DATA の forest_7m_rain_start を参照）。8mの継続フレーバーは isRainActive() のみで
+    // 判定し、ボス撃破後・銀貨納品後の再訪でも雨が続いている限り表示される。
     isRainActive: function () {
         return (
             (RPG.State.flags.thiefDiscoveryStatus || 0) >= 1 &&
@@ -1461,11 +1464,12 @@ const explorationSystem = {
             }
             this.finishTemporaryFieldStep(temporaryEffects);
             return;
-        } else if (
-            dist === 8 &&
-            this.isRainActive() &&
-            RPG.State.flags.giantLarvaDefeated !== true
-        ) {
+        } else if (dist === 8 && this.isRainActive()) {
+            // Continues to show on any 8m visit while the rain lasts, including post-boss and
+            // post-delivery revisits (rain only ends at phase6PostDeliverySleepDone). The
+            // checkEvents() call earlier in move() already gives the giant_larva return-trip
+            // event (and other checkEvents()-based events) priority on the move that triggers
+            // them, so this branch is only ever reached once no such event fires this step.
             uiControl.addLog("足元がぬかるんでいる。", "ambient");
         } else if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
             setTimeout(() => {

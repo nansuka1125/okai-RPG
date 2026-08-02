@@ -222,7 +222,11 @@ test.describe('forest rain - 8m mud flavor', () => {
     expect(lines).not.toContain('雨が降り始めた……');
   });
 
-  test('58. once the boss is defeated, 8m no longer shows the random mud flavor', async ({ page }) => {
+  test('58. once the boss is defeated, 8m still shows the mud flavor while the rain continues', async ({ page }) => {
+    // Bugfix regression: the 8m branch used to require giantLarvaDefeated !== true, which
+    // silently stopped the rain from being visible at 8m for the rest of the confirmed
+    // isRainActive() window (post-boss, post-delivery, pre-sleep). The branch is now gated on
+    // isRainActive() alone, matching the confirmed spec that rain continues past both events.
     await page.evaluate(() => {
       RPG.State.flags.giantLarvaDefeated = true;
       RPG.State.currentDistance = 7;
@@ -230,6 +234,50 @@ test.describe('forest rain - 8m mud flavor', () => {
     await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
 
     const lines = await logTexts(page);
+    expect(lines).toContain('足元がぬかるんでいる。');
+  });
+
+  test('62. re-entering the forest after delivering the coins but before sleeping still shows the 8m mud flavor', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      RPG.State.inventory.silverCoin = 0; // already delivered, so isPeacefulReturnActive() is false here
+      RPG.State.currentDistance = 7;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+
+    const lines = await logTexts(page);
+    expect(lines).toContain('足元がぬかるんでいる。');
+  });
+
+  test('63. once phase6PostDeliverySleepDone is true, the 8m mud flavor no longer appears', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.currentDistance = 7;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+
+    const lines = await logTexts(page);
+    expect(lines).not.toContain('足元がぬかるんでいる。');
+  });
+
+  test('64. the post-boss 8m return-trip event takes priority and the mud flavor does not also appear on that same move', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      RPG.State.inventory.silverCoin = 3; // isPeacefulReturnActive() true: the return-trip event applies
+      RPG.State.silverCoins = 3;
+      RPG.State.currentDistance = 9;
+    });
+    await page.evaluate(() => explorationSystem.move(-1, { skipTravelCue: true })); // -> 8m, first arrival
+
+    const lines = await logTexts(page);
+    expect(lines).toContain('オーエンは革袋の中を漁っている……。');
     expect(lines).not.toContain('足元がぬかるんでいる。');
   });
 

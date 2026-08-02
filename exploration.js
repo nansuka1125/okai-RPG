@@ -2124,6 +2124,45 @@ const explorationSystem = {
                 this.playDialogueLoop();
                 return;
             }
+
+            // Inn repair thread, back half: resume (state 3, oils in hand) takes priority over
+            // the awaiting-oils reminder (state 2), which takes priority over the intro (state 1).
+            if (typeof innSystem !== "undefined" && innSystem.canResumeInnRepairHelp()) {
+                uiControl.addSeparator();
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.innRepairFinish.map(text => ({ text }));
+                RPG.State.dialogueQueue.push({
+                    text: null,
+                    action: () => {
+                        RPG.State.inventory.glossyOil = Math.max(0, (RPG.State.inventory.glossyOil || 0) - 1);
+                        RPG.State.flags.innRepairCompleted = true;
+                        uiControl.updateUI();
+                    }
+                });
+                this.playDialogueLoop();
+                return;
+            }
+
+            if (typeof innSystem !== "undefined" && innSystem.isAwaitingInnRepairOils()) {
+                uiControl.addLog("カイン（先に、娘さんからテカテカ油をもらってこよう）");
+                return;
+            }
+
+            if (typeof innSystem !== "undefined" && innSystem.canStartInnRepairHelp()) {
+                uiControl.addSeparator();
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.innRepairHelpStart.map(text => ({ text }));
+                RPG.State.dialogueQueue.push({
+                    text: null,
+                    action: () => {
+                        RPG.State.flags.innRepairHelpStarted = true;
+                        uiControl.updateUI();
+                    }
+                });
+                this.playDialogueLoop();
+                return;
+            }
+
             uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkAtInn);
             return;
         }

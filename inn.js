@@ -265,6 +265,140 @@ innSystem = {
         );
     },
 
+    // --- Inn repair thread, back half: help intro -> daughter's oils -> resume/complete ---
+    // Deliberately not gated on storyPhase: the repair is an optional side thread that must
+    // stay reachable whether the player is still in Phase 6 or has already moved into Phase 7
+    // (including a highway-defeat retreat back to the inn front).
+    canStartInnRepairHelp: function () {
+        return (
+            RPG.State.flags.innRepairTimberDelivered === true &&
+            RPG.State.flags.phase6PostDeliverySleepDone === true &&
+            RPG.State.flags.innRepairHelpStarted !== true &&
+            RPG.State.flags.innRepairCompleted !== true &&
+            RPG.State.flags.chapter1Cleared !== true &&
+            RPG.State.flags.onWagon !== true
+        );
+    },
+
+    // True only while the intro has played but the daughter hasn't granted the oils yet -
+    // re-selecting 【修理を手伝う】 in this window should not replay the intro.
+    isAwaitingInnRepairOils: function () {
+        return (
+            RPG.State.flags.innRepairHelpStarted === true &&
+            RPG.State.flags.innRepairOilsReceived !== true &&
+            RPG.State.flags.innRepairCompleted !== true
+        );
+    },
+
+    canResumeInnRepairHelp: function () {
+        return (
+            RPG.State.flags.innRepairOilsReceived === true &&
+            (RPG.State.inventory.glossyOil || 0) > 0 &&
+            RPG.State.flags.innRepairCompleted !== true &&
+            RPG.State.flags.chapter1Cleared !== true &&
+            RPG.State.flags.onWagon !== true
+        );
+    },
+
+    // Whether the inn-front 【修理を手伝う】 command should be shown at all (covers the intro,
+    // awaiting-oils, and resume states together). Shared by uiControl's button label and by
+    // exploration.js's talk() branch guard.
+    canShowInnRepairHelpCommand: function () {
+        if (RPG.State.flags.chapter1Cleared === true) return false;
+        if (RPG.State.flags.onWagon === true) return false;
+        if (RPG.State.flags.innRepairCompleted === true) return false;
+        if (RPG.State.flags.innRepairHelpStarted === true) return true;
+        return (
+            RPG.State.flags.innRepairTimberDelivered === true &&
+            RPG.State.flags.phase6PostDeliverySleepDone === true
+        );
+    },
+
+    // Phase-independent by design: this is checked first in talk() (see below) so it takes
+    // priority over every other inn conversation while the innkeeper's request is outstanding,
+    // without needing a separate check inside each phase's own talk() block.
+    shouldPlayDaughterOilEvent: function () {
+        return (
+            RPG.State.flags.innRepairHelpStarted === true &&
+            RPG.State.flags.innRepairOilsReceived !== true &&
+            RPG.State.flags.chapter1Cleared !== true
+        );
+    },
+
+    playDaughterOilEvent: function () {
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.innRepairDaughterOilsIntro);
+        RPG.State.dialogueQueue.push({
+            text: null,
+            action: () => {
+                this.showInnRepairOilChoices();
+            }
+        });
+        explorationSystem.playDialogueLoop();
+    },
+
+    closeInnRepairOilChoices: function () {
+        const container = document.getElementById('action-buttons');
+        if (container) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+        }
+    },
+
+    // Three buttons, one shared handler: whichever oil the player asks for, the daughter gives
+    // all three anyway (she can't tell the names apart), so every choice converges on the same
+    // outro queue and the same single grant action.
+    showInnRepairOilChoices: function () {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        const exploreUI = document.getElementById('exploreUI');
+        const innUI = document.getElementById('innUI');
+        const choiceUI = document.getElementById('choiceUI');
+        if (exploreUI) exploreUI.style.display = 'none';
+        if (innUI) innUI.style.display = 'none';
+        if (choiceUI) choiceUI.style.display = 'none';
+
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const options = [
+            { id: 'btnInnRepairOilHard', label: '【カチカチ油】' },
+            { id: 'btnInnRepairOilShiny', label: '【ピカピカ油】' },
+            { id: 'btnInnRepairOilGlossy', label: '【テカテカ油】' }
+        ];
+
+        options.forEach(option => {
+            const btn = document.createElement('button');
+            btn.id = option.id;
+            btn.className = 'btn btn-full';
+            btn.textContent = option.label;
+            btn.onclick = () => {
+                this.closeInnRepairOilChoices();
+                this.resolveInnRepairOilChoice();
+            };
+            container.appendChild(btn);
+        });
+
+        RPG.State.mode = "choice";
+    },
+
+    resolveInnRepairOilChoice: function () {
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.buildDialogueQueue(
+            RPG.Assets.GAME_TEXT.events.innRepairDaughterOilsOutro,
+            () => {
+                RPG.State.inventory.glossyOil = (RPG.State.inventory.glossyOil || 0) + 1;
+                RPG.State.inventory.shinyOil = (RPG.State.inventory.shinyOil || 0) + 1;
+                RPG.State.inventory.hardOil = (RPG.State.inventory.hardOil || 0) + 1;
+                RPG.State.flags.innRepairOilsReceived = true;
+                uiControl.updateUI();
+            }
+        );
+        explorationSystem.playDialogueLoop();
+    },
+
     shouldUseAmberMerchantObserveRoute: function () {
         const flags = RPG.State.flags;
         const hasUnappraisedAmber =
@@ -1393,6 +1527,17 @@ innSystem = {
 
         if (RPG.State.flags.introDebtTalkPending === true) {
             this.playPrologueDebtTalk();
+            return;
+        }
+
+        // Inn repair thread, back half: the innkeeper has explicitly sent Cain to fetch the
+        // oils, so this takes priority over every other inn conversation while it's pending.
+        // Phase-independent and checked once here, ahead of the Phase6 block below, so the
+        // same single check covers Phase6, Phase7, and any other phase without duplication.
+        // One-time and never touches phase6Talks/talkPhaseReached, so whatever required
+        // conversation this pre-empts simply plays next time, in its normal order.
+        if (this.shouldPlayDaughterOilEvent()) {
+            this.playDaughterOilEvent();
             return;
         }
 
@@ -2656,8 +2801,6 @@ innSystem = {
                         0,
                         (RPG.State.inventory.amberTreeTimber || 0) - 1
                     );
-                    RPG.State.inventory.shinyOil = (RPG.State.inventory.shinyOil || 0) + 1;
-                    RPG.State.inventory.hardOil = (RPG.State.inventory.hardOil || 0) + 1;
                     RPG.State.flags.innRepairTimberDelivered = true;
                     uiControl.updateUI();
                 }

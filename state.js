@@ -134,6 +134,7 @@ RPG.State = {
         amberTreeTimber: 0,
         someonesDiary: 0,
         shinyOil: 0,
+        glossyOil: 0,
         hardOil: 0,
         fireproofGloves: 0,
         hatedAmber: 0,
@@ -330,6 +331,9 @@ RPG.State = {
         innRepairTimberSearchUnlocked: false, // Build 15.5.5: Set alongside the report; gates the forest-8m timber retrieval event
         innRepairTimberObtained: false, // Build 15.5.6: One-time amber tree timber retrieval at forest 8m, once the damage report has unlocked the search
         innRepairTimberDelivered: false, // The innkeeper has received the timber and secured material for repair boards
+        innRepairHelpStarted: false, // The innkeeper repair-help intro has played; waiting on the daughter's oils
+        innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
+        innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
         hardBottleOpened: false // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11; contents undecided
     },
 

@@ -356,6 +356,7 @@ const uiControl = {
             const btnInnObserve = document.getElementById('btnInnObserve');
             const btnInnTalk = document.getElementById('btnInnTalk');
             const btnInnStay = document.getElementById('btnInnStay');
+            const btnInnExit = document.getElementById('btnInnExit');
             const btnInnNotebook = document.getElementById('btnInnNotebook');
             const canDeliver = (RPG.State.silverCoins >= 3 && !RPG.State.flags.silverDelivered && mode === 'base');
 
@@ -473,6 +474,13 @@ const uiControl = {
                 }
             }
 
+            if (btnInnExit) {
+                const awaitingRepairResume =
+                    RPG.State.flags.innRepairOilsReceived === true &&
+                    RPG.State.flags.innRepairCompleted !== true;
+                btnInnExit.textContent = awaitingRepairResume ? "宿屋前に戻る" : "外に出る";
+            }
+
             if (btnInnNotebook) {
                 btnInnNotebook.style.display = RPG.State.flags.notebookUnlocked === true ? 'flex' : 'none';
             }
@@ -567,7 +575,17 @@ const uiControl = {
                     const needsHoleInspect =
                         RPG.State.flags.innRepairInspectionUnlocked === true &&
                         RPG.State.flags.innRepairHoleInspected !== true;
-                    btnTalk.textContent = needsHoleInspect ? "外壁の大穴" : "調べる";
+                    const canShowInnRepairHelp =
+                        !needsHoleInspect &&
+                        typeof innSystem !== "undefined" &&
+                        innSystem.canShowInnRepairHelpCommand();
+                    if (needsHoleInspect) {
+                        btnTalk.textContent = "外壁の大穴";
+                    } else if (canShowInnRepairHelp) {
+                        btnTalk.textContent = "修理を手伝う";
+                    } else {
+                        btnTalk.textContent = "調べる";
+                    }
                 }
             } else {
                 if (btnEnterInn) btnEnterInn.style.display = 'none';

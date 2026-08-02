@@ -82,6 +82,12 @@ async function setCleanInnBaseline(page, overrides = {}) {
       innRepairTimberSearchUnlocked: false,
       innRepairTimberObtained: false,
       innRepairTimberDelivered: false,
+      innRepairHelpStarted: false,
+      innRepairOilsReceived: false,
+      innRepairCompleted: false,
+      phase6PostDeliverySleepDone: false,
+      chapter1Cleared: false,
+      onWagon: false,
       ...ov.flags,
     });
     RPG.State.inventory.unknownAmber = 0;
@@ -89,6 +95,7 @@ async function setCleanInnBaseline(page, overrides = {}) {
     RPG.State.inventory.amberTreeTimber = 0;
     RPG.State.inventory.shinyOil = 0;
     RPG.State.inventory.hardOil = 0;
+    RPG.State.inventory.glossyOil = 0;
     RPG.State.defeatCounts.rat = ov.defeatCountsRat || { cain: 0, owen: 0 };
     // Clear any battle residue left over from a previous test/section so a fresh
     // observe() call isn't silently blocked by a stale isBattling/currentEnemy state.
@@ -1490,7 +1497,7 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     });
   });
 
-  test('45. the innkeeper receives the timber and grants both oils', async ({ page }) => {
+  test('45. the innkeeper receives the timber but grants no oils (oils now come from the daughter)', async ({ page }) => {
     await setCleanInnBaseline(page, {
       flags: {
         innRepairInspectionReported: true,
@@ -1512,26 +1519,25 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
       timber: RPG.State.inventory.amberTreeTimber,
       shinyOil: RPG.State.inventory.shinyOil,
       hardOil: RPG.State.inventory.hardOil,
+      glossyOil: RPG.State.inventory.glossyOil,
       delivered: RPG.State.flags.innRepairTimberDelivered,
       memo: uiControl.getJourneyMemo(),
       label: document.getElementById('btnInnObserve')?.textContent,
       logText: document.getElementById('logContainer')?.textContent || '',
-      shinyOilName: RPG.Assets.CONFIG.ITEM_NAME.shinyOil,
-      hardOilName: RPG.Assets.CONFIG.ITEM_NAME.hardOil,
     }));
 
     expect(result.timber).toBe(0);
-    expect(result.shinyOil).toBe(1);
-    expect(result.hardOil).toBe(1);
+    expect(result.shinyOil).toBe(0);
+    expect(result.hardOil).toBe(0);
+    expect(result.glossyOil).toBe(0);
     expect(result.delivered).toBe(true);
     expect(result.memo).toBe('宿を直すための木材を店主へ渡した。');
     expect(result.label).toBe('様子を見る');
     expect(result.logText).toContain('これなら板に加工できる。ありがとう、助かったよ');
-    expect(result.shinyOilName).toBe('《ピカピカ油》');
-    expect(result.hardOilName).toBe('《カチカチ油》');
+    expect(result.logText).not.toContain('油を手に入れた');
   });
 
-  test('46. timber delivery cannot replay or grant duplicate oils', async ({ page }) => {
+  test('46. timber delivery cannot replay or double-consume the timber', async ({ page }) => {
     await setCleanInnBaseline(page, {
       flags: {
         innRepairInspectionReported: true,
@@ -1541,8 +1547,6 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     });
     await page.evaluate(() => {
       RPG.State.inventory.amberTreeTimber = 1;
-      RPG.State.inventory.shinyOil = 1;
-      RPG.State.inventory.hardOil = 1;
       uiControl.updateUI();
       innSystem.observe();
     });
@@ -1551,16 +1555,12 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     const result = await page.evaluate(() => ({
       canDeliver: innSystem.canDeliverInnRepairTimber(),
       timber: RPG.State.inventory.amberTreeTimber,
-      shinyOil: RPG.State.inventory.shinyOil,
-      hardOil: RPG.State.inventory.hardOil,
       logHasDelivery: (document.getElementById('logContainer')?.textContent || '')
         .includes('これなら板に加工できる'),
     }));
     expect(result).toEqual({
       canDeliver: false,
       timber: 1,
-      shinyOil: 1,
-      hardOil: 1,
       logHasDelivery: false,
     });
   });
@@ -1593,25 +1593,41 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     expect(result).toEqual({ timber: 1, delivered: false, fortuneDone: true });
   });
 
-  test('48. old saves receive safe defaults for timber delivery and both oils', async ({ page }) => {
+  test('48. old saves receive safe defaults for timber delivery, the back-half flags, and all three oils', async ({ page }) => {
     const result = await page.evaluate(() => {
       const legacySave = JSON.parse(JSON.stringify(RPG.State));
       delete legacySave.flags.innRepairTimberDelivered;
+      delete legacySave.flags.innRepairHelpStarted;
+      delete legacySave.flags.innRepairOilsReceived;
+      delete legacySave.flags.innRepairCompleted;
       delete legacySave.inventory.shinyOil;
       delete legacySave.inventory.hardOil;
+      delete legacySave.inventory.glossyOil;
       localStorage.setItem('okai_rpg_timber_delivery_legacy_test', JSON.stringify(legacySave));
 
       uiControl.loadFromStorage('okai_rpg_timber_delivery_legacy_test', 'テスト');
       return {
         delivered: RPG.State.flags.innRepairTimberDelivered,
+        helpStarted: RPG.State.flags.innRepairHelpStarted,
+        oilsReceived: RPG.State.flags.innRepairOilsReceived,
+        completed: RPG.State.flags.innRepairCompleted,
         shinyOil: RPG.State.inventory.shinyOil,
         hardOil: RPG.State.inventory.hardOil,
+        glossyOil: RPG.State.inventory.glossyOil,
       };
     });
-    expect(result).toEqual({ delivered: false, shinyOil: 0, hardOil: 0 });
+    expect(result).toEqual({
+      delivered: false,
+      helpStarted: false,
+      oilsReceived: false,
+      completed: false,
+      shinyOil: 0,
+      hardOil: 0,
+      glossyOil: 0,
+    });
   });
 
-  test('49. completed timber delivery and both oils survive save/reload', async ({ page }) => {
+  test('49. completed timber delivery survives save/reload (without granting any oil)', async ({ page }) => {
     await setCleanInnBaseline(page, {
       flags: {
         innRepairInspectionReported: true,
@@ -1632,8 +1648,6 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
 
       RPG.State.flags.innRepairTimberDelivered = false;
       RPG.State.inventory.amberTreeTimber = 1;
-      RPG.State.inventory.shinyOil = 0;
-      RPG.State.inventory.hardOil = 0;
       uiControl.loadFromStorage('okai_rpg_timber_delivery_completed_test', 'テスト');
 
       return {
@@ -1641,15 +1655,644 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
         timber: RPG.State.inventory.amberTreeTimber,
         shinyOil: RPG.State.inventory.shinyOil,
         hardOil: RPG.State.inventory.hardOil,
+        glossyOil: RPG.State.inventory.glossyOil,
         memo: uiControl.getJourneyMemo(),
       };
     });
     expect(result).toEqual({
       delivered: true,
       timber: 0,
-      shinyOil: 1,
-      hardOil: 1,
+      shinyOil: 0,
+      hardOil: 0,
+      glossyOil: 0,
       memo: '宿を直すための木材を店主へ渡した。',
+    });
+  });
+});
+
+// --- Inn repair thread, back half: help intro -> daughter's oils -> resume/complete ---
+
+// Reaches a state where the timber has already been delivered and the post-delivery sleep
+// is done (the two prerequisites for the back half), then layers overrides on top. Also
+// neutralizes every higher-priority observe()/talk() route so back-half tests only exercise
+// what's under test.
+async function setRepairBackHalfBaseline(page, overrides = {}) {
+  await page.evaluate((ov) => {
+    Object.assign(RPG.State, {
+      mode: 'base',
+      isAtInn: false,
+      isInDungeon: false,
+      explorationArea: null,
+      location: '宿屋前',
+      currentDistance: 0,
+      storyPhase: 6,
+      talkPhaseReached: {},
+      dialogueQueue: [],
+      isWaitingForInput: false,
+      ...ov.state,
+    });
+    Object.assign(RPG.State.flags, {
+      hasIntroFinished: true,
+      introDebtTalkPending: false,
+      innRepairInspectionUnlocked: false,
+      innRepairHoleInspected: true,
+      innRepairDroppingsInspected: true,
+      innRepairPillarInspected: true,
+      innRepairInspectionReported: true,
+      innRepairTimberSearchUnlocked: true,
+      innRepairTimberObtained: true,
+      innRepairTimberDelivered: true,
+      innRepairHelpStarted: false,
+      innRepairOilsReceived: false,
+      innRepairCompleted: false,
+      silverDelivered: true,
+      phase6PostDeliverySleepDone: true,
+      chapter1Cleared: false,
+      onWagon: false,
+      // Left false by default so priority tests can check these are not silently consumed;
+      // tests that don't care about Phase6 ordering can override them to true.
+      phase6WagonMapTalkDone: false,
+      wagonInfoHeard: false,
+      phase6RoomTalkDone: false,
+      wagonHorseEncouraged: false,
+      scentPouchQuestStarted: false,
+      phase7DepartureNightSeen: false,
+      ...ov.flags,
+    });
+    RPG.State.inventory.amberTreeTimber = 0;
+    RPG.State.inventory.shinyOil = typeof ov.shinyOil === 'number' ? ov.shinyOil : 0;
+    RPG.State.inventory.hardOil = typeof ov.hardOil === 'number' ? ov.hardOil : 0;
+    RPG.State.inventory.glossyOil = typeof ov.glossyOil === 'number' ? ov.glossyOil : 0;
+    RPG.State.isBattling = false;
+    RPG.State.currentEnemy = null;
+    RPG.State.battleState = null;
+    RPG.State.hasOwenIntervened = false;
+    uiControl.updateUI();
+  }, overrides);
+}
+
+async function clickDaughterOilChoice(page, buttonId = 'btnInnRepairOilGlossy') {
+  await page.click(`#${buttonId}`);
+}
+
+test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/complete)', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof uiControl !== 'undefined' &&
+      typeof innSystem !== 'undefined' &&
+      typeof explorationSystem !== 'undefined'
+    ));
+    await advanceUntilInteractive(page);
+  });
+
+  test.describe('解禁条件 (宿屋前【修理を手伝う】)', () => {
+    test('does not appear before phase6PostDeliverySleepDone, even with the timber delivered', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { phase6PostDeliverySleepDone: false },
+      });
+      await expect(page.locator('#btnTalk')).toHaveText('調べる');
+    });
+
+    test('appears at the inn front once both prerequisites are met', async ({ page }) => {
+      await setRepairBackHalfBaseline(page);
+      await expect(page.locator('#btnTalk')).toHaveText('修理を手伝う');
+    });
+
+    test('does not appear without the timber delivered', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairTimberDelivered: false },
+      });
+      await expect(page.locator('#btnTalk')).toHaveText('調べる');
+    });
+
+    test('the inn-front 【調べる】/btnTalk label never reads 修理を手伝う in the forest, herb garden, or highway', async ({ page }) => {
+      // These scenes route through explorationSystem.talk()'s dungeon branches (this.isInHerbGarden(),
+      // the forest dist checks, etc.), which are entirely separate code paths from the
+      // `!RPG.State.isInDungeon` inn-front block the repair branches live in - so the button
+      // literally cannot show the repair label there, regardless of the repair flags.
+      await setRepairBackHalfBaseline(page);
+
+      for (const scene of [
+        { explorationArea: 'forest', location: '琥珀の森', currentDistance: 5 },
+        { explorationArea: 'herbGarden', location: '薬草園', currentDistance: 3 },
+        { explorationArea: 'highway', location: 'かつての街道', currentDistance: 3 },
+      ]) {
+        await page.evaluate((s) => {
+          Object.assign(RPG.State, { isAtInn: false, isInDungeon: true, ...s });
+          uiControl.updateUI();
+        }, scene);
+        const label = await page.locator('#btnTalk').textContent();
+        expect(label).not.toBe('修理を手伝う');
+      }
+    });
+
+    test('battle mode blocks talk()/observe() entirely, so the repair thread cannot advance mid-battle', async ({ page }) => {
+      await setRepairBackHalfBaseline(page);
+      await page.evaluate(() => {
+        RPG.State.isBattling = true;
+        RPG.State.currentEnemy = { id: 'rat', name: '魔界のネズミ' };
+        RPG.State.mode = 'battle';
+        uiControl.updateUI();
+      });
+      const before = await page.evaluate(() => RPG.State.flags.innRepairHelpStarted);
+      await page.evaluate(() => explorationSystem.talk());
+      const after = await page.evaluate(() => RPG.State.flags.innRepairHelpStarted);
+      expect(before).toBe(false);
+      expect(after).toBe(false); // talk()'s mode !== 'base' guard rejected the call
+    });
+
+    test('inn-interior talk (innSystem.talk, not the inn-front explorationSystem.talk) is unaffected when the repair thread has not been started', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { state: { isAtInn: true, location: '宿屋《琥珀亭》' } });
+      const canPlayOilEvent = await page.evaluate(() => innSystem.shouldPlayDaughterOilEvent());
+      expect(canPlayOilEvent).toBe(false);
+    });
+
+    test('does not appear after innRepairCompleted', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { innRepairCompleted: true } });
+      await expect(page.locator('#btnTalk')).toHaveText('調べる');
+    });
+
+    test('the outer-wall hole inspection still takes priority when uninspected', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairInspectionUnlocked: true, innRepairHoleInspected: false },
+      });
+      await expect(page.locator('#btnTalk')).toHaveText('外壁の大穴');
+    });
+
+    test('does not appear after chapter1Cleared', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { chapter1Cleared: true } });
+      const canShow = await page.evaluate(() => innSystem.canShowInnRepairHelpCommand());
+      expect(canShow).toBe(false);
+    });
+
+    test('does not appear while onWagon', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { onWagon: true } });
+      const canShow = await page.evaluate(() => innSystem.canShowInnRepairHelpCommand());
+      expect(canShow).toBe(false);
+    });
+  });
+
+  test.describe('修理開始', () => {
+    test('the first 【修理を手伝う】 plays the intro once and sets innRepairHelpStarted', async ({ page }) => {
+      await setRepairBackHalfBaseline(page);
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        helpStarted: RPG.State.flags.innRepairHelpStarted,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(result.helpStarted).toBe(true);
+      expect(result.logText).toContain('店主「やっと雨が上がったな」');
+      expect(result.logText).toContain('カイン「テカテカ油だな。分かった！」');
+    });
+
+    test('innRepairHelpStarted survives save/reload', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { innRepairHelpStarted: true } });
+      const result = await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_repair_help_started_test', JSON.stringify(snapshot));
+        RPG.State.flags.innRepairHelpStarted = false;
+        uiControl.loadFromStorage('okai_rpg_repair_help_started_test', 'テスト');
+        return RPG.State.flags.innRepairHelpStarted;
+      });
+      expect(result).toBe(true);
+    });
+
+    test('re-selecting while awaiting oils does not replay the intro, and shows the one-line reminder', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { innRepairHelpStarted: true } });
+      await page.evaluate(() => explorationSystem.talk());
+
+      const result = await page.evaluate(() => ({
+        mode: RPG.State.mode,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(result.mode).toBe('base'); // no event queue started, single addLog only
+      expect(result.logText).toContain('カイン（先に、娘さんからテカテカ油をもらってこよう）');
+      expect(result.logText).not.toContain('店主「やっと雨が上がったな」');
+    });
+  });
+
+  test.describe('娘の油イベント', () => {
+    test('does not fire before 修理開始', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { state: { isAtInn: true, location: '宿屋《琥珀亭》' } });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).not.toContain('カウンターには娘がいる。');
+    });
+
+    test('takes priority over unfinished Phase6 required conversation', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true },
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        logText: document.getElementById('logContainer')?.textContent || '',
+        wagonMapTalkDone: RPG.State.flags.phase6WagonMapTalkDone,
+      }));
+      expect(result.logText).toContain('カウンターには娘がいる。');
+      expect(result.logText).not.toContain('店主｢それで、あとどのくらい泊まりたいんだ？」');
+      // Not consumed - stays available for the next 話す.
+      expect(result.wagonMapTalkDone).toBe(false);
+    });
+
+    test('after the oil event completes, the unfinished Phase6 required conversation plays normally next', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true },
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page); // reaches the choice screen
+      await clickDaughterOilChoice(page);
+      await drainDialogue(page); // finishes the outro + grant
+
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        logText: document.getElementById('logContainer')?.textContent || '',
+        wagonMapTalkDone: RPG.State.flags.phase6WagonMapTalkDone,
+      }));
+      expect(result.logText).toContain('店主｢それで、あとどのくらい泊まりたいんだ？」');
+      expect(result.wagonMapTalkDone).toBe(true);
+    });
+
+    test('takes priority over the Phase7 send-off, which plays normally afterward, undamaged', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》', storyPhase: 7 },
+        flags: {
+          innRepairHelpStarted: true,
+          // Phase6 required conversations already resolved, as they would be by Phase7.
+          phase6WagonMapTalkDone: true,
+          wagonInfoHeard: true,
+          phase6RoomTalkDone: true,
+        },
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      let logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).toContain('カウンターには娘がいる。');
+      expect(logText).not.toContain('もう出発されるのですか');
+
+      await clickDaughterOilChoice(page);
+      await drainDialogue(page);
+
+      // The Phase7 send-off sequence resumes exactly where it should: entry 1 first (the
+      // highway history), proving talkPhaseReached[7] was never touched by the oil event.
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).toContain('森の向こうには昔、街道があったんだ');
+
+      // Entry 2, the send-off line itself, follows on the next 話す, undamaged.
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).toContain('もう出発されるのですか？');
+    });
+
+    test('any of the three choices converges on the same outro and grant', async ({ page }) => {
+      for (const buttonId of ['btnInnRepairOilHard', 'btnInnRepairOilShiny', 'btnInnRepairOilGlossy']) {
+        await setRepairBackHalfBaseline(page, {
+          state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+          flags: { innRepairHelpStarted: true },
+        });
+        await page.evaluate(() => innSystem.talk());
+        await drainDialogue(page);
+        await clickDaughterOilChoice(page, buttonId);
+        await drainDialogue(page);
+
+        const result = await page.evaluate(() => ({
+          glossyOil: RPG.State.inventory.glossyOil,
+          shinyOil: RPG.State.inventory.shinyOil,
+          hardOil: RPG.State.inventory.hardOil,
+          oilsReceived: RPG.State.flags.innRepairOilsReceived,
+          logText: document.getElementById('logContainer')?.textContent || '',
+        }));
+        expect(result).toMatchObject({ glossyOil: 1, shinyOil: 1, hardOil: 1, oilsReceived: true });
+        expect(result.logText).toContain('カイン（さすがに違うと思いたい）');
+      }
+    });
+
+    test('interrupting mid-event grants nothing and leaves innRepairOilsReceived false', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true },
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page); // reach the choice screen
+      await clickDaughterOilChoice(page);
+      // Interrupt partway through the outro instead of draining it fully.
+      await page.evaluate(() => uiControl.handlePlayerInput());
+      await page.waitForTimeout(50);
+
+      const mid = await page.evaluate(() => ({
+        oilsReceived: RPG.State.flags.innRepairOilsReceived,
+        glossyOil: RPG.State.inventory.glossyOil,
+        shinyOil: RPG.State.inventory.shinyOil,
+        hardOil: RPG.State.inventory.hardOil,
+      }));
+      expect(mid).toEqual({ oilsReceived: false, glossyOil: 0, shinyOil: 0, hardOil: 0 });
+
+      // Reset to base and reopen: the full intro+choice+outro plays again from scratch.
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.dialogueQueue = [];
+        const container = document.getElementById('action-buttons');
+        if (container) { container.innerHTML = ''; container.style.display = 'none'; }
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      const restarted = await page.evaluate(() => (
+        document.getElementById('logContainer')?.textContent || ''
+      ).includes('カウンターには娘がいる。'));
+      expect(restarted).toBe(true);
+    });
+
+    test('only finishing the event grants the three oils, exactly once each', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true },
+        shinyOil: 3, // pre-existing stock, e.g. from the bounty notebook
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      await clickDaughterOilChoice(page);
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        glossyOil: RPG.State.inventory.glossyOil,
+        shinyOil: RPG.State.inventory.shinyOil,
+        hardOil: RPG.State.inventory.hardOil,
+      }));
+      expect(result).toEqual({ glossyOil: 1, shinyOil: 4, hardOil: 1 });
+    });
+
+    test('cannot be triggered twice - talk() returns to normal behavior after receipt', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true, glossyOil: 1 },
+      });
+      const canPlay = await page.evaluate(() => innSystem.shouldPlayDaughterOilEvent());
+      expect(canPlay).toBe(false);
+
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).not.toContain('カウンターには娘がいる。');
+    });
+
+    test('innRepairOilsReceived and the item name survive save/reload', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1, shinyOil: 1, hardOil: 1,
+      });
+      const result = await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_repair_oils_received_test', JSON.stringify(snapshot));
+        RPG.State.flags.innRepairOilsReceived = false;
+        RPG.State.inventory.glossyOil = 0;
+        uiControl.loadFromStorage('okai_rpg_repair_oils_received_test', 'テスト');
+        return {
+          oilsReceived: RPG.State.flags.innRepairOilsReceived,
+          glossyOil: RPG.State.inventory.glossyOil,
+          glossyOilName: RPG.Assets.CONFIG.ITEM_NAME.glossyOil,
+        };
+      });
+      expect(result).toEqual({ oilsReceived: true, glossyOil: 1, glossyOilName: '《テカテカ油》' });
+    });
+
+    test('the inn talk command label stays 話す throughout the oil event', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true },
+      });
+      const label = await page.locator('#btnInnTalk').textContent();
+      expect(label).toBe('話す');
+    });
+  });
+
+  test.describe('退出ボタン', () => {
+    test('reads 宿屋前に戻る only while oils are received and the repair is not yet complete', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: false },
+      });
+      await expect(page.locator('#btnInnExit')).toHaveText('外に出る');
+
+      await page.evaluate(() => {
+        RPG.State.flags.innRepairOilsReceived = true;
+        RPG.State.inventory.glossyOil = 1;
+        uiControl.updateUI();
+      });
+      await expect(page.locator('#btnInnExit')).toHaveText('宿屋前に戻る');
+
+      await page.evaluate(() => {
+        RPG.State.flags.innRepairCompleted = true;
+        uiControl.updateUI();
+      });
+      await expect(page.locator('#btnInnExit')).toHaveText('外に出る');
+    });
+
+    test('always calls the existing exitInn() regardless of label', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》' },
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await page.click('#btnInnExit');
+      const result = await page.evaluate(() => ({
+        isAtInn: RPG.State.isAtInn,
+        location: RPG.State.location,
+      }));
+      expect(result).toEqual({ isAtInn: false, location: '宿屋前' });
+    });
+  });
+
+  test.describe('修理完了', () => {
+    test('does not resume without the oils received', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { innRepairHelpStarted: true } });
+      await expect(page.locator('#btnTalk')).toHaveText('修理を手伝う');
+      await page.evaluate(() => explorationSystem.talk());
+      const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).toContain('先に、娘さんからテカテカ油をもらってこよう');
+      expect(logText).not.toContain('板材に《テカテカ油》を塗った');
+    });
+
+    test('can only resume while glossyOil > 0', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 0,
+      });
+      const canResume = await page.evaluate(() => innSystem.canResumeInnRepairHelp());
+      expect(canResume).toBe(false);
+    });
+
+    test('interrupting the finish event leaves glossyOil unspent and innRepairCompleted false', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1, shinyOil: 1, hardOil: 1,
+      });
+      await page.evaluate(() => explorationSystem.talk());
+      // Interrupt partway through instead of draining to completion.
+      for (let i = 0; i < 5; i++) {
+        await page.evaluate(() => uiControl.handlePlayerInput());
+        await page.waitForTimeout(30);
+      }
+
+      const mid = await page.evaluate(() => ({
+        glossyOil: RPG.State.inventory.glossyOil,
+        completed: RPG.State.flags.innRepairCompleted,
+      }));
+      expect(mid).toEqual({ glossyOil: 1, completed: false });
+
+      // Can still be resumed from scratch afterward.
+      const canResumeStill = await page.evaluate(() => innSystem.canResumeInnRepairHelp());
+      expect(canResumeStill).toBe(true);
+    });
+
+    test('only finishing the event consumes glossyOil and sets innRepairCompleted, together', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1, shinyOil: 1, hardOil: 1,
+      });
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        glossyOil: RPG.State.inventory.glossyOil,
+        shinyOil: RPG.State.inventory.shinyOil,
+        hardOil: RPG.State.inventory.hardOil,
+        completed: RPG.State.flags.innRepairCompleted,
+        logText: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(result.glossyOil).toBe(0);
+      expect(result.shinyOil).toBe(1);
+      expect(result.hardOil).toBe(1);
+      expect(result.completed).toBe(true);
+      expect(result.logText).toContain('宿屋の修理が終わった！');
+      expect(result.logText).toContain('釘を手に入れた！（店主が）');
+    });
+
+    test('the nail is not added as an inventory item', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+
+      const inventoryKeys = await page.evaluate(() => Object.keys(RPG.State.inventory));
+      const hasNailLikeKey = inventoryKeys.some(key => /nail|kugi/i.test(key));
+      expect(hasNailLikeKey).toBe(false);
+    });
+
+    test('innRepairCompleted is set exactly once and the event does not replay', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      expect(await page.evaluate(() => RPG.State.flags.innRepairCompleted)).toBe(true);
+
+      // Command disappears, so a second talk() at the inn front falls through to the default.
+      await expect(page.locator('#btnTalk')).toHaveText('調べる');
+      await page.evaluate(() => explorationSystem.talk());
+      const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+      expect(logText).not.toContain('宿屋の修理が終わった！　宿屋の修理が終わった！');
+    });
+
+    test('repeated player-input taps during the finish event do not double-consume or double-complete', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await page.evaluate(() => explorationSystem.talk());
+      // Hammer input far past when the queue would have finished.
+      for (let i = 0; i < 80; i++) {
+        await page.evaluate(() => uiControl.handlePlayerInput());
+      }
+      await page.waitForTimeout(200);
+
+      const result = await page.evaluate(() => ({
+        glossyOil: RPG.State.inventory.glossyOil,
+        completed: RPG.State.flags.innRepairCompleted,
+      }));
+      expect(result).toEqual({ glossyOil: 0, completed: true });
+    });
+
+    test('innRepairCompleted survives save/reload', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { flags: { innRepairCompleted: true } });
+      const result = await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_repair_completed_test', JSON.stringify(snapshot));
+        RPG.State.flags.innRepairCompleted = false;
+        uiControl.loadFromStorage('okai_rpg_repair_completed_test', 'テスト');
+        return RPG.State.flags.innRepairCompleted;
+      });
+      expect(result).toBe(true);
+    });
+  });
+
+  test.describe('Phase7 での継続', () => {
+    test('help started in Phase6 can receive the oils in Phase7', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { isAtInn: true, location: '宿屋《琥珀亭》', storyPhase: 7 },
+        flags: {
+          innRepairHelpStarted: true,
+          phase6WagonMapTalkDone: true,
+          wagonInfoHeard: true,
+          phase6RoomTalkDone: true,
+        },
+      });
+      await page.evaluate(() => innSystem.talk());
+      await drainDialogue(page);
+      await clickDaughterOilChoice(page);
+      await drainDialogue(page);
+      const oilsReceived = await page.evaluate(() => RPG.State.flags.innRepairOilsReceived);
+      expect(oilsReceived).toBe(true);
+    });
+
+    test('oils received in Phase6 can be used to complete the repair in Phase7', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, {
+        state: { storyPhase: 7 },
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await expect(page.locator('#btnTalk')).toHaveText('修理を手伝う');
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      const completed = await page.evaluate(() => RPG.State.flags.innRepairCompleted);
+      expect(completed).toBe(true);
+    });
+
+    test('【修理を手伝う】 can be started for the first time in Phase7', async ({ page }) => {
+      await setRepairBackHalfBaseline(page, { state: { storyPhase: 7 } });
+      await expect(page.locator('#btnTalk')).toHaveText('修理を手伝う');
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      const helpStarted = await page.evaluate(() => RPG.State.flags.innRepairHelpStarted);
+      expect(helpStarted).toBe(true);
+    });
+
+    test('a highway-defeat retreat back to the Phase7 inn front can still resume from an in-progress state', async ({ page }) => {
+      // Simulates the state shape after battle.js's resolveHighwayDefeat() sends the
+      // player back to the inn front mid-Phase7, without touching battle.js itself.
+      await setRepairBackHalfBaseline(page, {
+        state: { storyPhase: 7, isAtInn: false, isInDungeon: false, location: '宿屋前' },
+        flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
+        glossyOil: 1,
+      });
+      await expect(page.locator('#btnTalk')).toHaveText('修理を手伝う');
     });
   });
 });

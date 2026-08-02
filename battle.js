@@ -379,7 +379,75 @@ const battleSystem = {
     // -kill path (endBattle's !playerWin branch), since either can finish an amber_burning_root.
     markAmberRootDefeated: function (distance) {
         if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+        if (RPG.State.amberRootState[distance] === "defeated") return false;
         RPG.State.amberRootState[distance] = "defeated";
+        return true;
+    },
+
+    countDefeatedAmberRoots: function () {
+        return Object.values(RPG.State.amberRootState || {})
+            .filter(state => state === "defeated").length;
+    },
+
+    recoverFromAmberRootVictory: function () {
+        const recoveryAmount = Math.floor(RPG.State.maxHP * 0.3);
+        RPG.State.currentHP = Math.min(
+            RPG.State.maxHP,
+            RPG.State.currentHP + recoveryAmount
+        );
+        uiControl.updateUI();
+    },
+
+    buildAmberRootVictoryAftermathQueue: function () {
+        const defeatedCount = this.countDefeatedAmberRoots();
+        const recoveryLine = (text) => ({
+            text,
+            type: "marker",
+            action: () => this.recoverFromAmberRootVictory()
+        });
+
+        if (defeatedCount === 1) {
+            return [
+                { text: "パチパチと音を立てて、少し甘い匂いのする煙が森に広がっていく。" },
+                { text: "カイン「これで、何か変わるか？」" },
+                { text: "オーエン「…………」", color: "#a020f0" },
+                { text: "オーエンは答えず、くん、と鼻を鳴らした。" },
+                { text: "カイン（…なんだか落ち着く匂いだな）" },
+                recoveryLine("カインのストレスが軽減した！")
+            ];
+        }
+
+        if (defeatedCount === 2) {
+            return [
+                { text: "パチパチと音を立てて、少し甘い匂いのする煙が森に広がっていく。" },
+                { text: "カイン「……これでどうだ？」" },
+                { text: "オーエン「いま強い風が吹いたら、宿屋まで燃え広がるかな？」", color: "#a020f0" },
+                { text: "カイン（大丈夫、だと思いたい）" },
+                { text: "カインは深呼吸した。" },
+                recoveryLine("カインのストレスがさらに軽減した！"),
+                { text: "オーエン「………」", color: "#a020f0" }
+            ];
+        }
+
+        if (defeatedCount === 3) {
+            return [
+                { text: "三本目の琥珀樹の根を焼き払うと、森を満たしていた瘴気が薄れた。" },
+                { text: "カインにも、はっきりと分かった。" },
+                { text: "カイン「空気が変わったな」" },
+                { text: "オーエン「どうせ焼くなら、もっとパーッと焼いちゃえばいいのに」", color: "#a020f0" },
+                { text: "カイン「そんなわけにはいかないだろ」" },
+                { text: "森には落ち着く香りの煙が満ちている。" },
+                recoveryLine("カインのストレスがさらに軽減した！"),
+                { text: "オーエン「…ねえ、さっきからなんなの?」", color: "#a020f0" },
+                { text: "カイン「何が」" },
+                { text: "オーエン「おまえのストレスって何。普段何かあるわけ？」", color: "#a020f0" },
+                { text: "カイン「…まあ、あるな。」" },
+                { text: "カイン（今、目の前に）" },
+                { text: "オーエン「……ふーん」", color: "#a020f0" }
+            ];
+        }
+
+        return [];
     },
 
     buildPreBattleDialogue: function (template) {
@@ -2210,6 +2278,7 @@ const battleSystem = {
         let hasPostBattleEvent = false;
         let postBattleStarted = false;
         let highwayPostBattleQueue = [];
+        let amberRootVictoryAftermathQueue = [];
 
         if (isDeathSave) {
             if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
@@ -2234,7 +2303,9 @@ const battleSystem = {
             uiControl.addLog(`${RPG.State.currentEnemy.name}は跡形もなく消えた。`);
             if (enemyId === "amber_burning_root") {
                 uiControl.addLog("燃える琥珀樹の根は焼け落ちた。");
-                this.markAmberRootDefeated(RPG.State.currentDistance);
+                if (this.markAmberRootDefeated(RPG.State.currentDistance)) {
+                    amberRootVictoryAftermathQueue = this.buildAmberRootVictoryAftermathQueue();
+                }
             }
             this.grantGuaranteedEnemyDrop();
             vampireAmberTalkQueue = this.buildVampireAmberPostBattleTalkQueue();
@@ -2259,6 +2330,9 @@ const battleSystem = {
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
+            if (amberRootVictoryAftermathQueue.length > 0) {
+                hasPostBattleEvent = true;
+            }
             if (vampireAmberTalkQueue.length > 0 && !hasPostBattleEvent) {
                 hasPostBattleEvent = true;
             }
@@ -2278,6 +2352,7 @@ const battleSystem = {
         if (hasPostBattleEvent) {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
+                ...amberRootVictoryAftermathQueue,
                 ...highwayPostBattleQueue,
                 ...(highwayPostBattleQueue.length === 0 ? vampireAmberTalkQueue : []),
                 ...matamatabiActivationQueue
@@ -2316,9 +2391,12 @@ const battleSystem = {
 
         // Fires for both a Cain finishing blow and a self-burn kill (lastBlowBy stays unset for
         // the latter, so this is intentionally not gated on lastBlowBy).
+        let amberRootVictoryAftermathQueue = [];
         if (enemyId === 'amber_burning_root') {
             uiControl.addLog("燃える琥珀樹の根は焼け落ちた。");
-            this.markAmberRootDefeated(RPG.State.currentDistance);
+            if (this.markAmberRootDefeated(RPG.State.currentDistance)) {
+                amberRootVictoryAftermathQueue = this.buildAmberRootVictoryAftermathQueue();
+            }
         }
 
         if (RPG.State.lastBlowBy === "Owen") {
@@ -2357,6 +2435,7 @@ const battleSystem = {
                     const fatigueEvent = RPG.Assets.EVENT_DATA.find(e => e.id === "post_tree_fatigue");
                     if (fatigueEvent) {
                         fatigueEvent.action(RPG.State);
+                        RPG.State.dialogueQueue.push(...amberRootVictoryAftermathQueue);
                         RPG.State.mode = "event";
                         explorationSystem.playDialogueLoop();
                         hasPostBattleEvent = true;
@@ -2563,6 +2642,19 @@ const battleSystem = {
             RPG.State.dialogueQueue = [
                 ...levelUpTalkQueue,
                 ...vampireAmberTalkQueue,
+                ...amberRootVictoryAftermathQueue,
+                ...matamatabiActivationQueue
+            ];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
+        if (!hasPostBattleEvent && amberRootVictoryAftermathQueue.length > 0) {
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                ...levelUpTalkQueue,
+                ...amberRootVictoryAftermathQueue,
                 ...matamatabiActivationQueue
             ];
             explorationSystem.playDialogueLoop();

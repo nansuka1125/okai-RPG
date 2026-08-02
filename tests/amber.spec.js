@@ -4396,6 +4396,117 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.log).toContain('燃える琥珀樹の根は焼け落ちた。');
     });
 
+    test('root victories use defeated-site count for ordered aftermath dialogue and one capped recovery', async ({ page }) => {
+      async function finishRootVictory(config) {
+        await setupBurningRootBattle(page, {
+          enemyHp: config.route === 'selfBurn' ? 5 : 0,
+          exp: 0,
+          distance: config.distance,
+          currentHP: config.currentHP,
+          maxHP: config.maxHP,
+        });
+        await page.evaluate((c) => {
+          RPG.State.amberRootState = { ...c.rootState };
+          RPG.State.cainLv = 5; // Keep the configured maxHP stable while checking 30% recovery.
+          RPG.State.isPoisoned = true;
+          RPG.State.flags.treeDefeated = false;
+          RPG.State.flags.amberTreeCoinMined = false;
+          RPG.State.postTreeBattles = 'DONE';
+
+          if (c.route === 'Cain') {
+            RPG.State.lastBlowBy = 'Cain';
+            battleSystem.executeStandardVictory('amber_burning_root');
+          } else if (c.route === 'selfBurn') {
+            RPG.Assets.BATTLE_AI.amber_burning_root.onSkippedTurn(battleSystem);
+          } else {
+            RPG.State.lastBlowBy = 'Owen';
+            battleSystem.endBattle(false);
+          }
+        }, config);
+        await drainDialogue(page);
+        return page.evaluate(() => ({
+          currentHP: RPG.State.currentHP,
+          maxHP: RPG.State.maxHP,
+          isPoisoned: RPG.State.isPoisoned,
+          rootState: { ...RPG.State.amberRootState },
+          exp: RPG.State.exp,
+          isBattling: RPG.State.isBattling,
+          log: document.getElementById('logContainer')?.textContent || '',
+          entries: [...document.querySelectorAll('#logContainer .log-entry')].map(entry => ({
+            text: entry.textContent,
+            color: entry.style.color,
+            marker: entry.classList.contains('log-marker'),
+          })),
+        }));
+      }
+
+      // 8m -> 6m -> 7m verifies that the dialogue stage follows the number of defeated
+      // sites, not a fixed mapping from distance to ordinal. The three routes also cover Cain,
+      // self-burn, and Owen finishes.
+      const first = await finishRootVictory({
+        route: 'Cain', distance: 8, currentHP: 50, maxHP: 101,
+        rootState: { 6: 'ignited', 7: 'ignited', 8: 'ignited' },
+      });
+      const second = await finishRootVictory({
+        route: 'selfBurn', distance: 6, currentHP: 90, maxHP: 101,
+        rootState: { 6: 'ignited', 7: 'ignited', 8: 'defeated' },
+      });
+      const third = await finishRootVictory({
+        route: 'Owen', distance: 7, currentHP: 40, maxHP: 103,
+        rootState: { 6: 'defeated', 7: 'ignited', 8: 'defeated' },
+      });
+
+      expect(first.currentHP).toBe(80); // 50 + Math.floor(101 * 0.3)
+      expect(second.currentHP).toBe(101); // capped at maxHP
+      expect(third.currentHP).toBe(70); // 40 + Math.floor(103 * 0.3)
+      expect(first.maxHP).toBe(101);
+      expect(second.maxHP).toBe(101);
+      expect(third.maxHP).toBe(103);
+      expect(first.isPoisoned).toBe(true);
+      expect(second.isPoisoned).toBe(true);
+      expect(third.isPoisoned).toBe(true);
+      expect(first.rootState).toEqual({ 6: 'ignited', 7: 'ignited', 8: 'defeated' });
+      expect(second.rootState).toEqual({ 6: 'defeated', 7: 'ignited', 8: 'defeated' });
+      expect(third.rootState).toEqual({ 6: 'defeated', 7: 'defeated', 8: 'defeated' });
+      expect(first.exp).toBe(150);
+      expect(second.exp).toBe(150);
+      expect(third.exp).toBe(0);
+      expect(first.isBattling).toBe(false);
+      expect(second.isBattling).toBe(false);
+      expect(third.isBattling).toBe(false);
+
+      const firstImportantLines = [
+        'カイン「これで、何か変わるか？」',
+        'オーエン「…………」',
+        'カインのストレスが軽減した！',
+      ];
+      const secondImportantLines = [
+        'カイン「……これでどうだ？」',
+        'カインは深呼吸した。',
+        'カインのストレスがさらに軽減した！',
+        'オーエン「………」',
+      ];
+      const thirdImportantLines = [
+        '三本目の琥珀樹の根を焼き払うと、森を満たしていた瘴気が薄れた。',
+        'カイン「空気が変わったな」',
+        'カインのストレスがさらに軽減した！',
+        'オーエン「…ねえ、さっきからなんなの?」',
+        'オーエン「……ふーん」',
+      ];
+      for (const [result, lines] of [[first, firstImportantLines], [second, secondImportantLines], [third, thirdImportantLines]]) {
+        const positions = lines.map(line => result.log.indexOf(line));
+        expect(positions.every(position => position >= 0)).toBe(true);
+        expect(positions).toEqual([...positions].sort((a, b) => a - b));
+        expect(result.log).not.toMatch(/HPが\d+回復した/);
+        expect(result.log.split('燃える琥珀樹の根は焼け落ちた。').length - 1).toBe(1);
+      }
+
+      expect(first.entries.find(entry => entry.text === 'カインのストレスが軽減した！')?.marker).toBe(true);
+      expect(second.entries.find(entry => entry.text === 'カインのストレスがさらに軽減した！')?.marker).toBe(true);
+      expect(third.entries.find(entry => entry.text === 'オーエン「…ねえ、さっきからなんなの?」')?.color)
+        .toBe('rgb(204, 115, 255)');
+    });
+
     test('a defeated root is no longer offered by talk(), while the other two sites are unchanged', async ({ page }) => {
       await setForestRootState(page, {
         distance: 6, amberRootState: { 6: 'defeated', 7: 'examined', 8: 'scarred' },
@@ -4454,7 +4565,7 @@ test.describe('Chapter 1 amber system', () => {
 
     test('rematching does not consume oils, replay ignition flavor, or replay the first/second-ignition lines', async ({ page }) => {
       await setForestRootState(page, {
-        distance: 6, hardOil: 3, shinyOil: 3,
+        distance: 6, hardOil: 3, shinyOil: 3, currentHP: 45, maxHP: 100,
         amberRootState: { 6: 'ignited', 7: 'unexamined', 8: 'unexamined' },
       });
       await callTalk(page);
@@ -4465,12 +4576,14 @@ test.describe('Chapter 1 amber system', () => {
         enemyId: RPG.State.currentEnemy?.id,
         hardOil: RPG.State.inventory.hardOil,
         shinyOil: RPG.State.inventory.shinyOil,
+        currentHP: RPG.State.currentHP,
         log: document.getElementById('logContainer')?.textContent || '',
       }));
       expect(result.isBattling).toBe(true);
       expect(result.enemyId).toBe('amber_burning_root');
       expect(result.hardOil).toBe(3);
       expect(result.shinyOil).toBe(3);
+      expect(result.currentHP).toBe(45);
       expect(result.log).not.toContain('カチカチ油をかけた');
       expect(result.log).not.toContain('地面が揺れた。');
       expect(result.log).not.toContain('動くのか');

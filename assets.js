@@ -1753,6 +1753,21 @@ RPG.Assets.EVENT_DATA = [
             state.flags.amberWeaselFirstKillTalkSeen = true; // Set flag: prevents replay
         }
     },
+    // Rain begins the first time the player reaches forest 7m after hearing the fortune
+    // teller's lead (thiefDiscoveryStatus>=1), while the giant_larva boss is still ahead.
+    {
+        id: "forest_7m_rain_start",
+        condition: (state) => (
+            state.location !== "かつての街道" &&
+            state.currentDistance === 7 &&
+            explorationSystem.isRainActive() &&
+            state.flags.giantLarvaDefeated !== true &&
+            !state.completedEvents.includes("forest_7m_rain_start")
+        ),
+        action: (state) => {
+            uiControl.addLog("雨が降り始めた……", "ambient");
+        }
+    },
     // 9m Scream Event (Thief Boy Rescue - Part 1)
     {
         id: "thief_rescue_9m_scream",
@@ -2231,29 +2246,71 @@ RPG.Assets.EVENT_DATA = [
         }
     },
     {
-        id: "return_trip_8m_rummage",
-        condition: (state) => state.currentDistance === 8 && state.inventory.silverCoin === 3 && !state.flags.silverDelivered && !state.completedEvents.includes("return_trip_8m_rummage"),
+        id: "return_trip_9m_rain",
+        condition: (state) => (
+            state.currentDistance === 9 &&
+            explorationSystem.isPeacefulReturnActive() &&
+            !state.completedEvents.includes("return_trip_9m_rain")
+        ),
         action: (state) => {
-            uiControl.addLog("オーエンは革袋の中を漁っている…");
+            uiControl.addLog("雨は、さっきより強くなっている。");
+            uiControl.addLog("カインは肩口を押さえ、足を引きずるように森を戻った。");
+        }
+    },
+    {
+        id: "return_trip_8m_rummage",
+        condition: (state) => (
+            state.currentDistance === 8 &&
+            explorationSystem.isPeacefulReturnActive() &&
+            !state.completedEvents.includes("return_trip_8m_rummage")
+        ),
+        action: (state) => {
+            uiControl.addLog("オーエンは革袋の中を漁っている……。");
         }
     },
     {
         id: "return_trip_7m_sweets",
-        condition: (state) => state.currentDistance === 7 && state.inventory.silverCoin === 3 && !state.flags.silverDelivered && !state.completedEvents.includes("return_trip_7m_sweets"),
+        condition: (state) => (
+            state.currentDistance === 7 &&
+            explorationSystem.isPeacefulReturnActive() &&
+            !state.completedEvents.includes("return_trip_7m_sweets")
+        ),
         action: (state) => {
             state.dialogueQueue = [
-                { text: "オーエン「お菓子もある。やった。」", delay: 1000, color: "#a020f0" },
-                { text: "カイン「虫の腹の中のお菓子、食うのか？」", delay: 1000 },
-                { text: "オーエン「おまえだって虫の腹の中の草食べてるだろ」", delay: 1000, color: "#a020f0" },
-                { text: "カイン「…たしかに」", delay: 1000 }
+                { text: "雨が木々を叩いている。" },
+                { text: "オーエン「甘いものが入ってる。やった」", color: "#a020f0" },
+                { text: "オーエンは包みを開き、中身を口へ放り込んだ。" },
+                { text: "カイン「虫の腹の中にあったもの、食うのか？」" },
+                { text: "オーエン「おまえだって虫の腹の中の草食べてるだろ」", color: "#a020f0" },
+                { text: "カイン「……たしかに」" }
             ];
         }
     },
     {
         id: "return_trip_5m_walking",
-        condition: (state) => state.currentDistance === 5 && state.inventory.silverCoin === 3 && !state.flags.silverDelivered && !state.completedEvents.includes("return_trip_5m_walking"),
+        condition: (state) => (
+            state.currentDistance === 5 &&
+            explorationSystem.isPeacefulReturnActive() &&
+            !state.completedEvents.includes("return_trip_5m_walking")
+        ),
         action: (state) => {
-            uiControl.addLog("オーエンは、我が物顔で、お菓子を食べながら森を歩いている。その背中をなんども見失いそうになりながらカインはついていった。");
+            state.dialogueQueue = [
+                { text: "オーエン「ねえ、これ何？」", color: "#a020f0" },
+                { text: "カイン「どれだ？」" },
+                { text: "オーエン「これ」", color: "#a020f0" },
+                { text: "オーエンが口を開けた。ぐちゃぐちゃだ。" },
+                { text: "カイン「口の中を見せるな。…わからない。どんな味のものだった？」" },
+                { text: "オーエン「……」", color: "#a020f0" },
+                { text: "オーエンは指先についた欠片を見た。" },
+                { text: "次の瞬間、その指がカインの口に押し込まれた。" },
+                { text: "カイン「……！？」" },
+                { text: "冷たい指の味がした。" },
+                { text: "かすかに、レモンの風味がしたような気もする。" },
+                { text: "カイン「……分からない」" },
+                { text: "オーエン「……ふうん」", color: "#a020f0" },
+                { text: "オーエンはカインの口から指を引き抜くと、その指を舐めた。" },
+                { text: "宿屋までの道が、ひどく長く感じられた。" }
+            ];
         }
     }
 ];

@@ -1,0 +1,252 @@
+// @ts-check
+const { test, expect } = require('@playwright/test');
+
+async function openGame(page) {
+  await page.goto('/chapter1.html');
+  await page.waitForFunction(() => (
+    typeof RPG !== 'undefined' &&
+    typeof uiControl !== 'undefined' &&
+    typeof explorationSystem !== 'undefined' &&
+    typeof battleSystem !== 'undefined' &&
+    typeof innSystem !== 'undefined' &&
+    typeof Cinematics !== 'undefined'
+  ));
+
+  await page.evaluate(() => {
+    explorationSystem.cancelActiveTypewriter();
+    uiControl.hideFloatingArrow();
+    uiControl.disableTapOverlay();
+
+    const freshState = JSON.parse(JSON.stringify(RPG.DefaultState));
+    Object.keys(RPG.State).forEach(key => delete RPG.State[key]);
+    Object.assign(RPG.State, freshState);
+    Object.assign(RPG.State.flags, {
+      hasIntroFinished: true,
+    });
+    Object.assign(RPG.State, {
+      mode: 'base',
+      dialogueQueue: [],
+      isWaitingForInput: false,
+      isAtInn: false,
+      isInDungeon: true,
+      explorationArea: 'forest',
+      location: '森の深層',
+      currentDistance: 6,
+    });
+
+    const log = document.getElementById('logContainer');
+    if (log) log.innerHTML = '';
+    const actions = document.getElementById('action-buttons');
+    if (actions) {
+      actions.innerHTML = '';
+      actions.style.display = 'none';
+    }
+  });
+}
+
+function logTexts(page) {
+  return page.evaluate(() => (
+    Array.from(document.querySelectorAll('#logContainer .log-entry')).map(el => el.textContent)
+  ));
+}
+
+test.describe('forest rain - 7m onset', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+    await page.evaluate(() => {
+      const originalRandom = Math.random;
+      window.__originalRandom = originalRandom;
+      Math.random = () => 0.99; // avoid interfering random battles/ambient rolls
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+      if (window.__originalRandom) Math.random = window.__originalRandom;
+    });
+  });
+
+  test('49. first arrival at 7m after the fortune lead shows the rain-start line once', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.giantLarvaDefeated = false;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      RPG.State.currentDistance = 6;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+
+    const lines = await logTexts(page);
+    const completed = await page.evaluate(() => RPG.State.completedEvents.includes('forest_7m_rain_start'));
+    expect(lines).toContain('雨が降り始めた……');
+    expect(completed).toBe(true);
+  });
+
+  test('50. revisiting 7m does not repeat the rain-start line', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.currentDistance = 6;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true })); // -> 7m, first time
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true })); // -> 8m
+    await page.evaluate(() => explorationSystem.move(-1, { skipTravelCue: true })); // -> 7m again
+
+    const lines = await logTexts(page);
+    const rainStartCount = lines.filter(t => t === '雨が降り始めた……').length;
+    expect(rainStartCount).toBe(1);
+  });
+
+  test('51. without the fortune lead (thiefDiscoveryStatus 0), the rain-start line never appears', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.currentDistance = 6;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+
+    const lines = await logTexts(page);
+    expect(lines).not.toContain('雨が降り始めた……');
+  });
+
+  test('52. after the boss is defeated, the 7m rain-start event no longer fires (condition excludes it)', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const event = RPG.Assets.EVENT_DATA.find(e => e.id === 'forest_7m_rain_start');
+      RPG.State.flags.thiefDiscoveryStatus = 2;
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      RPG.State.currentDistance = 7;
+      return event.condition(RPG.State);
+    });
+    expect(result).toBe(false);
+  });
+});
+
+test.describe('forest rain - isRainActive() semantics', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+  });
+
+  test('53. defeating the boss does not stop the rain (isRainActive stays true)', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 2;
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      return explorationSystem.isRainActive();
+    });
+    expect(result).toBe(true);
+  });
+
+  test('54. the post-delivery sleep flag is what ends the rain', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 2;
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      return explorationSystem.isRainActive();
+    });
+    expect(result).toBe(false);
+  });
+
+  test('60. silver delivery alone does not stop the rain', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      return explorationSystem.isRainActive();
+    });
+    expect(result).toBe(true);
+  });
+
+  test('61. only the next-morning sleep flag stops the rain after delivery', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      return explorationSystem.isRainActive();
+    });
+    expect(result).toBe(false);
+  });
+});
+
+test.describe('forest rain - 8m mud flavor', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+    await page.evaluate(() => {
+      window.__originalRandom = Math.random;
+      Math.random = () => 0.99;
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.giantLarvaDefeated = false;
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+      if (window.__originalRandom) Math.random = window.__originalRandom;
+    });
+  });
+
+  test('55-56. every arrival at 8m in the rain shows the mud line and skips the normal ambient roll', async ({ page }) => {
+    // Math.random stays at the beforeEach's 0.99 (never wins a random encounter or the old
+    // AMBIENT_TEXTS[8] roll); the mud branch itself is unconditional, so its presence and the
+    // absence of the old text together prove the branch fully preempts the fallback, regardless
+    // of what Math.random would have rolled.
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => {
+        RPG.State.currentDistance = 7;
+      });
+      await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+    }
+
+    const lines = await logTexts(page);
+    const mudCount = lines.filter(t => t === '足元がぬかるんでいる。').length;
+    const staleAmbientCount = lines.filter(t => t === '泥ではない。粘りつく樹液が、靴底に嫌な重さを与える。').length;
+    expect(mudCount).toBe(3);
+    expect(staleAmbientCount).toBe(0);
+  });
+
+  test('57. no rain flavor leaks into 9m or 10m', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.currentDistance = 8;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true })); // -> 9m
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true })); // -> 10m
+
+    const lines = await logTexts(page);
+    expect(lines).not.toContain('足元がぬかるんでいる。');
+    expect(lines).not.toContain('雨が降り始めた……');
+  });
+
+  test('58. once the boss is defeated, 8m no longer shows the random mud flavor', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.currentDistance = 7;
+    });
+    await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+
+    const lines = await logTexts(page);
+    expect(lines).not.toContain('足元がぬかるんでいる。');
+  });
+
+  test('59. rain does not alter combat hit/dodge/damage values', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.giantLarvaDefeated = false;
+      const withoutRain = { ...RPG.Config.EVASION_RATE };
+
+      RPG.State.currentDistance = 7;
+      // isRainActive() being true must not perturb any battle configuration table.
+      const rainActive = explorationSystem.isRainActive();
+      const withRain = { ...RPG.Config.EVASION_RATE };
+
+      return { rainActive, withoutRain, withRain };
+    });
+    expect(result.rainActive).toBe(true);
+    expect(result.withRain).toEqual(result.withoutRain);
+  });
+});

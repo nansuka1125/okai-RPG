@@ -231,6 +231,27 @@ const explorationSystem = {
         );
     },
 
+    // 雨そのものの継続を表す。占い師から少年の居場所を聞いた直後(thiefDiscoveryStatus>=1)に始まり、
+    // 銀貨納品後の一泊(phase6PostDeliverySleepDone)が明けるまで続く。大幼蟲を倒しても雨は止まらない
+    // ため、このヘルパーは giantLarvaDefeated を一切参照しない。ボス撃破前限定のフレーバーは
+    // 呼び出し側で `isRainActive() && flags.giantLarvaDefeated !== true` のように条件を重ねる。
+    isRainActive: function () {
+        return (
+            (RPG.State.flags.thiefDiscoveryStatus || 0) >= 1 &&
+            RPG.State.flags.phase6PostDeliverySleepDone !== true
+        );
+    },
+
+    // 大幼蟲を倒し、銀貨3枚を持って宿屋へ向かっている最中（納品前）。
+    // ランダムエンカウント抑制・毒ティック停止・帰路イベント条件を一箇所で定義する。
+    isPeacefulReturnActive: function () {
+        return (
+            RPG.State.flags.giantLarvaDefeated === true &&
+            RPG.State.inventory.silverCoin === 3 &&
+            RPG.State.flags.silverDelivered !== true
+        );
+    },
+
     tryHerbGardenEncounter: function (distance, options = {}) {
         if (this.isRandomEncounterSuppressed(options)) return false;
         if (distance === 3 || distance <= 0) return false;
@@ -1177,7 +1198,7 @@ const explorationSystem = {
                 }
             }
 
-            if (RPG.State.isPoisoned) {
+            if (RPG.State.isPoisoned && !this.isPeacefulReturnActive()) {
                 if (battleSystem.applyPoisonTick()) {
                     this.finishTemporaryFieldStep(temporaryEffects);
                     battleSystem.resolveDefeat();
@@ -1380,9 +1401,9 @@ const explorationSystem = {
         }
 
         // エンカウント判定
-        // Build 15.2.3: Peaceful Return Mode only applies to the successful 3-coin return trip
-        // Amber Tree rematch route should still allow normal encounters at 1m-9m
-        const isPeacefulMode = (RPG.State.inventory.silverCoin === 3 && !RPG.State.flags.silverDelivered);
+        // Build 15.2.3: Peaceful Return Mode only applies to the successful post-giant_larva
+        // return trip (silver coin count alone is not a safe gate - see isPeacefulReturnActive()).
+        const isPeacefulMode = this.isPeacefulReturnActive();
 
         // Build 14.2.2: No random encounters on Former Highway (fixed encounters only)
         const isHighway = (RPG.State.location === "かつての街道");
@@ -1440,6 +1461,12 @@ const explorationSystem = {
             }
             this.finishTemporaryFieldStep(temporaryEffects);
             return;
+        } else if (
+            dist === 8 &&
+            this.isRainActive() &&
+            RPG.State.flags.giantLarvaDefeated !== true
+        ) {
+            uiControl.addLog("足元がぬかるんでいる。", "ambient");
         } else if (RPG.Assets.AMBIENT_TEXTS[dist] && Math.random() < 0.4) {
             setTimeout(() => {
                 uiControl.addLog(RPG.Assets.AMBIENT_TEXTS[dist], "ambient");

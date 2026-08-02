@@ -13,6 +13,20 @@
     --owen-purple: #cc73ff;
     --modal-overlay: rgba(0, 0, 0, 0.9);
     --safe-area-bottom: env(safe-area-inset-bottom);
+
+    /* --- Rain visual prototype: the only knobs worth tuning --- */
+    /* Visibility of the rain sheet. The source PNG is itself very faint (peak alpha
+       95/255, most strokes near 30/255), so this sits high on purpose: the drops end
+       up around 10% effective coverage, not 85%. */
+    --rain-opacity: 0.85;
+    /* One full loop of the falling animation. Larger = slower/gentler rain. */
+    --rain-duration: 1.5s;
+    /* On-screen height of one repeat of the source image. Larger = bigger, heavier
+       looking drops. Also the exact distance the sheet travels per loop. */
+    --rain-tile: 900px;
+    /* Sits on the same layer as #sceneBackdrop (z-index 0) but later in DOM, so it
+       paints above the backdrop and stays below #sceneReadingVeil (z-index 1). */
+    --rain-z-index: 0;
 }
 
 * {
@@ -458,6 +472,60 @@ header {
     transform: scale(1.02);
     transition: opacity 0.72s ease, filter 0.9s ease;
     will-change: opacity, filter;
+}
+
+/* Rain sheet. Layered between the scene backdrop and the reading veil so the right
+   side of the art shows rain clearly while the left reads through the existing black
+   gradient. The element is never removed or re-created and the animation never pauses,
+   so entering or leaving battle only cross-fades opacity - the fall never restarts. */
+#rainOverlay {
+    position: absolute;
+    inset: 0;
+    z-index: var(--rain-z-index);
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.72s ease;
+}
+
+#rainOverlay::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* One extra tile of height below the viewport, so the sheet still covers the
+       whole area at the end of the travel and the loop can reset invisibly. */
+    height: calc(100% + var(--rain-tile));
+    background-image: url("images/rain-overlay.png");
+    background-repeat: repeat;
+    /* Fixed tile height keeps the drops the same weight on every screen size, and
+       auto width preserves the source aspect ratio while repeating sideways. */
+    background-size: auto var(--rain-tile);
+    animation: rain-fall var(--rain-duration) linear infinite;
+    will-change: transform;
+}
+
+/* Travels exactly one tile, so the frame it lands on is identical to the first
+   one and the seam is not visible. */
+@keyframes rain-fall {
+    from {
+        transform: translateY(calc(var(--rain-tile) * -1));
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+body.rain-active #rainOverlay {
+    opacity: var(--rain-opacity);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #rainOverlay::before {
+        animation: none;
+    }
 }
 
 #sceneReadingVeil {

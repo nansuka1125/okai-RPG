@@ -81,6 +81,37 @@ const visualDirector = {
         return null;
     },
 
+    // Where the rain is actually drawn, as opposed to explorationSystem.isRainActive(),
+    // which only says whether the rain period is running at all. Before the giant larva
+    // is beaten the storm is only visible in the deep forest (7m+), which is where its
+    // "雨が降り始めた……" line fires; once the boss is down it is visible across the whole
+    // forest and at the inn's front yard. Inn interiors never show it.
+    //
+    // Deliberately not gated on isBattling: a fight keeps the location state it started
+    // from, so the same place test answers for both exploration and battle and the rain
+    // carries straight through an encounter instead of blinking out at the transition.
+    shouldShowRainVisual: function () {
+        if (typeof explorationSystem === "undefined") return false;
+        if (explorationSystem.isRainActive() !== true) return false;
+
+        if (RPG.State.isAtInn === true) return false;
+
+        const inForest = this.isAmberForestScene();
+        const atInnFront = (
+            RPG.State.location === "宿屋前" &&
+            RPG.State.isInDungeon !== true
+        );
+
+        if (RPG.State.flags.giantLarvaDefeated !== true) {
+            // silverDelivered is deliberately not consulted here; the rain period only
+            // ends through isRainActive()'s phase6PostDeliverySleepDone check.
+            const distance = Number(RPG.State.currentDistance) || 0;
+            return inForest && distance >= 7;
+        }
+
+        return inForest || atInnFront;
+    },
+
     isNightTime: function () {
         const threshold = RPG.Config.NIGHT_STEP_THRESHOLD || 20;
         return (Number(RPG.State.travelStepsSinceStay) || 0) >= threshold;
@@ -148,6 +179,10 @@ const visualDirector = {
             body.classList.toggle(`scene-${sceneName}`, activeScene === sceneName);
         });
         body.classList.toggle("scene-battle", showBattle);
+
+        // Rain is presentation-only: derived fresh from the existing isRainActive()
+        // window plus the current location, never stored.
+        body.classList.toggle("rain-active", this.shouldShowRainVisual());
 
         if (exploreUI) {
             exploreUI.classList.toggle(

@@ -21,24 +21,23 @@ The merchant side thread is no longer part of Chapter 1. The wagon driver remain
 
 All rare-amber effects are implemented. Chapter 1 does not use a separate amber-case acquisition system.
 
-The current active development slice is the Forest Hut, Fireproof Gloves, defense, and partial-damage parry work. Finish, verify, and commit that slice before beginning the next scope item.
+The current active development slice is the amber-root aftermath: distinct first/second/third-root victory dialogue and the confirmed stress-relief HP recovery. Root discovery, ignition, and all three root battles are already implemented.
 
 ## Required Work Before Release
 
-### 1. Finish the Amber Inn repair
+### 1. Amber Inn repair — complete
 
-- Remove the old Shiny Oil and Hardening Oil grant from timber delivery.
-- Design the repair-start condition before implementation.
-- Rain is unresolved. Compare a dedicated rain event, rain confined to an inn stay, and no-rain alternatives. Do not assume that repair starts after rain.
-- During the repair, the daughter gives Shiny Oil, Glossy Oil, and Hardening Oil because she cannot distinguish the similar names.
-- Consume only Glossy Oil during the repair.
-- Leave Shiny Oil and Hardening Oil in Cain's inventory as unused errand items, not as a completion reward.
-- Resolve the missing nails inside the repair conversation through Owen's knowledge of the storage room.
-- Add the repaired-wall presentation, inn dialogue differences, and departure send-off return.
-- Do not add an item reward for finishing the repair.
+- Timber delivery consumes one Amber-Tree Timber and grants no oils.
+- Once timber is delivered and `phase6PostDeliverySleepDone` is true, the inn front shows `【修理を手伝う】`.
+- The daughter's three choices each grant one Shiny Oil, one Glossy Oil, and one Hard Oil.
+- Repair completion consumes only Glossy Oil; Shiny Oil and Hard Oil remain in inventory.
+- The nails are resolved inside the repair dialogue and are never added as an inventory item.
+- Completion sets `innRepairCompleted`; the command then disappears. The thread is resumable in Phase 6, Phase 7, and after a highway-defeat return to the inn front.
+- The repaired-wall investigation, post-repair inn dialogue differences, and departure send-off differences will not be added.
 
 ### 2. Connect Key-Inside Amber to the Forest Hut
 
+- Amber-root discovery, Shiny Oil scarring, Hard Oil ignition, fixed burning-root battles, defeat/rematch handling, and independent 6m/7m/8m site persistence are complete.
 - Decide the Key-Inside Amber exchange price and unlock timing against the actual Chapter 1 amber supply.
 - Add ordinary inn chatter establishing that amber can burn.
 - When igniting a root while Key-Inside Amber is held, offer `鍵入り琥珀を燃やす` and grant the Old Key.
@@ -48,8 +47,7 @@ The current active development slice is the Forest Hut, Fireproof Gloves, defens
 
 ### 3. Complete the amber-root aftermath and forest pacification
 
-- Add distinct post-victory dialogue for the first, second, and third burning roots.
-- Add the confirmed stress-relief HP recovery.
+- Next implementation target: add distinct post-victory dialogue for the first, second, and third burning roots together with the confirmed stress-relief HP recovery.
 - Add investigation of the three burned root sites and three Unknown Amber rewards, including one rare amber.
 - Add the forest-2m conversation after all three roots are defeated.
 - Add the normal-room-only peaceful-night event, with the giant-larva aftermath night taking priority.
@@ -142,16 +140,15 @@ Remove partial code or stale documentation for these only during an approved cle
 
 ## Required Implementation Order
 
-1. Finish and commit the current Forest Hut / Fireproof Gloves slice.
-2. Design and implement the Amber Inn repair continuation, including the unresolved rain decision.
-3. Connect Key-Inside Amber, root fire, the Old Key, and Forest Hut unlocking.
-4. Complete root aftermath, burned-site mining, and the peaceful-night event.
-5. Complete finite encounters, remaining ALL progression, and the daughter picnic.
-6. Remove Mikawashi Feather and the night medicine and replace the Weasel-20 reward.
-7. Complete Cain's sword techniques and battle balance.
-8. Complete departure, highway retry, final boss, and the Chapter 1 ending.
-9. Implement the Herb Garden back route last.
-10. Perform release cleanup and full-route verification.
+1. Complete the root aftermath's distinct first/second/third-root victory dialogue and stress-relief HP recovery.
+2. Complete burned-site mining, the forest-2m conversation, and the peaceful-night event.
+3. Complete finite encounters, remaining ALL progression, and the daughter picnic.
+4. Connect Key-Inside Amber, the Old Key, and Forest Hut unlocking.
+5. Remove Mikawashi Feather and the night medicine and replace the Weasel-20 reward.
+6. Complete Cain's sword techniques and battle balance.
+7. Complete departure, highway retry, final boss, and the Chapter 1 ending.
+8. Implement the Herb Garden back route last.
+9. Perform release cleanup and full-route verification.
 
 ## Implementation Rules
 

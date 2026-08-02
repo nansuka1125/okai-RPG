@@ -1758,8 +1758,8 @@ RPG.Assets.EVENT_DATA = [
     },
     // Amber Sap Source Awareness Event: fires manually from battleSystem.executeStandardVictory()
     // after a sap kill once treeDefeated, amberTreeCoinMined, and the cumulative sap kill count
-    // (defeatCounts.sap.cain + defeatCounts.sap.owen) are all satisfied. Start condition for the
-    // future amber root thread.
+    // (defeatCounts.sap.cain + defeatCounts.sap.owen) are all satisfied. Unlocks the
+    // amber root thread at forest 6m, 7m, and 8m.
     {
         id: "sap_source_awareness",
         condition: () => false, // Manually triggered
@@ -1776,7 +1776,7 @@ RPG.Assets.EVENT_DATA = [
                 { text: "オーエン「…さあね。自分で調べたら？」", delay: 1200, color: "#a020f0" },
                 { text: "カイン（…他に発生源があるのか？もう少し調べてみよう）", delay: 1000 }
             ];
-            state.flags.sapSourceAwarenessSeen = true; // Set flag: prevents replay and gates the future amber root thread
+            state.flags.sapSourceAwarenessSeen = true; // Set flag: prevents replay and unlocks the amber root thread
         }
     },
     // Amber Rat Equipped Talk: fires manually from battleSystem.executeStandardVictory() after an

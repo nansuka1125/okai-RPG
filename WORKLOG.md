@@ -14,7 +14,7 @@ Status: confirmed development recovery baseline
 - The complete automated Playwright suite passed: `224 passed`, with no failures or skips.
 - Integrated manual gameplay verification of this combined state has not yet been completed; it is the next human gate.
 - All runtime and test JavaScript passed `node --check`; `git diff --check` passed.
-- This section is the canonical implementation-state record for the Git codebase. The sections below retain detailed implementation and manual-verification notes, but must not be read as overriding this baseline.
+- This section records the historical recovery baseline. The synchronized implementation-status entries below describe the current branch.
 
 ### Currently implemented
 
@@ -23,7 +23,9 @@ Status: confirmed development recovery baseline
 - Rat and weasel ALL progression, including unlock conversations, independent post-unlock progress, claimable rewards, and final-normal-random-enemy suppression after completion.
 - Vampire Amber equipment, combat drain and Cain-only damage multiplier, battle-chain handling, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence.
 - The Vampire Amber / matatabi conflict: mutual use/equip blocking and the repeatable post-battle accident route.
-- Inn-repair progression through both inn-rat battles, the innkeeper consultation, the three damage inspections, the report, forest-8m amber-tree timber retrieval, timber delivery, and receipt of Shiny Oil and Hardening Oil.
+- The complete inn-repair thread: the two inn-rat battles, consultation, three inspections, report, forest-8m amber-tree timber retrieval, timber delivery without oils, post-rain repair start, the daughter's three-oil event, repair completion, and save/load persistence.
+- The amber-root thread through all three root battles: sap-source awareness, independent 6m/7m/8m root states, Shiny Oil scars, shared non-consuming Hard Oil ignition, fixed burning-root battles, rematches after defeat, and per-site defeat persistence.
+- At `ae75f53`, the focused inn-repair suite (100 tests), focused amber suite (187 tests), and full Playwright suite (504 tests) passed before this documentation/comment synchronization.
 - Level-11 opening of the Hard Bottle through its opening flourish.
 - Owen intervention text currently in code: four freeze lines, the two-line freeze activation, the frozen-turn line, wolf attack/swallow wording, the consolidated disappearance line, and the intimidation wording.
 - The existing Chapter 1 backgrounds, amber trade/appraisal and hardened-enemy systems, journal/suspend saves, forest presentation layer, inn conversation availability rules, phase-7 legacy handoff, and current Former Highway route described below.
@@ -38,7 +40,9 @@ Status: confirmed development recovery baseline
 - A normal defeat before battle 6 resets the Vampire Amber chain without removing the amber. Completing battle 6 removes it. Entering the inn, manually detaching it, or swapping it out also resets the chain.
 - If matatabi would activate at a battle ending while Vampire Amber is equipped, the accident takes priority. The accident removes the amber, bypasses normal EXP, rewards, drops, kill/death counts, and matatabi activation, then returns Cain to the inn at 10% HP with poison cleared.
 - New-game startup through `?new=1` does not delete existing records. Existing saves continue through the default-state merge path, which supplies defaults for fields missing from older saves.
-- Inn-repair damage inspection requires the innkeeper consultation, receipt of the rat-20 reward, and mining the amber-tree coin. Timber delivery consumes one Amber-Tree Timber and grants one Shiny Oil plus one Hardening Oil.
+- Inn-repair damage inspection requires the innkeeper consultation, receipt of the rat-20 reward, and mining the amber-tree coin. Timber delivery consumes one Amber-Tree Timber and grants no oils. Once `phase6PostDeliverySleepDone` is true, the inn-front repair command starts the daughter's event; every choice grants one each of Shiny Oil, Glossy Oil, and Hard Oil. Completion consumes only Glossy Oil, leaves the other two oils, uses nails as dialogue only, and sets `innRepairCompleted`.
+- The inn-repair thread can be resumed safely from Phase 6, Phase 7, and a highway-defeat return to the inn front. Interrupted oil and completion events do not commit partial item or flag changes. The repaired-wall investigation, post-repair inn dialogue, and departure send-off differences will not be added.
+- Amber roots at forest 6m, 7m, and 8m each persist `unexamined -> examined -> scarred -> ignited -> defeated`. A normal knife and ordinary fire fail; Shiny Oil scars one site and Hard Oil ignites any site without being consumed. Burning roots are fixed bosses (HP 200, ATK 22, EXP 150, self-burn 10), can be rematched after defeat, and are excluded from the notebook and normal/Unknown Amber drops.
 
 ### Test-only and provisional implementation
 
@@ -51,7 +55,6 @@ Status: confirmed development recovery baseline
 ### Partially implemented
 
 - The Hard Bottle can be opened at level 11, but it is retained and has no implemented contents.
-- The inn-repair thread reaches timber delivery and receipt of both oils, but the oils have no implemented use and the repair is not completed.
 - Rare-amber equipment UI is implemented. Vampire Amber has a combat effect; the other rare-amber effects described in item data are not implemented.
 - The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
 
@@ -59,7 +62,7 @@ Status: confirmed development recovery baseline
 
 - ALL conditions, independent progress, unlock conversations, and claims for amber sap, amberized rat, and amberized weasel; their tiers remain disabled.
 - The Hard Bottle's contents and any post-opening result.
-- Uses for Shiny Oil and Hardening Oil, repair nails, the actual inn repair completion, and any repair-sign follow-up.
+- Distinct post-victory dialogue for the first, second, and third burning roots; stress-relief HP recovery; burned-root-site investigation and rewards; and the remaining three-root aftermath.
 - Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Blue, Bee, and Ignored Amber.
 - Acquisition events for Bee Amber and Ignored Amber.
 - The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
@@ -69,14 +72,14 @@ Status: confirmed development recovery baseline
 
 - Hard Bottle contents.
 - Remaining ALL conditions and rewards beyond the definitions currently disabled in code.
-- Inn-repair continuation after both oils are received.
+- The amber-root aftermath after all three sites are defeated: the forest-2m conversation, normal-room peaceful night, finite encounters and ALL progression, Key-Inside Amber/Old Key/Forest Hut connection, and the forest-completion picnic.
 - Final values for the provisional amberized-enemy replacement rate and hardened-part durability.
 - The morning wagon-departure scene pending its latest text, exact interaction flow, and handoff decision.
 - Final-boss defeat handling pending the Director-provided defeat scene and retry/return destination.
 
 ### Do not do at this baseline
 
-- Do not infer or implement unresolved story, reward, bottle-content, repair, or remaining-ALL specifications.
+- Do not infer or implement unresolved story, reward, bottle-content, amber-root aftermath, or remaining-ALL specifications.
 - Do not remove the legacy `finale_wagon_encounter` before the new morning departure route is implemented and tested.
 - Do not alter `transitionToHighway()` or the Former Highway event block unless the approved departure handoff requires it.
 - Do not implement the final-boss follow-up before the Director supplies the defeat scene.
@@ -85,7 +88,6 @@ Status: confirmed development recovery baseline
 
 ### Deferred cleanup candidates
 
-- Update the stale `inn.js` comment that still calls the inn-repair thread not yet implemented.
 - Narrow the broad amber test name that says rare amber has no gameplay effect even though the test covers Hated Amber and Vampire Amber now has an effect.
 - Review the `state.js` `Chapter 1 Complete` label against the still-pending morning departure cutover and final-boss defeat route.
 - Keep these as later cleanup candidates; do not change the code, test name, or build label as part of this documentation-only baseline update.
@@ -99,7 +101,8 @@ Status: confirmed development recovery baseline
   - The rat-10 debug reward grants Vampire Amber while `DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10=true`.
   - Vampire Amber's combat effect, conversations, sixth-battle forced removal, and save/load persistence work through normal play.
   - Vampire Amber and matatabi mutually block each other, and the conflict accident returns Cain to the inn in the documented state.
-  - The inn-repair thread reaches timber delivery and grants both Shiny Oil and Hardening Oil once.
+- The inn-repair thread completes after the post-rain start, daughter's three-oil event, and Glossy Oil repair step; confirm the command disappears after `innRepairCompleted`.
+- Amber-root verification reaches the 6m/7m/8m fixed battles, defeat/rematch behavior, and independent per-site `defeated` persistence. The next implementation target is distinct first/second/third-root victory dialogue plus stress-relief HP recovery.
   - Owen's freeze, transparent-wolf, and intimidation battle text appears as intended.
 - Record any visible or progression mismatch before selecting the next development slice.
 - Morning wagon-departure decisions and selection of the next development slice remain post-verification candidates only.

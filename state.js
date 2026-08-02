@@ -58,8 +58,8 @@ RPG.State = {
     storyPhase: 0,         // Build 14.2.0: Story progression tracking (0-9+)
     highwayBattleCount: {}, // Build 14.2.2: Track fixed encounters on highway
     // 《琥珀樹の根》 discovery progress at each forest distance, independent per site.
-    // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used).
-    // Structured so later states (e.g. burning/defeated) can be added without a migration.
+    // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used)
+    // -> "ignited" (hardOil used) -> "defeated" (the site's burning-root battle is won).
     amberRootState: { 6: "unexamined", 7: "unexamined", 8: "unexamined" },
     // Single forest hut at 10m. "locked" (no in-game unlock path exists yet - a future old-key
     // task will drive locked -> unlocked) -> "unlocked" -> "eventPlayed" (one-time snake scene

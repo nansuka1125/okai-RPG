@@ -1568,6 +1568,21 @@ RPG.Assets.GAME_TEXT = {
             "オーエン「……なんで僕の顔を見るの」",
             "カイン（バレたか。こいつの反応を見れば分かると思ったんだけどな）"
         ],
+        // One-time night talk on the first ordinary room stay after forest2mRootsPacified has
+        // been seen. Replaces the usual single "カインはぐっすり眠った…" line for that one stay;
+        // see innSystem.playPhase7SimpleStay.
+        forestPacifiedNight: [
+            "カインは窓越しに、夜の空気を吸った。",
+            "カイン「だいぶ森の雰囲気がよくなった。前はザワザワして、落ち着かなかったもんな」",
+            "オーエン「そう？僕は前の方がよかった。静かすぎる」",
+            "カイン（…よく考えなくても、こいつがいるんだからそこまでくつろげない）",
+            "カイン「…オーエンは、早く寝るタイプか？遅く寝るタイプか？俺は何時に寝ても朝は早く起きてた」",
+            "オーエン「おまえのことなんて聞いてないよ。…早いとか遅いとかなんの基準なの。どうでもいい」",
+            "オーエンは毛皮を敷いて、その上に丸まった。",
+            "オーエン「眠たくなったら、寝る。わかった？」",
+            "カイン「…わかった」",
+            "カイン（なんか説得されてしまった）"
+        ],
         forestHutLocked: [
             "古い小屋がある。",
             "扉には鍵がかかっている。"

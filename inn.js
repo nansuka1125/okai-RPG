@@ -45,15 +45,88 @@ innSystem = {
         );
     },
 
-    playPhase7SimpleStay: function () {
+    // Once the post-delivery night is behind him, Cain always has a proper room. The
+    // storage/stable/daughter lottery belongs to the pre-delivery stretch only - its lead-in
+    // ("銀貨を払ってくれるまでは物置くらいしか空いてないぞ") is plainly wrong once the coins are paid.
+    shouldUseFixedRoomStay: function () {
+        return (
+            RPG.State.flags.silverDelivered === true &&
+            RPG.State.flags.phase6PostDeliverySleepDone === true
+        );
+    },
+
+    shouldPlayForestPacifiedNight: function () {
+        const flags = RPG.State.flags;
+        return (
+            flags.silverDelivered === true &&
+            flags.phase6PostDeliverySleepDone === true &&
+            flags.forest2mPacifiedTalkSeen === true &&
+            flags.forestPacifiedNightSeen !== true
+        );
+    },
+
+    // The ordinary fixed-room stay. Despite the name it now serves every post-delivery stay,
+    // not just Phase 7 - the name is kept because a test stubs it by name and renaming buys
+    // nothing. Called with no arguments it behaves exactly as it always has.
+    playPhase7SimpleStay: function (options = {}) {
         const state = RPG.State;
         const recoveryAmount = Math.max(0, state.maxHP - state.currentHP);
+
+        // The one-time pacification night replaces the usual single "slept well" line rather
+        // than stacking on top of it, so the rest of the stay is shared untouched below.
+        const playPacifiedNight = this.shouldPlayForestPacifiedNight();
+        const openingLines = playPacifiedNight
+            ? (RPG.Assets.GAME_TEXT.events.forestPacifiedNight || []).map(line => (
+                line.startsWith("オーエン「")
+                    ? { text: line, color: "#a020f0" }
+                    : { text: line }
+            ))
+            : [{ text: "カインはぐっすり眠った…" }];
+
+        // storyPhase 4-6 only, so the Phase 7 caller keeps getting null here and is unaffected.
+        const trainingId = this.getAutomaticMorningTrainingId();
+
+        const morningQueue = trainingId
+            ? [
+                {
+                    text: null,
+                    delay: 1000,
+                    action: () => {
+                        const logContainer = document.getElementById("logContainer");
+                        if (logContainer) logContainer.classList.remove("night-mode");
+                        this.moveToInnFrontForMorning();
+                        uiControl.updateUI();
+                    }
+                },
+                ...this.buildMorningTrainingQueue(trainingId, recoveryAmount)
+            ]
+            : [
+                {
+                    text: null,
+                    action: () => {
+                        const logContainer = document.getElementById("logContainer");
+                        if (logContainer) logContainer.classList.remove("night-mode");
+                        if (this.canScheduleMorningTraining3()) {
+                            RPG.State.flags.morningTraining3Pending = true;
+                        }
+                    }
+                },
+                { text: "朝になった！" },
+                {
+                    text: "カイン（さあ、出発だ）",
+                    action: () => {
+                        if (recoveryAmount > 0) {
+                            uiControl.addLog(`HPが ${recoveryAmount} 回復した。`, "", "#9acd32");
+                        }
+                    }
+                }
+            ];
 
         this.showInnScene("room");
         state.mode = "event";
         state.canStay = false;
         state.dialogueQueue = [
-            { text: "カインはぐっすり眠った…" },
+            ...openingLines,
             {
                 text: null,
                 action: () => {
@@ -71,25 +144,16 @@ innSystem = {
                     state.poisonDamageRemaining = 0;
                     state.flags.matamatabiActive = false;
                     state.matamatabiStepsRemaining = 0;
+                    // Committed together with the heal, so an interruption before the blackout
+                    // leaves the night unseen and simply replays it on the next stay.
+                    if (playPacifiedNight) {
+                        state.flags.forestPacifiedNightSeen = true;
+                    }
                     uiControl.updateUI();
                 }
             },
-            {
-                text: null,
-                action: () => {
-                    const logContainer = document.getElementById("logContainer");
-                    if (logContainer) logContainer.classList.remove("night-mode");
-                }
-            },
-            { text: "朝になった！" },
-            {
-                text: "カイン（さあ、出発だ）",
-                action: () => {
-                    if (recoveryAmount > 0) {
-                        uiControl.addLog(`HPが ${recoveryAmount} 回復した。`, "", "#9acd32");
-                    }
-                }
-            }
+            ...morningQueue,
+            ...(options.appendNotebookIntro === true ? this.buildNotebookIntroQueue() : [])
         ];
 
         explorationSystem.playDialogueLoop();
@@ -2062,6 +2126,14 @@ innSystem = {
             }
 
             explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        // Ordinary stays split here: a paid-up room from the post-delivery night onward, the
+        // storage/stable/daughter lottery before that. Deliberately placed below the full-HP
+        // and canStay gates so the rules on whether a stay is allowed at all stay unchanged.
+        if (this.shouldUseFixedRoomStay()) {
+            this.playPhase7SimpleStay({ appendNotebookIntro: shouldPlayNotebookIntro });
             return;
         }
 

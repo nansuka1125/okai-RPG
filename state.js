@@ -294,6 +294,7 @@ RPG.State = {
         matamatabiNightPending: false, // Build 15.2.85: Schedule the first pre-delivery inn night after the branch activates
         matamatabiNightSeen: false, // Build 15.2.85: Prevent the matatabi special night from replaying
         phase6PostDeliverySleepDone: false, // Build 15.2.72: One-time sleep scene after silver delivery before wagon info unlocks
+        forestPacifiedNightSeen: false, // One-time night talk on the first ordinary stay after the forest-2m pacification talk
         phase6WagonMapTalkDone: false, // Build 15.2.70: First phase 6 inn talk about choosing a route
         wagonInfoHeard: false, // Build 15.2.70: Unlock the stalled wagon encounter in the forest
         phase6RoomTalkDone: false, // Build 15.2.70: One-time room follow-up after silver delivery

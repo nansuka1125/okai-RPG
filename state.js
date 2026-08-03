@@ -236,6 +236,7 @@ RPG.State = {
         borrowedMiningKnifeReceived: false,
         amberTreeCoinMined: false,
         sapSourceAwarenessSeen: false, // One-time post-battle talk realizing the amber sap has another source; also the start condition for the amber root thread
+        forest2mPacifiedTalkSeen: false, // One-time forest-2m talk once all three amber roots are down
         amberRatEquippedTalkSeen: false, // One-time post-battle talk after an amber_rat win while a rare amber is equipped
         amberRatThreeKillTalkSeen: false, // One-time post-battle talk once cumulative amber_rat kills reach 3
         amberWeaselFirstKillTalkSeen: false, // One-time post-battle talk after the first cumulative amber_weasel kill

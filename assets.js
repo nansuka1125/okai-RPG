@@ -1561,6 +1561,13 @@ RPG.Assets.GAME_TEXT = {
             "オーエン「他の琥珀は燃やさなくていいの？パーっとやっちゃう？」",
             "カイン「やっちゃわない」"
         ],
+        // One-time forest-2m talk, auto-played on arrival once all three amber roots are
+        // defeated. See EVENT_DATA's forest_2m_roots_pacified for the trigger.
+        forest2mRootsPacified: [
+            "カイン「……明らかに魔物の気配が減ってる。もう厄介なのは残ってないか？」",
+            "オーエン「……なんで僕の顔を見るの」",
+            "カイン（バレたか。こいつの反応を見れば分かると思ったんだけどな）"
+        ],
         forestHutLocked: [
             "古い小屋がある。",
             "扉には鍵がかかっている。"
@@ -1996,6 +2003,38 @@ RPG.Assets.EVENT_DATA = [
 
             // Start the tap-to-advance dialogue sequence
             uiControl.startDialogueSequence(dialogue);
+        }
+    },
+    // Placed immediately before finale_wagon_encounter: both can be due on the same 2m arrival
+    // in Phase 7. The wagon prompt is repeatable and deliberately never recorded, so replaying
+    // it later is harmless, while this talk is one-shot and would be lost for good once Cain
+    // boards. So this runs first and hands straight over to the wagon prompt below.
+    // repeatable keeps checkEvents() out of completedEvents; the one-shot is owned by
+    // flags.forest2mPacifiedTalkSeen, set only after the last line is read, so an interrupted
+    // scene simply replays on the next visit instead of vanishing.
+    {
+        id: "forest_2m_roots_pacified",
+        repeatable: true,
+        condition: (state) => (
+            state.isInDungeon === true &&
+            state.location !== "かつての街道" &&
+            state.currentDistance === 2 &&
+            state.flags.onWagon !== true &&
+            state.flags.chapter1Cleared !== true &&
+            state.flags.forest2mPacifiedTalkSeen !== true &&
+            battleSystem.countDefeatedAmberRoots() >= 3
+        ),
+        action: (state) => {
+            const lines = RPG.Assets.GAME_TEXT.events.forest2mRootsPacified || [];
+            state.dialogueQueue = lines.map(line => (
+                line.startsWith("オーエン「")
+                    ? { text: line, color: "#a020f0" }
+                    : { text: line }
+            ));
+            state.dialogueQueue.push({
+                text: null,
+                action: () => explorationSystem.continueAfterForest2mPacifiedTalk()
+            });
         }
     },
     // --- Build 14.2.1: Chapter 1 Finale - Wagon Event ---

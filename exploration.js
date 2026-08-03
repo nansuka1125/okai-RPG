@@ -923,6 +923,21 @@ const explorationSystem = {
         return false;
     },
 
+    // Tail of the one-time forest-2m pacification talk. Marks it read only here, once the last
+    // line has actually been shown, then hands the same arrival over to the Phase 7 wagon prompt
+    // if that was also due - playDialogueLoop() re-enters synchronously after this action, so a
+    // freshly assigned queue is picked up seamlessly and neither scene is lost.
+    continueAfterForest2mPacifiedTalk: function () {
+        RPG.State.flags.forest2mPacifiedTalkSeen = true;
+
+        const wagonEvent = (RPG.Assets.EVENT_DATA || []).find(ev => ev.id === "finale_wagon_encounter");
+        if (wagonEvent && wagonEvent.condition(RPG.State)) {
+            wagonEvent.action(RPG.State);
+            return;
+        }
+        uiControl.updateUI();
+    },
+
     // --- playDialogueLoop: 自動会話進行 ---
     playDialogueLoop: function () {
         if (!RPG.State.dialogueQueue || RPG.State.dialogueQueue.length === 0) {

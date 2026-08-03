@@ -751,10 +751,19 @@ innSystem = {
         this.showAmberMerchantMenu();
     },
 
+    // Shared by the first-appraisal preview and the live exchange menu so both lists always
+    // agree. exchangeOnceFlag entries drop out for good once traded - the check is on the flag,
+    // not on the inventory count, so spending the item does not put it back on the shelf.
+    isAmberExchangeOffered: function (item) {
+        if (item.exchangeable === false) return false;
+        if (item.exchangeOnceFlag && RPG.State.flags[item.exchangeOnceFlag] === true) return false;
+        return true;
+    },
+
     playFirstAmberAppraisal: function () {
         const flags = RPG.State.flags;
         const exchangeSummary = RPG.Assets.RARE_AMBER_CATALOG
-            .filter(item => item.exchangeable !== false)
+            .filter(item => this.isAmberExchangeOffered(item))
             .map(item => `${item.name}：${item.cost}個\n${item.effect}`)
             .join("\n\n");
         RPG.State.mode = "event";
@@ -1000,14 +1009,18 @@ innSystem = {
         this.ensureAmberState();
         const sparkling = RPG.State.amberStorage.sparkling;
         const choices = RPG.Assets.RARE_AMBER_CATALOG
-            .filter(item => item.exchangeable !== false)
+            .filter(item => this.isAmberExchangeOffered(item))
             .map(item => ({
                 label: `${item.name}：${item.cost}個\n${item.effect}`,
                 disabled: sparkling < item.cost,
                 action: () => {
                     RPG.State.amberStorage.sparkling -= item.cost;
                     RPG.State.inventory[item.id] = (RPG.State.inventory[item.id] || 0) + 1;
+                    if (item.exchangeOnceFlag) {
+                        RPG.State.flags[item.exchangeOnceFlag] = true;
+                    }
                     uiControl.addLog(`${item.name}と交換した！`, "marker", "#ffd166");
+                    uiControl.updateUI();
                     this.showAmberExchangeMenu();
                 }
             }));
@@ -1018,6 +1031,7 @@ innSystem = {
     showAmberTradeInMenu: function () {
         const choices = RPG.Assets.RARE_AMBER_CATALOG
             .filter(item => (
+                item.tradeInable !== false &&
                 (RPG.State.inventory[item.id] || 0) > 0 &&
                 (Number.isFinite(item.tradeInPrice) || Number.isFinite(item.cost))
             ))
@@ -1375,6 +1389,11 @@ innSystem = {
         RPG.State.isInDungeon = false;
         RPG.State.explorationArea = null;
         RPG.State.currentDistance = 0;
+        // Arriving at the inn always leaves the burn site behind, whether Cain walked back or
+        // was carried here by a defeat recovery.
+        if (typeof explorationSystem !== "undefined") {
+            explorationSystem.clearAmberRootKeyBurnOpportunity();
+        }
         RPG.State.currentInnTalkLoop = null;
         RPG.State.mode = preserveEventMode ? "event" : "base";
         RPG.State.location = "宿屋《琥珀亭》";

@@ -1097,6 +1097,7 @@ const explorationSystem = {
             RPG.State.isInDungeon = false;
             RPG.State.explorationArea = null;
             RPG.State.location = "宿屋前";
+            this.clearAmberRootKeyBurnOpportunity();
 
             if (scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
 
@@ -1164,6 +1165,8 @@ const explorationSystem = {
         if (step !== 0) {
             RPG.State.canStay = true;
             RPG.State.currentDistance = nextDist;
+            // Stepping off the burn site forfeits the burn chance for good, in either direction.
+            this.clearAmberRootKeyBurnOpportunity();
             this.recordTravelStep();
             if (
                 RPG.State.flags.onWagon === true &&
@@ -1610,6 +1613,59 @@ const explorationSystem = {
         return RPG.State.amberRootState[distance] || "unexamined";
     },
 
+    // Called from every point where Cain is committed to leaving his current spot: the two
+    // move() paths, inn arrival, and the two defeat resolutions. Idempotent, so overlapping
+    // call sites are harmless.
+    clearAmberRootKeyBurnOpportunity: function () {
+        RPG.State.amberRootKeyBurnOpportunityDistance = null;
+    },
+
+    // The single predicate behind both the 【調べる】 label and talk()'s branch, so the button
+    // text can never promise something the click does not do. Note this requires the recorded
+    // site to still be present - matching the distance alone is not enough, which is what makes
+    // a later return to the same burn site stay unusable.
+    canBurnKeyAmberHere: function () {
+        const site = RPG.State.amberRootKeyBurnOpportunityDistance;
+        return (
+            RPG.State.mode === "base" &&
+            RPG.State.isInDungeon === true &&
+            RPG.State.explorationArea === "forest" &&
+            RPG.State.location !== "かつての街道" &&
+            (site === 6 || site === 7 || site === 8) &&
+            RPG.State.currentDistance === site &&
+            this.getAmberRootState(site) === "defeated" &&
+            (RPG.State.inventory.keyAmber || 0) > 0
+        );
+    },
+
+    burnKeyAmber: function () {
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        // The grant rides on the acquisition marker so the swap, and the closing of the burn
+        // chance, happen together in one action - an interrupted scene leaves nothing changed
+        // and simply replays. Re-entry is already impossible while mode is "event".
+        RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.keyAmberBurn.map(line => {
+            if (line === "🗝️古びた鍵を手に入れた！") {
+                return {
+                    text: line,
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.keyAmber = Math.max(0, (RPG.State.inventory.keyAmber || 0) - 1);
+                        RPG.State.inventory.oldKey = (RPG.State.inventory.oldKey || 0) + 1;
+                        this.clearAmberRootKeyBurnOpportunity();
+                        uiControl.updateUI();
+                    }
+                };
+            }
+            if (line.startsWith("オーエン「")) {
+                return { text: line, color: "#a020f0" };
+            }
+            return { text: line };
+        });
+        this.playDialogueLoop();
+    },
+
     getForestHutState: function () {
         return RPG.State.forestHutState || "locked";
     },
@@ -1618,16 +1674,25 @@ const explorationSystem = {
     // has nothing new to show (gloveGranted) so the caller should fall through to the generic
     // dungeon-examine fallback text.
     inspectForestHut: function () {
-        const hutState = this.getForestHutState();
+        let hutState = this.getForestHutState();
 
         if (hutState === "locked") {
-            uiControl.addSeparator();
-            RPG.State.mode = "event";
-            RPG.State.dialogueQueue = this.buildDialogueQueue(
-                RPG.Assets.GAME_TEXT.events.forestHutLocked
-            );
-            this.playDialogueLoop();
-            return true;
+            if ((RPG.State.inventory.oldKey || 0) > 0) {
+                // Unlocking does not hand control back - fall through to the "unlocked" branch
+                // below, which owns the only copy of the snake scene, so one examine both opens
+                // the door and plays what is behind it.
+                RPG.State.inventory.oldKey = Math.max(0, (RPG.State.inventory.oldKey || 0) - 1);
+                RPG.State.forestHutState = "unlocked";
+                hutState = "unlocked";
+            } else {
+                uiControl.addSeparator();
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = this.buildDialogueQueue(
+                    RPG.Assets.GAME_TEXT.events.forestHutLocked
+                );
+                this.playDialogueLoop();
+                return true;
+            }
         }
 
         if (hutState === "unlocked") {
@@ -2203,6 +2268,14 @@ const explorationSystem = {
             typeof innSystem !== "undefined"
         ) {
             innSystem.interactWithAmberMerchant();
+            return;
+        }
+
+        // Ahead of the 8m coin/timber quests so that when the burn site happens to be 8m, the
+        // command shown by uiControl (which checks this same predicate first) is the one that
+        // actually runs. No confirmation prompt - stepping away is how the player declines.
+        if (this.canBurnKeyAmberHere()) {
+            this.burnKeyAmber();
             return;
         }
 

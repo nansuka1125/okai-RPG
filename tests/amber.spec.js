@@ -4713,4 +4713,570 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.timberObtained).toBe(true);
     });
   });
+
+  test.describe('key amber -> old key (Connect key amber to forest hut)', () => {
+    // Puts Cain on the burn site of a root he has just felled, with the burn chance already
+    // open, without replaying a whole battle. The victory-driven path is covered separately.
+    async function setBurnSite(page, cfg = {}) {
+      await page.evaluate((c) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: c.distance ?? 7,
+          amberRootKeyBurnOpportunityDistance:
+            c.opportunity === null ? null : (c.opportunity ?? c.distance ?? 7),
+          isBattling: false,
+          currentEnemy: null,
+          battleState: null,
+        });
+        Object.assign(RPG.State.flags, {
+          treeDefeated: true,
+          amberTreeCoinMined: true,
+          sapSourceAwarenessSeen: true,
+          silverDelivered: true,
+          chapter1Cleared: false,
+          onWagon: false,
+          giantLarvaDefeated: false,
+        });
+        RPG.State.amberRootState = c.amberRootState
+          ? { ...c.amberRootState }
+          : { 6: 'defeated', 7: 'defeated', 8: 'defeated' };
+        RPG.State.inventory.keyAmber = c.keyAmber ?? 1;
+        RPG.State.inventory.oldKey = c.oldKey ?? 0;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        uiControl.updateUI();
+      }, cfg);
+    }
+
+    async function callTalk(page) {
+      await page.evaluate(() => explorationSystem.talk());
+    }
+
+    // The defeat cinematic advances on raw setTimeout delays that debug.isSkipping does not
+    // shorten, so tap only when genuinely waiting and let the untappable gaps elapse.
+    async function drainDefeatSequence(page, iterations = 30, stepMs = 100) {
+      await page.evaluate(() => { window.RPG.State.debug.isSkipping = true; });
+      for (let i = 0; i < iterations; i++) {
+        const waiting = await page.evaluate(() => (
+          RPG.State.mode === 'event' && RPG.State.isWaitingForInput === true
+        ));
+        if (waiting) {
+          await page.evaluate(() => uiControl.handlePlayerInput());
+        }
+        await page.waitForTimeout(stepMs);
+      }
+    }
+
+    async function readBurnState(page) {
+      return page.evaluate(() => ({
+        label: document.getElementById('btnTalk')?.textContent,
+        canBurn: explorationSystem.canBurnKeyAmberHere(),
+        opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+        keyAmber: RPG.State.inventory.keyAmber,
+        oldKey: RPG.State.inventory.oldKey,
+        distance: RPG.State.currentDistance,
+      }));
+    }
+
+    // --- merchant exchange ---
+
+    test('the key amber is offered from the start in both exchange lists at 3 sparkling', async ({ page }) => {
+      // The exchange rundown is a later line of the appraisal queue, so it only reaches the
+      // log once the scene has played out.
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 3;
+        RPG.State.flags.keyAmberExchanged = false;
+        RPG.State.inventory.unknownAmber = 1;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        innSystem.playFirstAmberAppraisal();
+      });
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => {
+        const firstAppraisalPreview = document.getElementById('logContainer')?.textContent || '';
+        RPG.State.mode = 'base';
+        innSystem.showAmberExchangeMenu();
+        return {
+          firstAppraisalPreview,
+          exchangeMenu: document.getElementById('action-buttons')?.textContent || '',
+          catalogEntry: RPG.Assets.RARE_AMBER_CATALOG.find(item => item.id === 'keyAmber'),
+          itemName: RPG.Assets.CONFIG.ITEM_NAME.keyAmber,
+          itemDesc: RPG.Assets.CONFIG.ITEM_DESC.keyAmber,
+        };
+      });
+
+      expect(result.firstAppraisalPreview).toContain('《鍵入り琥珀》：3個');
+      expect(result.exchangeMenu).toContain('《鍵入り琥珀》：3個');
+      expect(result.catalogEntry.cost).toBe(3);
+      expect(result.itemName).toBe('🔸《鍵入り琥珀》');
+      expect(result.itemDesc).toBe('中に古びた鍵が閉じ込められている琥珀。');
+    });
+
+    // Affordability is enforced by the row's own click handler. The DOM disabled property is
+    // not a usable signal here: updateUI() re-enables every #action-buttons child in choice
+    // mode, so this asserts the outcome of clicking instead.
+    test('with fewer than 3 sparkling the key amber cannot be taken', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 2;
+        RPG.State.flags.keyAmberExchanged = false;
+        RPG.State.inventory.keyAmber = 0;
+        innSystem.showAmberExchangeMenu();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(b => b.textContent.includes('《鍵入り琥珀》'))
+          .click();
+        return {
+          sparkling: RPG.State.amberStorage.sparkling,
+          keyAmber: RPG.State.inventory.keyAmber,
+          exchanged: RPG.State.flags.keyAmberExchanged,
+        };
+      });
+      expect(result).toEqual({ sparkling: 2, keyAmber: 0, exchanged: false });
+    });
+
+    test('exchanging spends 3 sparkling, grants the amber, and marks it traded, once only', async ({ page }) => {
+      const afterExchange = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 5;
+        RPG.State.flags.keyAmberExchanged = false;
+        RPG.State.inventory.keyAmber = 0;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+
+        innSystem.showAmberExchangeMenu();
+        const row = [...document.querySelectorAll('#action-buttons button')]
+          .find(b => b.textContent.includes('《鍵入り琥珀》'));
+        row.click();
+
+        return {
+          sparkling: RPG.State.amberStorage.sparkling,
+          keyAmber: RPG.State.inventory.keyAmber,
+          exchanged: RPG.State.flags.keyAmberExchanged,
+          log: document.getElementById('logContainer')?.textContent || '',
+          menuAfter: document.getElementById('action-buttons')?.textContent || '',
+        };
+      });
+
+      expect(afterExchange.sparkling).toBe(2);
+      expect(afterExchange.keyAmber).toBe(1);
+      expect(afterExchange.exchanged).toBe(true);
+      expect(afterExchange.log).toContain('《鍵入り琥珀》と交換した！');
+      // The menu re-renders after the purchase and must no longer offer it.
+      expect(afterExchange.menuAfter).not.toContain('《鍵入り琥珀》');
+
+      // Burning it down to zero must not put it back on the shelf.
+      const exchangeMenu = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.keyAmber = 0;
+        RPG.State.amberStorage.sparkling = 99;
+        innSystem.showAmberExchangeMenu();
+        return document.getElementById('action-buttons')?.textContent || '';
+      });
+      expect(exchangeMenu).not.toContain('《鍵入り琥珀》');
+
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.unknownAmber = 1;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        innSystem.playFirstAmberAppraisal();
+      });
+      await drainDialogue(page);
+      const firstAppraisalPreview = await page.evaluate(
+        () => document.getElementById('logContainer')?.textContent || ''
+      );
+      expect(firstAppraisalPreview).not.toContain('《鍵入り琥珀》');
+    });
+
+    test('the key amber never appears as a socket or trade-in candidate', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.keyAmber = 2;
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.amberStorage.sparkling = 0;
+
+        innSystem.showAmberTradeInMenu();
+        const tradeInMenu = document.getElementById('action-buttons')?.textContent || '';
+
+        RPG.State.mode = 'base';
+        uiControl.openModal();
+        uiControl.selectItem('glowingBrooch', 1);
+        uiControl.showRareAmberSelection();
+        const socketList = document.getElementById('itemList')?.textContent || '';
+
+        RPG.State.mode = 'base';
+        const equipped = uiControl.equipRareAmber('keyAmber');
+
+        return {
+          tradeInMenu,
+          socketList,
+          equipped,
+          equippedId: RPG.State.equippedRareAmberId,
+          keyAmber: RPG.State.inventory.keyAmber,
+        };
+      });
+
+      expect(result.tradeInMenu).not.toContain('鍵入り琥珀');
+      expect(result.socketList).not.toContain('鍵入り琥珀');
+      expect(result.equipped).toBe(false);
+      expect(result.equippedId).toBeNull();
+      expect(result.keyAmber).toBe(2);
+    });
+
+    test('an ordinary rare amber still exchanges, sockets, and trades in as before', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 3;
+        RPG.State.inventory.sweetAmber = 0;
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.equippedRareAmberId = null;
+
+        innSystem.showAmberExchangeMenu();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(b => b.textContent.includes('《甘そうな琥珀》'))
+          .click();
+        const afterExchange = {
+          sparkling: RPG.State.amberStorage.sparkling,
+          sweetAmber: RPG.State.inventory.sweetAmber,
+        };
+
+        RPG.State.mode = 'base';
+        const equipped = uiControl.equipRareAmber('sweetAmber');
+        const detached = uiControl.detachRareAmber({ log: false, refreshModal: false });
+
+        RPG.State.mode = 'base';
+        innSystem.showAmberTradeInMenu();
+        const tradeInMenu = document.getElementById('action-buttons')?.textContent || '';
+
+        return { afterExchange, equipped, detached, tradeInMenu };
+      });
+
+      expect(result.afterExchange).toEqual({ sparkling: 0, sweetAmber: 1 });
+      expect(result.equipped).toBe(true);
+      expect(result.detached).toBe(true);
+      expect(result.tradeInMenu).toContain('《甘そうな琥珀》');
+    });
+
+    // --- the burn chance opens only at the very end of the root aftermath ---
+
+    test('the burn chance opens after the whole aftermath, and only while holding the amber', async ({ page }) => {
+      async function winThirdRoot(keyAmber) {
+        return page.evaluate((held) => {
+          const template = RPG.Assets.ENEMIES.find(e => e.id === 'amber_burning_root');
+          Object.assign(RPG.State, {
+            mode: 'battle',
+            isBattling: true,
+            currentEnemy: { ...template, hp: 0, armorHp: 0 },
+            battleState: {},
+            currentHP: 40,
+            maxHP: 103,
+            attack: 20,
+            lastBlowBy: 'Cain',
+            hasOwenSavedLife: true,
+            isPoisoned: false,
+            battleTurn: 1,
+            currentDistance: 7,
+            exp: 0,
+            isInDungeon: true,
+            explorationArea: 'forest',
+            location: '琥珀の森',
+            isAtInn: false,
+            amberRootKeyBurnOpportunityDistance: null,
+          });
+          RPG.State.cainLv = 5;
+          RPG.State.postTreeBattles = 'DONE';
+          RPG.State.inventory.keyAmber = held;
+          RPG.State.inventory.gratefulTalisman = 0;
+          RPG.State.inventory.charm = 0;
+          RPG.State.inventory.unknownAmber = 0;
+          RPG.State.defeatCounts = RPG.State.defeatCounts || {};
+          RPG.State.defeatCounts.amber_burning_root = { cain: 0, owen: 0 };
+          // Third root: the recovery marker is followed by six more Owen/Cain lines.
+          RPG.State.amberRootState = { 6: 'defeated', 8: 'defeated', 7: 'ignited' };
+          RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = () => false;
+          const log = document.getElementById('logContainer');
+          if (log) log.innerHTML = '';
+          battleSystem.executeStandardVictory('amber_burning_root');
+        }, keyAmber);
+      }
+
+      await winThirdRoot(1);
+
+      // Step through the aftermath and sample the state right after the recovery marker,
+      // which for the third root still has Owen dialogue queued behind it.
+      const midway = await page.evaluate(async () => {
+        RPG.State.debug.isSkipping = true;
+        for (let i = 0; i < 40; i++) {
+          const log = document.getElementById('logContainer')?.textContent || '';
+          if (log.includes('カインのストレスがさらに軽減した！')) break;
+          if (RPG.State.mode !== 'event') break;
+          uiControl.handlePlayerInput();
+          await new Promise(r => setTimeout(r, 10));
+        }
+        return {
+          mode: RPG.State.mode,
+          opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+          remaining: RPG.State.dialogueQueue.length,
+        };
+      });
+      // Recovery has fired, dialogue is still running, and the chance is still shut.
+      expect(midway.remaining).toBeGreaterThan(0);
+      expect(midway.opportunity).toBeNull();
+
+      await drainDialogue(page);
+      const after = await readBurnState(page);
+      expect(after.opportunity).toBe(7);
+      expect(after.canBurn).toBe(true);
+      expect(after.label).toBe('鍵入り琥珀を燃やす');
+
+      // Same victory without the amber in hand opens nothing.
+      await winThirdRoot(0);
+      await drainDialogue(page);
+      const withoutAmber = await readBurnState(page);
+      expect(withoutAmber.opportunity).toBeNull();
+      expect(withoutAmber.canBurn).toBe(false);
+      expect(withoutAmber.label).toBe('調べる');
+    });
+
+    // --- burning ---
+
+    test('burning plays the fixed text in order and swaps the amber for the old key', async ({ page }) => {
+      await setBurnSite(page, { distance: 7, keyAmber: 1, oldKey: 0 });
+      const before = await readBurnState(page);
+      expect(before.label).toBe('鍵入り琥珀を燃やす');
+
+      await callTalk(page);
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        keyAmber: RPG.State.inventory.keyAmber,
+        oldKey: RPG.State.inventory.oldKey,
+        opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+        mode: RPG.State.mode,
+        label: document.getElementById('btnTalk')?.textContent,
+        oldKeyName: RPG.Assets.CONFIG.ITEM_NAME.oldKey,
+        oldKeyDesc: RPG.Assets.CONFIG.ITEM_DESC.oldKey,
+        markerEntry: [...document.querySelectorAll('#logContainer .log-entry')]
+          .filter(el => el.textContent.includes('古びた鍵を手に入れた'))
+          .map(el => ({ text: el.textContent, marker: el.classList.contains('log-marker') }))[0],
+      }));
+
+      const lines = [
+        '鍵入り琥珀に火をつけると、独特の香りの煙をあげながら琥珀はチロチロと燃えた。',
+        'カイン（なんかわくわくするな）',
+        'しばらくすると、中の鍵だけが燃え残った。',
+        '🗝️古びた鍵を手に入れた！',
+        'オーエン「他の琥珀は燃やさなくていいの？パーっとやっちゃう？」',
+        'カイン「やっちゃわない」',
+      ];
+      lines.forEach(line => expect(result.log).toContain(line));
+      for (let i = 1; i < lines.length; i++) {
+        expect(result.log.indexOf(lines[i - 1])).toBeLessThan(result.log.indexOf(lines[i]));
+      }
+
+      expect(result.keyAmber).toBe(0);
+      expect(result.oldKey).toBe(1);
+      expect(result.opportunity).toBeNull();
+      expect(result.mode).toBe('base');
+      expect(result.label).toBe('調べる');
+      // The acquisition line keeps its emoji and the shared marker styling.
+      expect(result.markerEntry.text).toContain('🗝️');
+      expect(result.markerEntry.marker).toBe(true);
+      expect(result.oldKeyName).toBe('🗝️古びた鍵');
+      expect(result.oldKeyDesc).toBe('鍵入り琥珀を燃やして取り出した古びた鍵。');
+
+      // Re-examining the same spot cannot grant a second key.
+      await callTalk(page);
+      await drainDialogue(page);
+      const repeat = await page.evaluate(() => ({
+        keyAmber: RPG.State.inventory.keyAmber,
+        oldKey: RPG.State.inventory.oldKey,
+      }));
+      expect(repeat).toEqual({ keyAmber: 0, oldKey: 1 });
+    });
+
+    test('walking away forfeits the chance for good, even on returning', async ({ page }) => {
+      await setBurnSite(page, { distance: 7, keyAmber: 1 });
+      // The deep forest encounters at 60-80%; a battle would block the walk back.
+      await page.evaluate(() => {
+        window.__origRandom = Math.random;
+        Math.random = () => 0.99;
+      });
+
+      // Arriving at 6m fires its own one-time discovery scene, so let each step settle back
+      // to base before taking the next one.
+      await page.evaluate(() => explorationSystem.move(-1, { skipTravelCue: true }));
+      await drainDialogue(page);
+      const away = await readBurnState(page);
+      expect(away.distance).toBe(6);
+      expect(away.opportunity).toBeNull();
+
+      await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true }));
+      await drainDialogue(page);
+      const back = await readBurnState(page);
+      await page.evaluate(() => { Math.random = window.__origRandom; });
+      expect(back.distance).toBe(7);
+      expect(back.opportunity).toBeNull();
+      expect(back.canBurn).toBe(false);
+      expect(back.label).toBe('調べる');
+
+      // The command is gone, so examining must not burn anything.
+      await callTalk(page);
+      await drainDialogue(page);
+      const afterTalk = await page.evaluate(() => ({
+        keyAmber: RPG.State.inventory.keyAmber,
+        oldKey: RPG.State.inventory.oldKey,
+        log: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(afterTalk.keyAmber).toBe(1);
+      expect(afterTalk.oldKey).toBe(0);
+      expect(afterTalk.log).not.toContain('古びた鍵を手に入れた');
+    });
+
+    test('a forest defeat and a highway defeat both forfeit the chance', async ({ page }) => {
+      // Standard forest defeat: routed through finalizeStandardDefeat -> enterInn.
+      await setBurnSite(page, { distance: 7, keyAmber: 1 });
+      const forest = await page.evaluate(() => {
+        RPG.State.isBattling = true;
+        RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap') };
+        battleSystem.resolveDefeat();
+        return RPG.State.amberRootKeyBurnOpportunityDistance;
+      });
+      expect(forest).toBeNull();
+      await drainDefeatSequence(page);
+
+      // Returning to the burn site later must not revive it.
+      await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base', isAtInn: false, isInDungeon: true,
+          explorationArea: 'forest', location: '琥珀の森', currentDistance: 7,
+        });
+        uiControl.updateUI();
+      });
+      const revisit = await readBurnState(page);
+      expect(revisit.opportunity).toBeNull();
+      expect(revisit.canBurn).toBe(false);
+
+      // Highway defeat: assigns the return location itself, bypassing enterInn.
+      await setBurnSite(page, { distance: 7, keyAmber: 1 });
+      const highway = await page.evaluate(() => {
+        battleSystem.resolveHighwayDefeat();
+        return RPG.State.amberRootKeyBurnOpportunityDistance;
+      });
+      expect(highway).toBeNull();
+    });
+
+    test('returning to the inn forfeits the chance', async ({ page }) => {
+      await setBurnSite(page, { distance: 7, keyAmber: 1 });
+      const opportunity = await page.evaluate(() => {
+        innSystem.enterInn(false, { skipEntryEvents: true });
+        return RPG.State.amberRootKeyBurnOpportunityDistance;
+      });
+      expect(opportunity).toBeNull();
+    });
+
+    test('opening the inventory or saving and loading in place keeps the chance', async ({ page }) => {
+      await setBurnSite(page, { distance: 7, keyAmber: 1 });
+
+      const afterModal = await page.evaluate(() => {
+        uiControl.openModal();
+        uiControl.selectItem('keyAmber', 1);
+        const detail = document.getElementById('itemDetailArea')?.innerHTML || '';
+        uiControl.closeModal?.();
+        RPG.State.mode = 'base';
+        uiControl.updateUI();
+        return {
+          detail,
+          opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+          canBurn: explorationSystem.canBurnKeyAmberHere(),
+        };
+      });
+      expect(afterModal.opportunity).toBe(7);
+      expect(afterModal.canBurn).toBe(true);
+      // Shown as an ordinary non-usable item: description only, no 使う button.
+      expect(afterModal.detail).toContain('中に古びた鍵が閉じ込められている琥珀。');
+      expect(afterModal.detail).not.toContain("useItem('keyAmber')");
+
+      const afterReload = await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_key_amber_test', JSON.stringify(snapshot));
+        RPG.State.amberRootKeyBurnOpportunityDistance = null;
+        RPG.State.inventory.keyAmber = 0;
+        RPG.State.flags.keyAmberExchanged = false;
+        uiControl.loadFromStorage('okai_rpg_key_amber_test', '鍵入り琥珀テスト');
+        uiControl.updateUI();
+        return {
+          opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+          keyAmber: RPG.State.inventory.keyAmber,
+          canBurn: explorationSystem.canBurnKeyAmberHere(),
+          label: document.getElementById('btnTalk')?.textContent,
+        };
+      });
+      expect(afterReload.opportunity).toBe(7);
+      expect(afterReload.keyAmber).toBe(1);
+      expect(afterReload.canBurn).toBe(true);
+      expect(afterReload.label).toBe('鍵入り琥珀を燃やす');
+    });
+
+    test('every new field round-trips, and old saves fall back to safe defaults', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.inventory.keyAmber = 1;
+        RPG.State.inventory.oldKey = 2;
+        RPG.State.flags.keyAmberExchanged = true;
+        RPG.State.amberRootKeyBurnOpportunityDistance = 8;
+        RPG.State.forestHutState = 'eventPlayed';
+
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_key_amber_round_trip', JSON.stringify(snapshot));
+
+        const legacy = JSON.parse(JSON.stringify(snapshot));
+        delete legacy.amberRootKeyBurnOpportunityDistance;
+        delete legacy.forestHutState;
+        delete legacy.inventory.keyAmber;
+        delete legacy.inventory.oldKey;
+        delete legacy.flags.keyAmberExchanged;
+        localStorage.setItem('okai_rpg_key_amber_legacy', JSON.stringify(legacy));
+
+        RPG.State.inventory.keyAmber = 0;
+        RPG.State.inventory.oldKey = 0;
+        RPG.State.flags.keyAmberExchanged = false;
+        RPG.State.amberRootKeyBurnOpportunityDistance = null;
+        RPG.State.forestHutState = 'locked';
+        uiControl.loadFromStorage('okai_rpg_key_amber_round_trip', '往復テスト');
+        const roundTrip = {
+          keyAmber: RPG.State.inventory.keyAmber,
+          oldKey: RPG.State.inventory.oldKey,
+          exchanged: RPG.State.flags.keyAmberExchanged,
+          opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+          forestHutState: RPG.State.forestHutState,
+        };
+
+        uiControl.loadFromStorage('okai_rpg_key_amber_legacy', '旧セーブテスト');
+        const legacyDefaults = {
+          keyAmber: RPG.State.inventory.keyAmber,
+          oldKey: RPG.State.inventory.oldKey,
+          exchanged: RPG.State.flags.keyAmberExchanged,
+          opportunity: RPG.State.amberRootKeyBurnOpportunityDistance,
+          forestHutState: RPG.State.forestHutState,
+        };
+
+        return { roundTrip, legacyDefaults };
+      });
+
+      expect(result.roundTrip).toEqual({
+        keyAmber: 1, oldKey: 2, exchanged: true, opportunity: 8, forestHutState: 'eventPlayed',
+      });
+      expect(result.legacyDefaults).toEqual({
+        keyAmber: 0, oldKey: 0, exchanged: false, opportunity: null, forestHutState: 'locked',
+      });
+    });
+  });
 });

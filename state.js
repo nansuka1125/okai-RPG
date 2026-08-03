@@ -61,9 +61,14 @@ RPG.State = {
     // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used)
     // -> "ignited" (hardOil used) -> "defeated" (the site's burning-root battle is won).
     amberRootState: { 6: "unexamined", 7: "unexamined", 8: "unexamined" },
-    // Single forest hut at 10m. "locked" (no in-game unlock path exists yet - a future old-key
-    // task will drive locked -> unlocked) -> "unlocked" -> "eventPlayed" (one-time snake scene
-    // seen) -> "gloveGranted" (fireproof gloves obtained, terminal).
+    // The 《鍵入り琥珀》 can only be burned on the burn site of the root just defeated, so this
+    // holds that site's distance (6, 7, or 8) and is cleared back to null the moment Cain leaves
+    // it. Returning to the same burn site later does not bring the chance back.
+    amberRootKeyBurnOpportunityDistance: null,
+    // Single forest hut at 10m. "locked" -> "unlocked" (examined while holding the 《🗝️古びた鍵》,
+    // which is consumed) -> "eventPlayed" (one-time snake scene seen) -> "gloveGranted" (fireproof
+    // gloves obtained, terminal). The key itself comes from burning the 《鍵入り琥珀》 at a defeated
+    // amber root's burn site.
     forestHutState: "locked",
     // 泥這う大幼蟲の死骸調査。0=未調査(銀貨3枚目 未取得) -> 1=銀貨3枚目 取得
     // -> 2=オーエンの一幕 済み -> 3=《誰かの日記》入手済み(終端)。
@@ -145,6 +150,8 @@ RPG.State = {
         blueAmber: 0,
         beeAmber: 0,
         ignoredAmber: 0,
+        keyAmber: 0,
+        oldKey: 0,
         debug_poison: 10,
         debug_lvl10: 1
     },
@@ -233,6 +240,7 @@ RPG.State = {
         amberRatThreeKillTalkSeen: false, // One-time post-battle talk once cumulative amber_rat kills reach 3
         amberWeaselFirstKillTalkSeen: false, // One-time post-battle talk after the first cumulative amber_weasel kill
         firstAmberAppraisalDone: false,
+        keyAmberExchanged: false, // The 《鍵入り琥珀》 trades exactly once; burning it back to 0 does not re-offer it
         vampireAmberAppraisalSeen: false,
         vampireAmberChainBattleCount: 0, // 0-5; battles completed in a row while vampireAmber is equipped. Next battle fought is this+1
         vampireAmberStage1TalkSeen: false, // One-time dialogue the first time the stage-1 (1st-battle) drain fires

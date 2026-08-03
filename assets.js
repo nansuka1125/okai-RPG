@@ -53,6 +53,8 @@ RPG.Assets.CONFIG = {
         blueAmber: "🔹《ブルーアンバー》",
         beeAmber: "🔸《蜂入り琥珀》",
         ignoredAmber: "🔸《無視入り琥珀》",
+        keyAmber: "🔸《鍵入り琥珀》",
+        oldKey: "🗝️古びた鍵",
         debug_poison: "《デバッグ毒》"
     },
     ITEM_DESC: {
@@ -100,6 +102,8 @@ RPG.Assets.CONFIG = {
         blueAmber: "装備すると剣技が発動しやすくなるレア琥珀。",
         beeAmber: "最初の攻撃を強化し、最初に受ける攻撃を軽減するレア琥珀。",
         ignoredAmber: "装備すると状態異常を受けなくなるレア琥珀。",
+        keyAmber: "中に古びた鍵が閉じ込められている琥珀。",
+        oldKey: "鍵入り琥珀を燃やして取り出した古びた鍵。",
         debug_poison: "【テスト用】使うとHPが1になります。",
         debug_lvl10: "【デバッグ用】使うと一気にLv.10になります。"
     },
@@ -305,6 +309,19 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         name: "《吸血琥珀》",
         exchangeable: false,
         effect: "自分のHPを少し吸う代わりに、攻撃力を大きく高める。"
+    },
+    // Not a socketable rare amber at all - it is a quest item the merchant happens to trade.
+    // equippable/tradeInable let the socket and trade-in menus filter it out by capability
+    // rather than by hardcoding its id, and exchangeOnceFlag makes the exchange one-shot.
+    // Keep this entry last: the exchange and trade-in menus are index-addressed in tests.
+    {
+        id: "keyAmber",
+        name: "《鍵入り琥珀》",
+        cost: 3,
+        equippable: false,
+        tradeInable: false,
+        exchangeOnceFlag: "keyAmberExchanged",
+        effect: "中に古びた鍵が閉じ込められている琥珀。"
     }
 ];
 
@@ -1532,6 +1549,17 @@ RPG.Assets.GAME_TEXT = {
             "店主「ほどほどに、だ！」",
             "宿屋の修理が終わった！",
             "カイン（タダで泊めてもらってるからな）"
+        ],
+        // Burning the 《鍵入り琥珀》 on the burn site of a just-defeated amber root. The
+        // "🗝️古びた鍵を手に入れた！" line is matched verbatim in exploration.js to attach the
+        // item-grant action, so keep it byte-identical if this text is ever edited.
+        keyAmberBurn: [
+            "鍵入り琥珀に火をつけると、独特の香りの煙をあげながら琥珀はチロチロと燃えた。",
+            "カイン（なんかわくわくするな）",
+            "しばらくすると、中の鍵だけが燃え残った。",
+            "🗝️古びた鍵を手に入れた！",
+            "オーエン「他の琥珀は燃やさなくていいの？パーっとやっちゃう？」",
+            "カイン「やっちゃわない」"
         ],
         forestHutLocked: [
             "古い小屋がある。",

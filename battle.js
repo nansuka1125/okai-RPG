@@ -406,8 +406,10 @@ const battleSystem = {
             action: () => this.recoverFromAmberRootVictory()
         });
 
+        let lines = [];
+
         if (defeatedCount === 1) {
-            return [
+            lines = [
                 { text: "パチパチと音を立てて、少し甘い匂いのする煙が森に広がっていく。" },
                 { text: "カイン「これで、何か変わるか？」" },
                 { text: "オーエン「…………」", color: "#a020f0" },
@@ -415,10 +417,8 @@ const battleSystem = {
                 { text: "カイン（…なんだか落ち着く匂いだな）" },
                 recoveryLine("カインのストレスが軽減した！")
             ];
-        }
-
-        if (defeatedCount === 2) {
-            return [
+        } else if (defeatedCount === 2) {
+            lines = [
                 { text: "パチパチと音を立てて、少し甘い匂いのする煙が森に広がっていく。" },
                 { text: "カイン「……これでどうだ？」" },
                 { text: "オーエン「いま強い風が吹いたら、宿屋まで燃え広がるかな？」", color: "#a020f0" },
@@ -427,10 +427,8 @@ const battleSystem = {
                 recoveryLine("カインのストレスがさらに軽減した！"),
                 { text: "オーエン「………」", color: "#a020f0" }
             ];
-        }
-
-        if (defeatedCount === 3) {
-            return [
+        } else if (defeatedCount === 3) {
+            lines = [
                 { text: "三本目の琥珀樹の根を焼き払うと、森を満たしていた瘴気が薄れた。" },
                 { text: "カインにも、はっきりと分かった。" },
                 { text: "カイン「空気が変わったな」" },
@@ -447,7 +445,24 @@ const battleSystem = {
             ];
         }
 
-        return [];
+        if (lines.length === 0) return [];
+
+        // The burn chance opens only once this root's aftermath is completely done. It cannot
+        // ride on the recovery marker, because for the 2nd and 3rd roots there is still Owen
+        // dialogue after that marker. The button only becomes pressable when the dialogue loop
+        // finishes and mode returns to "base", which is the intended moment.
+        const siteDistance = RPG.State.currentDistance;
+        lines.push({
+            text: null,
+            action: () => {
+                if ((RPG.State.inventory.keyAmber || 0) > 0) {
+                    RPG.State.amberRootKeyBurnOpportunityDistance = siteDistance;
+                    uiControl.updateUI();
+                }
+            }
+        });
+
+        return lines;
     },
 
     buildPreBattleDialogue: function (template) {
@@ -2775,6 +2790,12 @@ const battleSystem = {
     resolveHighwayDefeat: function () {
         uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
 
+        // Also reachable straight from endBattle()'s death-save shortcut, which bypasses
+        // resolveDefeat() entirely, so the clear is repeated here rather than assumed.
+        if (typeof explorationSystem !== "undefined") {
+            explorationSystem.clearAmberRootKeyBurnOpportunity();
+        }
+
         RPG.State.currentHP = RPG.State.maxHP;
         RPG.State.isPoisoned = false;
         RPG.State.poisonDamageRemaining = 0;
@@ -2835,6 +2856,10 @@ const battleSystem = {
         uiControl.addSeparator();
         if (typeof explorationSystem !== "undefined") {
             explorationSystem.clearTemporaryItemEffects();
+            // Cleared before the branch below picks a route: only the standard and amber-tree
+            // defeats come back through enterInn(), while the giant-larva cinematic and the
+            // highway defeat assign the return location themselves.
+            explorationSystem.clearAmberRootKeyBurnOpportunity();
         }
 
         if (

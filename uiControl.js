@@ -642,7 +642,15 @@ const uiControl = {
                     btnTalk.textContent = "調べる";
                     btnTalk.onclick = () => explorationSystem.talk();
 
-                    if (needsDroppingsInspect) {
+                    // Highest priority: on a fresh burn site the examine command becomes the
+                    // one-shot burn. explorationSystem.talk() branches on the same predicate,
+                    // so the label and the action can never disagree.
+                    if (
+                        typeof explorationSystem !== "undefined" &&
+                        explorationSystem.canBurnKeyAmberHere()
+                    ) {
+                        btnTalk.textContent = "鍵入り琥珀を燃やす";
+                    } else if (needsDroppingsInspect) {
                         btnTalk.textContent = "ネズミの糞";
                     } else if (isAmberMerchantAtForestEntrance) {
                         btnTalk.textContent = "琥珀商";
@@ -746,6 +754,7 @@ const uiControl = {
 
         const equippedId = RPG.State.equippedRareAmberId;
         const candidates = RPG.Assets.RARE_AMBER_CATALOG.filter(item => (
+            item.equippable !== false &&
             item.id !== equippedId &&
             (RPG.State.inventory[item.id] || 0) > 0
         ));
@@ -809,6 +818,7 @@ const uiControl = {
 
         if (
             !nextAmber ||
+            nextAmber.equippable === false ||
             (RPG.State.inventory[itemId] || 0) <= 0 ||
             itemId === previousId ||
             (previousId && !previousAmber)

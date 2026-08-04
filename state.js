@@ -61,6 +61,10 @@ RPG.State = {
     // "unexamined" -> "examined" (talked to, no scar yet) -> "scarred" (shinyOil used)
     // -> "ignited" (hardOil used) -> "defeated" (the site's burning-root battle is won).
     amberRootState: { 6: "unexamined", 7: "unexamined", 8: "unexamined" },
+    // Fixed exactly once when the third amber root is defeated. Each value is the saved ALL
+    // target for that enemy's finite post-root forest encounters; null keeps the ALL tier hidden.
+    // Old saves without these values intentionally remain unsupported once all roots are down.
+    amberEnemyAllTargets: { sap: null, amber_rat: null, amber_weasel: null },
     // The 《鍵入り琥珀》 can only be burned on the burn site of the root just defeated, so this
     // holds that site's distance (6, 7, or 8) and is cleared back to null the moment Cain leaves
     // it. Returning to the same burn site later does not bring the chance back.

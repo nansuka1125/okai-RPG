@@ -1259,6 +1259,10 @@ const uiControl = {
                 RPG.State.flags[entry.encounterFlag] === true;
             return {
                 ...entry,
+                tiers: entry.tiers.map(tier => ({
+                    ...tier,
+                    target: battleSystem.getNotebookTierTarget(entry, tier)
+                })),
                 isKnown,
                 name: isKnown ? entry.name : '？？？'
             };

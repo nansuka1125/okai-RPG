@@ -381,12 +381,52 @@ const battleSystem = {
         if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
         if (RPG.State.amberRootState[distance] === "defeated") return false;
         RPG.State.amberRootState[distance] = "defeated";
+        this.initializeAmberEnemyAllTargets();
         return true;
     },
 
     countDefeatedAmberRoots: function () {
         return Object.values(RPG.State.amberRootState || {})
             .filter(state => state === "defeated").length;
+    },
+
+    getCumulativeEnemyDefeatCount: function (enemyId) {
+        const counts = RPG.State.defeatCounts && RPG.State.defeatCounts[enemyId];
+        return Math.max(0, Number(counts && counts.cain) || 0) +
+            Math.max(0, Number(counts && counts.owen) || 0);
+    },
+
+    initializeAmberEnemyAllTargets: function () {
+        if (this.countDefeatedAmberRoots() < 3) return false;
+
+        if (!RPG.State.amberEnemyAllTargets || typeof RPG.State.amberEnemyAllTargets !== "object") {
+            RPG.State.amberEnemyAllTargets = {};
+        }
+
+        let initialized = false;
+        ["sap", "amber_rat", "amber_weasel"].forEach(enemyId => {
+            if (Number.isFinite(RPG.State.amberEnemyAllTargets[enemyId])) return;
+            const currentCount = this.getCumulativeEnemyDefeatCount(enemyId);
+            RPG.State.amberEnemyAllTargets[enemyId] = Math.ceil((currentCount + 10) / 10) * 10;
+            initialized = true;
+        });
+        return initialized;
+    },
+
+    getAmberEnemyAllTarget: function (enemyId) {
+        const target = RPG.State.amberEnemyAllTargets && RPG.State.amberEnemyAllTargets[enemyId];
+        return Number.isFinite(target) ? target : null;
+    },
+
+    getNotebookTierTarget: function (entry, tier) {
+        if (Number.isFinite(tier && tier.target)) return tier.target;
+        if (!tier || !tier.targetStateKey) return null;
+        return this.getAmberEnemyAllTarget(tier.targetStateKey);
+    },
+
+    isAmberEnemyFiniteEncounterExcluded: function (enemyId) {
+        const target = this.getAmberEnemyAllTarget(enemyId);
+        return target !== null && this.getCumulativeEnemyDefeatCount(enemyId) >= target;
     },
 
     recoverFromAmberRootVictory: function () {
@@ -512,7 +552,12 @@ const battleSystem = {
         }
         if (Math.random() >= RPG.Config.AMBER_VARIANT_ENCOUNTER_RATE) return null;
 
-        const variantId = Math.random() < 0.5 ? "amber_rat" : "amber_weasel";
+        const availableVariantIds = ["amber_rat", "amber_weasel"].filter(
+            enemyId => !this.isAmberEnemyFiniteEncounterExcluded(enemyId)
+        );
+        if (availableVariantIds.length === 0) return null;
+
+        const variantId = availableVariantIds[Math.floor(Math.random() * availableVariantIds.length)];
         return RPG.Assets.ENEMIES.find(e => e.id === variantId) || null;
     },
 
@@ -755,7 +800,8 @@ const battleSystem = {
             const candidates = RPG.Assets.ENEMIES.filter(e =>
                 e.area && // Build 12.0.6: Safety check
                 RPG.State.currentDistance >= e.area[0] &&
-                RPG.State.currentDistance <= e.area[1]
+                RPG.State.currentDistance <= e.area[1] &&
+                !this.isAmberEnemyFiniteEncounterExcluded(e.id)
             );
             if (candidates.length === 0) return false;
 
@@ -783,7 +829,10 @@ const battleSystem = {
 
         if (
             isRandomEncounter &&
-            this.isNotebookAllRandomEncounterExcluded(template && template.id)
+            (
+                this.isNotebookAllRandomEncounterExcluded(template && template.id) ||
+                this.isAmberEnemyFiniteEncounterExcluded(template && template.id)
+            )
         ) {
             uiControl.updateUI();
             return false;

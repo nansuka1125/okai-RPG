@@ -3326,22 +3326,33 @@ test.describe('Chapter 1 amber system', () => {
 
   test.describe('empowered amber sap after the thief encounter (Empower amber sap after thief encounter)', () => {
     async function startSapBattleDialogue(page, metThiefBoy) {
-      await page.evaluate((mtb) => {
-        Object.assign(RPG.State, {
-          mode: 'base',
-          isBattling: false,
-          currentEnemy: null,
-          battleState: null,
-        });
-        RPG.State.flags.treeDefeated = true;
-        RPG.State.flags.metThiefBoy = mtb;
-        const log = document.getElementById('logContainer');
-        if (log) log.innerHTML = '';
-        battleSystem.startBattle('sap');
-      }, metThiefBoy);
-      const endMode = await drainDialogue(page);
-      const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
-      return { endMode, log };
+      const originalShouldIntervene = await page.evaluateHandle(
+        () => RPG.Assets.OWEN_BEHAVIOR.shouldIntervene
+      );
+      try {
+        await page.evaluate((mtb) => {
+          RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = () => false;
+          Object.assign(RPG.State, {
+            mode: 'base',
+            isBattling: false,
+            currentEnemy: null,
+            battleState: null,
+          });
+          RPG.State.flags.treeDefeated = true;
+          RPG.State.flags.metThiefBoy = mtb;
+          const log = document.getElementById('logContainer');
+          if (log) log.innerHTML = '';
+          battleSystem.startBattle('sap');
+        }, metThiefBoy);
+        const endMode = await drainDialogue(page);
+        const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+        return { endMode, log };
+      } finally {
+        await page.evaluate((original) => {
+          RPG.Assets.OWEN_BEHAVIOR.shouldIntervene = original;
+        }, originalShouldIntervene);
+        await originalShouldIntervene.dispose();
+      }
     }
 
     async function beginSapBattle(page, metThiefBoy) {
@@ -4651,16 +4662,20 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({ 6: 'unexamined', 7: 'unexamined', 8: 'unexamined' });
     });
 
-    // --- three-defeated bookkeeping (no finite-supply/ALL work yet) ---
+    // --- three-defeated finite-supply bookkeeping ---
 
-    test('after all three roots are defeated, no ALL/finite-supply flags are touched and hardOil remains untouched', async ({ page }) => {
+    test('the third root stores fixed finite ALL targets from cumulative kills without changing hardOil', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.amberRootState = { 6: 'ignited', 7: 'ignited', 8: 'ignited' };
+        RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
         RPG.State.inventory.hardOil = 1;
+        RPG.State.defeatCounts.sap = { cain: 28, owen: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 12, owen: 8 };
+        RPG.State.defeatCounts.amber_weasel = { cain: 9, owen: 0 };
         const template = RPG.Assets.ENEMIES.find(e => e.id === 'amber_burning_root');
         RPG.State.defeatCounts.amber_burning_root = { cain: 0, owen: 0 };
 
-        [6, 7, 8].forEach(distance => {
+        [6, 7].forEach(distance => {
           Object.assign(RPG.State, {
             mode: 'battle', isBattling: true,
             currentEnemy: { ...template, hp: 0 },
@@ -4669,19 +4684,112 @@ test.describe('Chapter 1 amber system', () => {
           battleSystem.executeStandardVictory('amber_burning_root');
         });
 
+        const afterTwoRoots = { ...RPG.State.amberEnemyAllTargets };
+
+        Object.assign(RPG.State, {
+          mode: 'battle', isBattling: true,
+          currentEnemy: { ...template, hp: 0 },
+          battleState: {}, currentDistance: 8, lastBlowBy: 'Cain',
+        });
+        battleSystem.executeStandardVictory('amber_burning_root');
+        const afterThirdRoot = { ...RPG.State.amberEnemyAllTargets };
+
+        RPG.State.defeatCounts.sap = { cain: 99, owen: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 99, owen: 0 };
+        RPG.State.defeatCounts.amber_weasel = { cain: 99, owen: 0 };
+        const recalculated = battleSystem.initializeAmberEnemyAllTargets();
+
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_amber_finite_targets', JSON.stringify(snapshot));
+        RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
+        uiControl.loadFromStorage('okai_rpg_amber_finite_targets', '有限目標テスト');
+
         return {
           rootState: RPG.State.amberRootState,
           hardOil: RPG.State.inventory.hardOil,
-          sapAllUnlocked: RPG.State.flags.sapBountyAllUnlocked,
-          amberRatAllUnlocked: RPG.State.flags.amberRatBountyAllUnlocked,
-          amberWeaselAllUnlocked: RPG.State.flags.amberWeaselBountyAllUnlocked,
+          afterTwoRoots,
+          afterThirdRoot,
+          recalculated,
+          afterReload: RPG.State.amberEnemyAllTargets,
         };
       });
       expect(result.rootState).toEqual({ 6: 'defeated', 7: 'defeated', 8: 'defeated' });
       expect(result.hardOil).toBe(1);
-      expect(result.sapAllUnlocked).toBeUndefined();
-      expect(result.amberRatAllUnlocked).toBeUndefined();
-      expect(result.amberWeaselAllUnlocked).toBeUndefined();
+      expect(result.afterTwoRoots).toEqual({ sap: null, amber_rat: null, amber_weasel: null });
+      expect(result.afterThirdRoot).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
+      expect(result.recalculated).toBe(false);
+      expect(result.afterReload).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
+    });
+
+    test('finite targets remove only completed amber encounters from their random candidates', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const originalRandom = Math.random;
+        const originalBuildPreBattleDialogue = battleSystem.buildPreBattleDialogue;
+        const cleanupBattle = () => {
+          RPG.State.isBattling = false;
+          RPG.State.currentEnemy = null;
+          RPG.State.battleState = null;
+          RPG.State.mode = 'base';
+        };
+
+        try {
+          battleSystem.buildPreBattleDialogue = () => [];
+          Object.assign(RPG.State, {
+            mode: 'base', isAtInn: false, isInDungeon: true,
+            explorationArea: 'forest', location: '琥珀の森', currentDistance: 4,
+            amberRootState: { 6: 'defeated', 7: 'defeated', 8: 'defeated' },
+            amberEnemyAllTargets: { sap: 30, amber_rat: 30, amber_weasel: 30 },
+          });
+          Object.assign(RPG.State.flags, { metThiefBoy: true, matamatabiActive: false });
+          RPG.State.defeatCounts.sap = { cain: 29, owen: 0 };
+          RPG.State.defeatCounts.amber_rat = { cain: 30, owen: 0 };
+          RPG.State.defeatCounts.amber_weasel = { cain: 29, owen: 0 };
+
+          const nearGoalDraws = [0.99, 0.99, 0.99];
+          Math.random = () => nearGoalDraws.shift() ?? 0;
+          const beforeSapGoal = battleSystem.startBattle(null, { randomEncounter: true });
+          const beforeSapGoalEnemy = RPG.State.currentEnemy?.id || null;
+          cleanupBattle();
+
+          RPG.State.defeatCounts.sap = { cain: 30, owen: 0 };
+          const afterGoalDraws = [0.99, 0.99, 0.99];
+          Math.random = () => afterGoalDraws.shift() ?? 0;
+          const afterSapGoal = battleSystem.startBattle(null, { randomEncounter: true });
+          const afterSapGoalEnemy = RPG.State.currentEnemy?.id || null;
+          cleanupBattle();
+
+          RPG.State.defeatCounts.amber_weasel = { cain: 30, owen: 0 };
+          Math.random = () => 0;
+          const allVariantsGone = battleSystem.rollAmberVariantEncounter();
+
+          return {
+            beforeSapGoal,
+            beforeSapGoalEnemy,
+            afterSapGoal,
+            afterSapGoalEnemy,
+            allVariantsGone: allVariantsGone?.id || null,
+            excluded: {
+              sap: battleSystem.isAmberEnemyFiniteEncounterExcluded('sap'),
+              amberRat: battleSystem.isAmberEnemyFiniteEncounterExcluded('amber_rat'),
+              amberWeasel: battleSystem.isAmberEnemyFiniteEncounterExcluded('amber_weasel'),
+              rat: battleSystem.isAmberEnemyFiniteEncounterExcluded('rat'),
+              weasel: battleSystem.isAmberEnemyFiniteEncounterExcluded('weasel'),
+            },
+          };
+        } finally {
+          Math.random = originalRandom;
+          battleSystem.buildPreBattleDialogue = originalBuildPreBattleDialogue;
+        }
+      });
+
+      expect(result.beforeSapGoal).toBe(true);
+      expect(result.beforeSapGoalEnemy).toBe('sap');
+      expect(result.afterSapGoal).toBe(true);
+      expect(result.afterSapGoalEnemy).toBe('weasel');
+      expect(result.allVariantsGone).toBeNull();
+      expect(result.excluded).toEqual({
+        sap: true, amberRat: true, amberWeasel: true, rat: false, weasel: false,
+      });
     });
 
     // --- integration with existing 8m events ---

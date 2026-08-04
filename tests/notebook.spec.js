@@ -939,11 +939,13 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result).toEqual({ disabledWithOneLeft: false, disabledWithNoneLeft: true });
   });
 
-  test('tiers with claimEnabled:false are never offered by the shared claim button', async ({ page }) => {
+  test('amber ALL tiers remain unavailable before the third root saves their targets', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.defeatCounts.sap = { cain: 999, owen: 999 };
       RPG.State.defeatCounts.amber_rat = { cain: 999, owen: 999 };
       RPG.State.defeatCounts.amber_weasel = { cain: 999, owen: 999 };
+      RPG.State.amberRootState = { 6: 'defeated', 7: 'defeated', 8: 'ignited' };
+      RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
       Object.assign(RPG.State.flags, {
         sapBountyAllReceived: false,
         amberRatBountyAllReceived: false,
@@ -954,6 +956,97 @@ test.describe('討伐ノート (bounty notebook)', () => {
         .map(reward => reward.entryId);
     });
     expect(result).toEqual([]);
+  });
+
+  test('saved amber ALL targets display cumulative progress and grant each existing reward once', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        amberRootState: { 6: 'defeated', 7: 'defeated', 8: 'defeated' },
+        amberEnemyAllTargets: { sap: 40, amber_rat: 30, amber_weasel: 20 },
+      });
+      Object.assign(RPG.State.flags, {
+        notebookSapEncountered: true,
+        notebookAmberRatEncountered: true,
+        notebookAmberWeaselEncountered: true,
+        sapBountyAllReceived: false,
+        amberRatBountyAllReceived: false,
+        amberWeaselBountyAllReceived: false,
+      });
+      RPG.State.defeatCounts.sap = { cain: 28, owen: 12 };
+      RPG.State.defeatCounts.amber_rat = { cain: 20, owen: 10 };
+      RPG.State.defeatCounts.amber_weasel = { cain: 10, owen: 10 };
+      RPG.State.inventory.highHerb = 0;
+      RPG.State.inventory.specialUnknownAmber = 0;
+      RPG.State.inventory.secretLetter = 0;
+
+      const beforeRows = Object.fromEntries(
+        uiControl.getNotebookRows().filter(row => ['sap', 'amber_rat', 'amber_weasel'].includes(row.id))
+          .map(row => [row.id, row.tiers.find(tier => tier.id === 'all').target])
+      );
+      const claimableBefore = innSystem.getClaimableNotebookRewards()
+        .filter(reward => reward.tierId === 'all')
+        .map(reward => reward.entryId);
+
+      ['sap', 'amber_rat', 'amber_weasel'].forEach(entryId => {
+        RPG.State.mode = 'base';
+        innSystem.claimNotebookRewards(entryId, 'all');
+      });
+      const afterFirstClaim = {
+        highHerb: RPG.State.inventory.highHerb,
+        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        secretLetter: RPG.State.inventory.secretLetter,
+        received: {
+          sap: RPG.State.flags.sapBountyAllReceived,
+          amberRat: RPG.State.flags.amberRatBountyAllReceived,
+          amberWeasel: RPG.State.flags.amberWeaselBountyAllReceived,
+        },
+      };
+
+      RPG.State.mode = 'base';
+      innSystem.claimNotebookRewards('sap', 'all');
+      const afterSecondClaim = RPG.State.inventory.highHerb;
+
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_amber_all_targets', JSON.stringify(snapshot));
+      RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
+      Object.assign(RPG.State.flags, {
+        sapBountyAllReceived: false,
+        amberRatBountyAllReceived: false,
+        amberWeaselBountyAllReceived: false,
+      });
+      uiControl.loadFromStorage('okai_rpg_amber_all_targets', '琥珀ALLテスト');
+
+      return {
+        beforeRows,
+        claimableBefore,
+        afterFirstClaim,
+        afterSecondClaim,
+        afterReload: {
+          targets: RPG.State.amberEnemyAllTargets,
+          received: {
+            sap: RPG.State.flags.sapBountyAllReceived,
+            amberRat: RPG.State.flags.amberRatBountyAllReceived,
+            amberWeasel: RPG.State.flags.amberWeaselBountyAllReceived,
+          },
+        },
+      };
+    });
+
+    expect(result.beforeRows).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
+    expect(result.claimableBefore).toEqual(['sap', 'amber_rat', 'amber_weasel']);
+    expect(result.afterFirstClaim).toEqual({
+      highHerb: 5,
+      specialUnknownAmber: 1,
+      secretLetter: 1,
+      received: { sap: true, amberRat: true, amberWeasel: true },
+    });
+    expect(result.afterSecondClaim).toBe(5);
+    expect(result.afterReload).toEqual({
+      targets: { sap: 40, amber_rat: 30, amber_weasel: 20 },
+      received: { sap: true, amberRat: true, amberWeasel: true },
+    });
   });
 
   test('the ALL reward is claimed through the same shared claim button as the other tiers', async ({ page }) => {
@@ -1362,7 +1455,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result).toEqual({ specialUnknownAmber: 0, secretLetter: 0 });
   });
 
-  test('rat and weasel ALL tiers use independent unlock progress while the other ALL tiers stay disabled', async ({ page }) => {
+  test('rat and weasel ALL tiers keep independent progress while amber ALL tiers wait for saved targets', async ({ page }) => {
     const result = await page.evaluate(() => {
       const allTiers = Object.fromEntries(
         RPG.Assets.NOTEBOOK_ENTRIES.map(entry => {
@@ -1440,7 +1533,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       },
       sap: {
         target: null,
-        claimEnabled: false,
+        claimEnabled: true,
         claimedFlag: 'sapBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
@@ -1448,7 +1541,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       },
       amber_rat: {
         target: null,
-        claimEnabled: false,
+        claimEnabled: true,
         claimedFlag: 'amberRatBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
@@ -1456,7 +1549,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       },
       amber_weasel: {
         target: null,
-        claimEnabled: false,
+        claimEnabled: true,
         claimedFlag: 'amberWeaselBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,

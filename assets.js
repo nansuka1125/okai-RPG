@@ -184,7 +184,8 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "all", label: "ALL", target: null,
-                claimedFlag: "sapBountyAllReceived", claimEnabled: false,
+                targetStateKey: "sap",
+                claimedFlag: "sapBountyAllReceived", claimEnabled: true,
                 items: [{ itemId: "highHerb", qty: 5 }]
             }
         ]
@@ -205,7 +206,8 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "all", label: "ALL", target: null,
-                claimedFlag: "amberRatBountyAllReceived", claimEnabled: false,
+                targetStateKey: "amber_rat",
+                claimedFlag: "amberRatBountyAllReceived", claimEnabled: true,
                 items: [{ itemId: "specialUnknownAmber", qty: 1 }]
             }
         ]
@@ -223,7 +225,8 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "all", label: "ALL", target: null,
-                claimedFlag: "amberWeaselBountyAllReceived", claimEnabled: false,
+                targetStateKey: "amber_weasel",
+                claimedFlag: "amberWeaselBountyAllReceived", claimEnabled: true,
                 items: [{ itemId: "secretLetter", qty: 1 }]
             }
         ]

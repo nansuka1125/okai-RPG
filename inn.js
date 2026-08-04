@@ -2331,7 +2331,11 @@ innSystem = {
             : [];
         const entry = entries.find(candidate => candidate.id === entryId);
         if (!entry) return null;
-        const tier = entry.tiers.find(candidate => candidate.id === tierId);
+        const definedTier = entry.tiers.find(candidate => candidate.id === tierId);
+        const tier = definedTier && {
+            ...definedTier,
+            target: battleSystem.getNotebookTierTarget(entry, definedTier)
+        };
         if (
             !tier ||
             !this.isNotebookTierUnlocked(tier) ||

@@ -96,32 +96,24 @@ const battleSystem = {
         return base + (hasFireproofGloves ? RPG.Config.FIREPROOF_GLOVES_DEFENSE_BONUS : 0);
     },
 
-    // The normal (10%) parry reduces damage rather than skipping it (see
-    // resolveEnemyDirectDamage). Judgement only - callers log their own flavor line using
-    // resolveEnemyDirectDamage's returned "parried" flag, so the attack announcement can stay
-    // in its natural place before the parry/damage lines.
-    tryNormalParry: function () {
-        return Math.random() < RPG.Config.EVASION_RATE.normal;
+    getCainSwordTechniqueRate: function () {
+        const combat = RPG.Config.CAIN_COMBAT;
+        const blueAmberBonus = RPG.State.equippedRareAmberId === "blueAmber"
+            ? combat.BLUE_AMBER_SWORD_TECHNIQUE_RATE_BONUS
+            : 0;
+        return Math.min(1, combat.SWORD_TECHNIQUE_RATE + blueAmberBonus);
     },
 
-    // Shared resolution for an enemy's direct attack against Cain: subtracts effective defense
-    // (floor 1), then - only when the caller opts in via allowParry and a normal parry actually
-    // lands - reduces the result further to a fraction of that (50%, or 25% with fireproof
-    // gloves), floored with a floor of 1. Not for poison/stomach-acid/event-fixed damage, which
-    // never call this at all. allowParry is false for every boss attack today, but any boss
-    // attack can opt in later without any structural change here. Logs nothing itself - the
-    // caller uses the returned "parried" flag to log its own parry line after the attack
-    // announcement.
+    // Shared resolution for an enemy's direct attack against Cain. Only callers that explicitly
+    // opt in can trigger 《受け流し》; poison, fixed/event damage, and current boss AI attacks do
+    // not opt in. A successful parry is a sword technique and completely cancels the attack.
+    // Callers own the presentation and any attached status-effect gate.
     resolveEnemyDirectDamage: function (baseDamage, options = {}) {
         const def = this.getEffectiveDefense();
         const afterDefense = Math.floor(Math.max(1, baseDamage - def));
 
-        if (options.allowParry === true && this.tryNormalParry()) {
-            const hasFireproofGloves = (RPG.State.inventory.fireproofGloves || 0) > 0;
-            const rate = hasFireproofGloves
-                ? RPG.Config.FIREPROOF_GLOVES_PARRY_DAMAGE_RATE
-                : RPG.Config.NORMAL_PARRY_DAMAGE_RATE;
-            return { damage: Math.floor(Math.max(1, afterDefense * rate)), parried: true };
+        if (options.allowParry === true && Math.random() < this.getCainSwordTechniqueRate()) {
+            return { damage: 0, parried: true };
         }
         return { damage: afterDefense, parried: false };
     },
@@ -1328,6 +1320,56 @@ const battleSystem = {
         uiControl.addLog(`${enemy.name}に${damage}のダメージ！`, "player-action");
     },
 
+    // Resolves one Cain attack event. A sword technique is selected before a critical; when a
+    // technique lands its hits deliberately never make a critical roll. Every hit still passes
+    // through applyCainDamage independently so hardened parts, overflow, and existing player
+    // damage modifiers keep their current behavior.
+    performCainAttack: function (options = {}) {
+        const combat = RPG.Config.CAIN_COMBAT;
+        const allowSwordTechniques = options.allowSwordTechniques !== false;
+        const allowCritical = options.allowCritical !== false;
+        const damageMultiplier = options.damageMultiplier ?? 1;
+        let technique = null;
+        let hitMultipliers = [1];
+
+        if (allowSwordTechniques && Math.random() < this.getCainSwordTechniqueRate()) {
+            if (Math.random() < combat.STRONG_ATTACK_RATE) {
+                technique = "strongAttack";
+                hitMultipliers = [combat.STRONG_ATTACK_DAMAGE_MULTIPLIER];
+                uiControl.addLog("カインは《強撃》を放った！", "marker", "#ffd166");
+            } else {
+                technique = "rapidAttack";
+                hitMultipliers = Array(combat.RAPID_ATTACK_HIT_COUNT)
+                    .fill(combat.RAPID_ATTACK_DAMAGE_MULTIPLIER);
+                uiControl.addLog("カインは《連撃》を放った！", "marker", "#ffd166");
+            }
+        }
+
+        const hits = hitMultipliers.map(hitMultiplier => {
+            const isCritical = technique === null && allowCritical && Math.random() < combat.CRITICAL_RATE;
+            let damage = Math.floor(RPG.State.attack * damageMultiplier * hitMultiplier);
+            if (isCritical) {
+                damage = Math.floor(damage * combat.CRITICAL_DAMAGE_MULTIPLIER);
+                uiControl.addLog(RPG.Assets.BATTLE_TEXT.hardened.critical, "marker", "#ffd166");
+            }
+            this.applyCainDamage(damage, isCritical);
+            return { damage, isCritical };
+        });
+
+        return { technique, hits };
+    },
+
+    performFireproofGlovesCounterattack: function () {
+        if ((RPG.State.inventory.fireproofGloves || 0) <= 0) return null;
+
+        uiControl.addLog("《耐火グローブ》で反撃した！", "marker", "#ff8c42");
+        return this.performCainAttack({
+            allowSwordTechniques: false,
+            allowCritical: true,
+            damageMultiplier: RPG.Config.CAIN_COMBAT.FIREPROOF_GLOVES_COUNTER_DAMAGE_MULTIPLIER
+        });
+    },
+
     processCainAction: function (next) {
         if (typeof visualDirector !== "undefined") {
             visualDirector.playBattleCue("cain-attack");
@@ -1362,14 +1404,7 @@ const battleSystem = {
             return;
         }
 
-        let damage = RPG.State.attack;
-        const isCrit = Math.random() < 0.15;
-        if (isCrit) {
-            damage = Math.floor(damage * 1.5);
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.hardened.critical, "marker", "#ffd166");
-        }
-
-        this.applyCainDamage(damage, isCrit);
+        this.performCainAttack();
         uiControl.updateUI();
 
         const isAmberTree = RPG.State.currentEnemy.id === 'hungry_amber_tree';
@@ -1426,18 +1461,26 @@ const battleSystem = {
         }
 
         if (attackResult.parried) {
-            // Parried: split into attack -> parry -> reduced-damage lines so they read as a
-            // natural sequence of events, instead of announcing the (already-reduced) damage
-            // before the parry that caused the reduction.
             uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg}`, "enemy-action");
             uiControl.addLog("カインは攻撃を剣で受け流した！", "", null);
-            uiControl.addLog(`カインは${dmg}のダメージ！`, "damage");
-        } else {
-            uiControl.addLog(
-                `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
-                "enemy-action"
-            );
+            this.performFireproofGlovesCounterattack();
+            uiControl.updateUI();
+
+            if (RPG.State.currentEnemy.hp <= 0) {
+                RPG.State.lastBlowBy = "Cain";
+                this.endBattle(true);
+                return;
+            }
+
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(onComplete, delay);
+            return;
         }
+
+        uiControl.addLog(
+            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+            "enemy-action"
+        );
 
         const hpBeforeAttack = RPG.State.currentHP;
         const damageResult = this.applyEnemyDirectDamage(dmg);
@@ -2117,18 +2160,26 @@ const battleSystem = {
         }
 
         if (attackResult.parried) {
-            // Parried: split into attack -> parry -> reduced-damage lines so they read as a
-            // natural sequence of events, instead of announcing the (already-reduced) damage
-            // before the parry that caused the reduction.
             uiControl.addLog(`${RPG.State.currentEnemy.name}が${msg}`, "enemy-action");
             uiControl.addLog("カインは攻撃を剣で受け流した！", "", null);
-            uiControl.addLog(`カインは${dmg}のダメージ！`, "damage");
-        } else {
-            uiControl.addLog(
-                `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
-                "enemy-action"
-            );
+            this.performFireproofGlovesCounterattack();
+            uiControl.updateUI();
+
+            if (RPG.State.currentEnemy.hp <= 0) {
+                RPG.State.lastBlowBy = "Cain";
+                this.endBattle(true);
+                return;
+            }
+
+            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(() => this.runBattleLoop(), delay);
+            return;
         }
+
+        uiControl.addLog(
+            `${RPG.State.currentEnemy.name}が${msg} カインは${dmg}のダメージ！`,
+            "enemy-action"
+        );
 
         const damageResult = this.applyEnemyDirectDamage(dmg);
         if (damageResult.talismanActivated) {

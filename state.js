@@ -26,14 +26,22 @@ RPG.Config = {
     // applied fresh to the per-battle enemy copy in beginBattle() - never written back onto the
     // shared ENEMIES template, so it can't stack across battles or duplicate on save/load.
     EMPOWERED_SAP_ATK_MULTIPLIER: 1.5,
-    EVASION_RATE: {
-        normal: 0.1
+    // Provisional Chapter 1 battle-kit values. Keeping the entire set here lets balance work
+    // tune Cain's sword techniques without changing battle flow.
+    CAIN_COMBAT: {
+        CRITICAL_RATE: 0.15,
+        CRITICAL_DAMAGE_MULTIPLIER: 1.5,
+        SWORD_TECHNIQUE_RATE: 0.20,
+        BLUE_AMBER_SWORD_TECHNIQUE_RATE_BONUS: 0.10,
+        STRONG_ATTACK_RATE: 0.50,
+        STRONG_ATTACK_DAMAGE_MULTIPLIER: 1.8,
+        RAPID_ATTACK_DAMAGE_MULTIPLIER: 0.7,
+        RAPID_ATTACK_HIT_COUNT: 2,
+        FIREPROOF_GLOVES_COUNTER_DAMAGE_MULTIPLIER: 1.0
     },
-    // Provisional Chapter 1 balance values, pending playtest: fireproof gloves' flat defense
-    // bonus, and the two normal-parry damage multipliers (with/without the gloves).
-    FIREPROOF_GLOVES_DEFENSE_BONUS: 2,
-    NORMAL_PARRY_DAMAGE_RATE: 0.5,
-    FIREPROOF_GLOVES_PARRY_DAMAGE_RATE: 0.25
+    // The gloves always provide their flat defense bonus. Their former parry-damage reduction
+    // is intentionally replaced by the counterattack in battle.js.
+    FIREPROOF_GLOVES_DEFENSE_BONUS: 2
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする

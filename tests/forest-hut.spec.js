@@ -512,14 +512,14 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result).toEqual({ damage: 1, parried: false });
     });
 
-    test('a successful normal parry reduces the defense-mitigated damage to 50%, floor 1, and logs nothing itself', async ({ page }) => {
+    test('a successful parry completely cancels a direct attack and logs nothing itself', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.defense = 0;
         RPG.State.inventory.fireproofGloves = 0;
         const log = document.getElementById('logContainer');
         if (log) log.innerHTML = '';
         const originalRandom = Math.random;
-        Math.random = () => 0.0; // always parries (< EVASION_RATE.normal)
+        Math.random = () => 0.0; // always parries
         const outcome = battleSystem.resolveEnemyDirectDamage(20, { allowParry: true });
         Math.random = originalRandom;
         return {
@@ -527,24 +527,23 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
           log: document.getElementById('logContainer')?.textContent || '',
         };
       });
-      expect(result.outcome).toEqual({ damage: 10, parried: true });
-      // resolveEnemyDirectDamage only judges and returns "parried" - logging the parry line is
-      // the caller's responsibility (see the runJourneyEnemyTurn integration tests below), so
-      // the attack announcement can be logged first and the parry line can follow it.
+      expect(result.outcome).toEqual({ damage: 0, parried: true });
+      // resolveEnemyDirectDamage only judges and returns "parried"; its callers own the attack,
+      // parry, and optional counterattack presentation.
       expect(result.log).toBe('');
     });
 
-    test('fireproof gloves reduce a successful parry to 25% instead of 50% (on top of their own defense bonus)', async ({ page }) => {
+    test('fireproof gloves no longer alter a successful parry damage result', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.defense = 0;
-        RPG.State.inventory.fireproofGloves = 1; // effective defense 2, so afterDefense = 20 - 2 = 18
+        RPG.State.inventory.fireproofGloves = 1;
         const originalRandom = Math.random;
         Math.random = () => 0.0;
         const outcome = battleSystem.resolveEnemyDirectDamage(20, { allowParry: true });
         Math.random = originalRandom;
         return outcome;
       });
-      expect(result).toEqual({ damage: 4, parried: true }); // floor(18 * 0.25)
+      expect(result).toEqual({ damage: 0, parried: true });
     });
 
     test('allowParry:false never rolls a parry, even on a guaranteed-parry random draw - used identically by boss code today and reusable for a future parryable boss attack', async ({ page }) => {
@@ -559,7 +558,97 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         return { noParry, withParry };
       });
       expect(result.noParry).toEqual({ damage: 20, parried: false });
-      expect(result.withParry).toEqual({ damage: 10, parried: true });
+      expect(result.withParry).toEqual({ damage: 0, parried: true });
+    });
+
+    test('Blue Amber adds its configured sword-technique rate to attack and parry rolls', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.equippedRareAmberId = null;
+        const withoutBlue = battleSystem.getCainSwordTechniqueRate();
+        const originalRandom = Math.random;
+        Math.random = () => 0.25;
+        const withoutBlueParry = battleSystem.resolveEnemyDirectDamage(20, { allowParry: true });
+
+        RPG.State.equippedRareAmberId = 'blueAmber';
+        const withBlue = battleSystem.getCainSwordTechniqueRate();
+        const withBlueParry = battleSystem.resolveEnemyDirectDamage(20, { allowParry: true });
+
+        RPG.State.attack = 10;
+        RPG.State.battleState = null;
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 100, armorHp: 0 };
+        const withoutBlueAttack = battleSystem.performCainAttack();
+
+        RPG.State.equippedRareAmberId = 'blueAmber';
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 100, armorHp: 0 };
+        const withBlueAttack = battleSystem.performCainAttack();
+        Math.random = originalRandom;
+        RPG.State.equippedRareAmberId = null;
+        return { withoutBlue, withBlue, withoutBlueParry, withBlueParry, withoutBlueAttack, withBlueAttack };
+      });
+      expect(result.withoutBlue).toBeCloseTo(0.2);
+      expect(result.withBlue).toBeCloseTo(0.3);
+      expect(result.withoutBlueParry).toEqual({ damage: 20, parried: false });
+      expect(result.withBlueParry).toEqual({ damage: 0, parried: true });
+      expect(result.withoutBlueAttack).toEqual({ technique: null, hits: [{ damage: 10, isCritical: false }] });
+      expect(result.withBlueAttack).toEqual({ technique: 'strongAttack', hits: [{ damage: 18, isCritical: false }] });
+    });
+
+    test('strong attack and rapid attack use their configured multipliers, with rapid hits resolved separately', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const combat = RPG.Config.CAIN_COMBAT;
+        const originalCombat = { ...combat };
+        const originalRandom = Math.random;
+        RPG.State.attack = 10;
+        RPG.State.battleState = null;
+
+        Object.assign(combat, { SWORD_TECHNIQUE_RATE: 1, STRONG_ATTACK_RATE: 1 });
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 100, armorHp: 0 };
+        Math.random = () => 0;
+        const strong = battleSystem.performCainAttack();
+        const afterStrong = RPG.State.currentEnemy.hp;
+
+        Object.assign(combat, { STRONG_ATTACK_RATE: 0 });
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 100, armorHp: 10, armorLabel: '硬化部分', armorBreakText: '砕けた！' };
+        const rapid = battleSystem.performCainAttack();
+        const afterRapid = { hp: RPG.State.currentEnemy.hp, armorHp: RPG.State.currentEnemy.armorHp };
+
+        Math.random = originalRandom;
+        Object.assign(combat, originalCombat);
+        return { strong, afterStrong, rapid, afterRapid };
+      });
+      expect(result.strong).toEqual({ technique: 'strongAttack', hits: [{ damage: 18, isCritical: false }] });
+      expect(result.afterStrong).toBe(82);
+      expect(result.rapid).toEqual({
+        technique: 'rapidAttack',
+        hits: [{ damage: 7, isCritical: false }, { damage: 7, isCritical: false }],
+      });
+      expect(result.afterRapid).toEqual({ hp: 96, armorHp: 0 });
+    });
+
+    test('a Fireproof Gloves counterattack can critically hit but never selects a sword technique', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const combat = RPG.Config.CAIN_COMBAT;
+        const originalCombat = { ...combat };
+        const originalRandom = Math.random;
+        Object.assign(combat, { SWORD_TECHNIQUE_RATE: 1, CRITICAL_RATE: 1 });
+        Object.assign(RPG.State, {
+          attack: 20,
+          battleState: null,
+          currentEnemy: { id: 'dummy', name: 'ダミー', hp: 100, armorHp: 0 },
+        });
+        RPG.State.inventory.fireproofGloves = 1;
+        Math.random = () => 0;
+        const counter = battleSystem.performFireproofGlovesCounterattack();
+        Math.random = originalRandom;
+        Object.assign(combat, originalCombat);
+        RPG.State.inventory.fireproofGloves = 0;
+        return { counter, enemyHp: RPG.State.currentEnemy.hp };
+      });
+      expect(result).toEqual({
+        counter: { technique: null, hits: [{ damage: 30, isCritical: true }] },
+        enemyHp: 70,
+      });
     });
   });
 
@@ -575,11 +664,14 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
             atk: c.atk ?? 20,
             hp: 40,
             maxHp: 40,
+            poison: c.poison ?? false,
+            poisonRate: c.poisonRate ?? 0,
           },
           battleState: {},
           currentHP: c.currentHP ?? 999,
           maxHP: c.maxHP ?? 999,
           defense: c.defense ?? 0,
+          attack: c.attack ?? 20,
           hasOwenSavedLife: true,
           isPoisoned: false,
           battleTurn: 1,
@@ -610,8 +702,8 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result.log).toContain('カインは15のダメージ');
     });
 
-    test('a successful normal parry logs attack, then parry, then the reduced-damage line, in that order', async ({ page }) => {
-      await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 0, currentHP: 999 });
+    test('a successful parry cancels a direct hit and its attached poison', async ({ page }) => {
+      await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 0, currentHP: 999, poison: true, poisonRate: 1 });
       const result = await page.evaluate(async () => {
         const originalRandom = Math.random;
         Math.random = () => 0.0; // always parries
@@ -624,22 +716,14 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
           log: document.getElementById('logContainer')?.textContent || '',
         };
       });
-      expect(result.currentHP).toBe(999 - 10); // 20 * 0.5
+      expect(result.currentHP).toBe(999);
       expect(result.log).toContain('魔界のネズミが攻撃してきた！');
       expect(result.log).toContain('カインは攻撃を剣で受け流した！');
-      expect(result.log).toContain('カインは10のダメージ');
-      // A parried hit must read as a natural sequence of events: the attack is announced,
-      // then the parry, then the (already-reduced) damage it actually caused - not the
-      // damage number before the parry that explains why it's reduced.
-      const attackIndex = result.log.indexOf('魔界のネズミが攻撃してきた！');
-      const parryIndex = result.log.indexOf('カインは攻撃を剣で受け流した！');
-      const damageIndex = result.log.indexOf('カインは10のダメージ');
-      expect(attackIndex).toBeGreaterThanOrEqual(0);
-      expect(parryIndex).toBeGreaterThan(attackIndex);
-      expect(damageIndex).toBeGreaterThan(parryIndex);
+      expect(result.log).not.toContain('ダメージ');
+      expect(result.log).not.toContain('毒状態');
     });
 
-    test('enemyTurn (the non-journey standard-enemy dispatch) logs the same attack -> parry -> damage order', async ({ page }) => {
+    test('enemyTurn also treats a parried standard attack as zero damage', async ({ page }) => {
       await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 0, currentHP: 999 });
       const result = await page.evaluate(() => {
         const originalRandom = Math.random;
@@ -651,27 +735,32 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
           log: document.getElementById('logContainer')?.textContent || '',
         };
       });
-      expect(result.currentHP).toBe(999 - 10); // 20 * 0.5
-      const attackIndex = result.log.indexOf('魔界のネズミが攻撃してきた！');
-      const parryIndex = result.log.indexOf('カインは攻撃を剣で受け流した！');
-      const damageIndex = result.log.indexOf('カインは10のダメージ');
-      expect(attackIndex).toBeGreaterThanOrEqual(0);
-      expect(parryIndex).toBeGreaterThan(attackIndex);
-      expect(damageIndex).toBeGreaterThan(parryIndex);
+      expect(result.currentHP).toBe(999);
+      expect(result.log).toContain('カインは攻撃を剣で受け流した！');
+      expect(result.log).not.toContain('ダメージ');
     });
 
-    test('fireproof gloves reduce a successful parry to 25% in a real battle turn (on top of their own defense bonus)', async ({ page }) => {
-      await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 1, currentHP: 999 }); // effective defense 2
+    test('Fireproof Gloves counterattack deals one normal-attack multiplier after a parry', async ({ page }) => {
+      await setupJourneyBattle(page, { atk: 20, attack: 20, defense: 0, fireproofGloves: 1, currentHP: 999 });
       const result = await page.evaluate(async () => {
         const originalRandom = Math.random;
+        const originalCriticalRate = RPG.Config.CAIN_COMBAT.CRITICAL_RATE;
+        RPG.Config.CAIN_COMBAT.CRITICAL_RATE = 0;
         Math.random = () => 0.0;
         await new Promise(resolve => {
           battleSystem.runJourneyEnemyTurn(resolve);
         });
         Math.random = originalRandom;
-        return RPG.State.currentHP;
+        RPG.Config.CAIN_COMBAT.CRITICAL_RATE = originalCriticalRate;
+        return {
+          currentHP: RPG.State.currentHP,
+          enemyHP: RPG.State.currentEnemy.hp,
+          log: document.getElementById('logContainer')?.textContent || '',
+        };
       });
-      expect(result).toBe(999 - 4); // floor((20 - 2) * 0.25)
+      expect(result.currentHP).toBe(999);
+      expect(result.enemyHP).toBe(20);
+      expect(result.log).toContain('《耐火グローブ》で反撃した！');
     });
 
     test('the amber sap absorption amount matches the actual post-mitigation HP loss', async ({ page }) => {

@@ -22,6 +22,8 @@ Status: confirmed development recovery baseline
 - The five-entry bounty notebook: rat, weasel, amber sap, amberized rat, and amberized weasel, including their currently defined normal reward tiers.
 - Rat and weasel ALL progression, including unlock conversations, independent post-unlock progress, claimable rewards, and final-normal-random-enemy suppression after completion.
 - Vampire Amber equipment, combat drain and Cain-only damage multiplier, battle-chain handling, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence.
+- Cain's provisional battle kit: 15% criticals; 20% sword-technique rate with equal 《強撃》/《連撃》 selection; complete direct-attack 《受け流し》; and Fireproof Gloves' defense +2 plus counterattack. All tunable values are in `RPG.Config.CAIN_COMBAT`.
+- Blue Amber raises Cain's sword-technique rate by the provisional +10 percentage points for both attack techniques and parries.
 - The Vampire Amber / matatabi conflict: mutual use/equip blocking and the repeatable post-battle accident route.
 - The complete inn-repair thread: the two inn-rat battles, consultation, three inspections, report, forest-8m amber-tree timber retrieval, timber delivery without oils, post-rain repair start, the daughter's three-oil event, repair completion, and save/load persistence.
 - The amber-root thread: sap-source awareness, independent 6m/7m/8m root states, Shiny Oil scars, shared non-consuming Hard Oil ignition, fixed burning-root battles, rematches after defeat, per-site defeat persistence, defeat-order-based first/second/third victory scenes, and 30%-of-max-HP stress-relief recovery.
@@ -60,14 +62,14 @@ Status: confirmed development recovery baseline
 ### Partially implemented
 
 - The Hard Bottle can be opened at level 11, but it is retained and has no implemented contents.
-- Rare-amber equipment UI is implemented. Vampire Amber has a combat effect; the other rare-amber effects described in item data are not implemented.
+- Rare-amber equipment UI is implemented. Vampire Amber and Blue Amber have combat effects; the other rare-amber effects described in item data are not implemented.
 - The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
 
 ### Unimplemented
 
 - The Hard Bottle's contents and any post-opening result.
 - Burned-root-site investigation and the three Unknown Amber rewards, including the one rare amber.
-- Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Blue, Bee, and Ignored Amber.
+- Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Bee, and Ignored Amber.
 - Acquisition events for Bee Amber and Ignored Amber.
 - The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
 - A boss-specific defeat/retry route for `amber_husk_giant_larva`, plus the proposed late-battle lethal-attack and blood-loss pressure.

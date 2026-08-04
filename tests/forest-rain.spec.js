@@ -285,12 +285,12 @@ test.describe('forest rain - 8m mud flavor', () => {
     const result = await page.evaluate(() => {
       RPG.State.flags.thiefDiscoveryStatus = 1;
       RPG.State.flags.giantLarvaDefeated = false;
-      const withoutRain = { ...RPG.Config.EVASION_RATE };
+      const withoutRain = { ...RPG.Config.CAIN_COMBAT };
 
       RPG.State.currentDistance = 7;
       // isRainActive() being true must not perturb any battle configuration table.
       const rainActive = explorationSystem.isRainActive();
-      const withRain = { ...RPG.Config.EVASION_RATE };
+      const withRain = { ...RPG.Config.CAIN_COMBAT };
 
       return { rainActive, withoutRain, withRain };
     });

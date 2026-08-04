@@ -4738,6 +4738,23 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.afterReload).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
     });
 
+    test('the third root never stores an ALL target below 15, even with very few kills logged', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.amberRootState = { 6: 'defeated', 7: 'defeated', 8: 'defeated' };
+        RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
+        RPG.State.defeatCounts.sap = { cain: 0, owen: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
+        RPG.State.defeatCounts.amber_weasel = { cain: 0, owen: 0 };
+
+        battleSystem.initializeAmberEnemyAllTargets();
+
+        return { ...RPG.State.amberEnemyAllTargets };
+      });
+      // Raw calc (0+10 rounded up to the next 10) would be 10 for all three; the floor keeps
+      // them at 15, matching the last normal (non-ALL) notebook tier for each enemy.
+      expect(result).toEqual({ sap: 15, amber_rat: 15, amber_weasel: 15 });
+    });
+
     test('finite targets remove only completed amber encounters from their random candidates', async ({ page }) => {
       const result = await page.evaluate(() => {
         const originalRandom = Math.random;

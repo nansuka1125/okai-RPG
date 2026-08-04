@@ -368,7 +368,9 @@ const battleSystem = {
         ["sap", "amber_rat", "amber_weasel"].forEach(enemyId => {
             if (Number.isFinite(RPG.State.amberEnemyAllTargets[enemyId])) return;
             const currentCount = this.getCumulativeEnemyDefeatCount(enemyId);
-            RPG.State.amberEnemyAllTargets[enemyId] = Math.ceil((currentCount + 10) / 10) * 10;
+            // Never below 15 (this notebook entry's last normal tier target), even when the
+            // third root falls with very few kills logged.
+            RPG.State.amberEnemyAllTargets[enemyId] = Math.max(15, Math.ceil((currentCount + 10) / 10) * 10);
             initialized = true;
         });
         return initialized;

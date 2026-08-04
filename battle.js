@@ -2151,7 +2151,7 @@ const battleSystem = {
         return talks[level] ? talks[level].map(line => ({ ...line })) : [];
     },
 
-    buildLevelUpTalkQueue: function (currentLevel = null) {
+    buildLevelUpTalkQueue: function (currentLevels = []) {
         const pendingLevels = Array.isArray(RPG.State.flags.pendingLevelUpTalk)
             ? [...RPG.State.flags.pendingLevelUpTalk]
             : [];
@@ -2170,9 +2170,10 @@ const battleSystem = {
             RPG.State.flags.pendingLevelUpTalk = [];
         }
 
-        if (currentLevel !== null) {
-            queue.push(...this.getLevelUpTalkDialogues(currentLevel));
-        }
+        // Multiple levels reached in the same victory each still get their own talk, in order.
+        currentLevels.forEach(level => {
+            queue.push(...this.getLevelUpTalkDialogues(level));
+        });
 
         return queue;
     },
@@ -2565,7 +2566,7 @@ const battleSystem = {
             RPG.State.flags.carnivorousVineStayCount = 0;
         }
 
-        let currentLevelUpTalkLevel = null;
+        const currentLevelUpTalkLevels = [];
 
         if (RPG.State.currentEnemy.xp) {
             const xpMultiplier = RPG.State.equippedRareAmberId === "monsterAmber"
@@ -2574,7 +2575,11 @@ const battleSystem = {
             const xpGained = Math.floor(RPG.State.currentEnemy.xp * xpMultiplier);
             RPG.State.exp += xpGained;
             uiControl.addLog(`${xpGained}の経験値を得た。`);
-            if (RPG.State.exp >= 75 * Math.pow(1.5, RPG.State.cainLv - 1)) {
+            // A single large XP grant (e.g. a boosted-XP battle after several without a level up)
+            // can cross more than one threshold at once, so repeat the whole per-level process -
+            // stat growth, HP handling, log line, talk gating - for every level actually reached.
+            // Leftover exp past the last threshold is never touched, so it simply carries over.
+            while (RPG.State.exp >= 75 * Math.pow(1.5, RPG.State.cainLv - 1)) {
                 RPG.State.cainLv++;
                 RPG.State.maxHP += 10;
                 RPG.State.attack += 2;
@@ -2584,23 +2589,23 @@ const battleSystem = {
                 uiControl.addLog(`【LEVEL UP!】カインのレベルが ${RPG.State.cainLv} に上がった！`, "marker", "#ffff00");
 
                 if (RPG.Config.LEVEL_UP_TALK_BATTLE_ONLY && this.getLevelUpTalkDialogues(RPG.State.cainLv).length > 0) {
-                    currentLevelUpTalkLevel = RPG.State.cainLv;
+                    currentLevelUpTalkLevels.push(RPG.State.cainLv);
                 }
             }
         }
 
         const isBossLevelUpBattle = this.isDeferredLevelUpTalkBoss(enemyId);
-        if (currentLevelUpTalkLevel !== null && isBossLevelUpBattle) {
+        if (currentLevelUpTalkLevels.length > 0 && isBossLevelUpBattle) {
             if (!Array.isArray(RPG.State.flags.pendingLevelUpTalk)) {
                 RPG.State.flags.pendingLevelUpTalk = [];
             }
-            RPG.State.flags.pendingLevelUpTalk.push(currentLevelUpTalkLevel);
-            currentLevelUpTalkLevel = null;
+            RPG.State.flags.pendingLevelUpTalk.push(...currentLevelUpTalkLevels);
+            currentLevelUpTalkLevels.length = 0;
         }
 
         const levelUpTalkQueue = isBossLevelUpBattle
             ? []
-            : this.buildLevelUpTalkQueue(currentLevelUpTalkLevel);
+            : this.buildLevelUpTalkQueue(currentLevelUpTalkLevels);
 
         const count = RPG.State.defeatCounts[enemyId] ? (RPG.State.defeatCounts[enemyId].cain + RPG.State.defeatCounts[enemyId].owen) : 1;
         const vampireAmberTalkQueue = this.buildVampireAmberPostBattleTalkQueue();

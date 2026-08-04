@@ -5616,4 +5616,119 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({ unequipped: 0, fullHp: 0, halfHp: 0.2, lowHp: 0.2 });
     });
   });
+
+  test.describe('multiple level-ups from a single victory', () => {
+    test('a large XP grant applies every level\'s stat growth and log line, and keeps leftover exp', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          cainLv: 1, exp: 0, maxHP: 100, currentHP: 100, attack: 10, equippedRareAmberId: null,
+        });
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 300, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+
+        battleSystem.executeStandardVictory('test_dummy');
+
+        return {
+          cainLv: RPG.State.cainLv,
+          exp: RPG.State.exp,
+          maxHP: RPG.State.maxHP,
+          attack: RPG.State.attack,
+          levelUpLines: [...document.querySelectorAll('#logContainer .log-entry')]
+            .map(el => el.textContent)
+            .filter(text => text.includes('【LEVEL UP!】')),
+        };
+      });
+      // 300 exp crosses the level 1->2 (75), 2->3 (112.5), 3->4 (168.75) and 4->5 (253.125)
+      // thresholds but not 5->6 (379.6875), so exactly 4 levels are gained and the exp itself is
+      // never reset or floored - it carries over as leftover progress toward level 6.
+      expect(result).toEqual({
+        cainLv: 5,
+        exp: 300,
+        maxHP: 140,
+        attack: 18,
+        levelUpLines: [
+          '【LEVEL UP!】カインのレベルが 2 に上がった！',
+          '【LEVEL UP!】カインのレベルが 3 に上がった！',
+          '【LEVEL UP!】カインのレベルが 4 に上がった！',
+          '【LEVEL UP!】カインのレベルが 5 に上がった！',
+        ],
+      });
+    });
+
+    test('each level gained in one victory queues its own talk dialogue, in order', async ({ page }) => {
+      const setup = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          cainLv: 1, exp: 0, maxHP: 100, currentHP: 100, attack: 10, equippedRareAmberId: null,
+        });
+        RPG.State.flags.pendingLevelUpTalk = [];
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 300, gold: 0,
+        };
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+
+        battleSystem.executeStandardVictory('test_dummy');
+
+        return { cainLv: RPG.State.cainLv };
+      });
+      await drainDialogue(page);
+
+      const result = await page.evaluate(() => ({
+        lines: [...document.querySelectorAll('#logContainer .log-entry')].map(el => el.textContent),
+        pendingLevelUpTalk: RPG.State.flags.pendingLevelUpTalk,
+      }));
+      // 300 exp reaches level 5 (levels 2, 3, 4, and 5 gained); only levels 2 and 4 have a talk
+      // defined, so the two talks should both appear, back to back and in order.
+      expect(setup.cainLv).toBe(5);
+      const expectedOrder = [
+        'カイン「やった！」', 'オーエン「誤差でしょ」', 'カイン「それでも、確かな一歩だ」',
+        'オーエン「技とか覚えないの？」', 'カイン「この程度のレベルでか？」', 'オーエン「はは、言えてる」',
+      ];
+      let cursor = -1;
+      for (const expected of expectedOrder) {
+        const idx = result.lines.indexOf(expected, cursor + 1);
+        expect(idx).toBeGreaterThan(cursor);
+        cursor = idx;
+      }
+      expect(result.pendingLevelUpTalk).toEqual([]);
+    });
+
+    test('during a deferred-talk boss battle, every level gained is queued to pendingLevelUpTalk in order', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const originalRandom = Math.random;
+        Math.random = () => 0.999;
+        try {
+          Object.assign(RPG.State, {
+            cainLv: 1, exp: 0, maxHP: 300, currentHP: 300, attack: 10, equippedRareAmberId: null,
+          });
+          RPG.State.flags.pendingLevelUpTalk = [];
+          RPG.State.currentEnemy = {
+            id: 'giant_larva', name: '泥這う大幼蟲', hp: 0, xp: 300, gold: 0,
+          };
+          RPG.State.defeatCounts.giant_larva = { cain: 0, owen: 0 };
+          RPG.State.lastBlowBy = 'Cain';
+
+          battleSystem.executeStandardVictory('giant_larva');
+        } finally {
+          Math.random = originalRandom;
+        }
+
+        return {
+          cainLv: RPG.State.cainLv,
+          pendingLevelUpTalk: RPG.State.flags.pendingLevelUpTalk,
+        };
+      });
+      await drainDialogue(page);
+
+      // 300 exp reaches level 5 (levels 2-5 gained); only levels 2 and 4 have talks defined, and
+      // both must be deferred (not played immediately) since giant_larva is a deferred-talk boss.
+      expect(result.cainLv).toBe(5);
+      expect(result.pendingLevelUpTalk).toEqual([2, 4]);
+    });
+  });
 });

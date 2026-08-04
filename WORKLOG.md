@@ -24,7 +24,9 @@ Status: confirmed development recovery baseline
 - Vampire Amber equipment, combat drain and Cain-only damage multiplier, battle-chain handling, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence.
 - The Vampire Amber / matatabi conflict: mutual use/equip blocking and the repeatable post-battle accident route.
 - The complete inn-repair thread: the two inn-rat battles, consultation, three inspections, report, forest-8m amber-tree timber retrieval, timber delivery without oils, post-rain repair start, the daughter's three-oil event, repair completion, and save/load persistence.
-- The amber-root thread through all three root battles: sap-source awareness, independent 6m/7m/8m root states, Shiny Oil scars, shared non-consuming Hard Oil ignition, fixed burning-root battles, rematches after defeat, and per-site defeat persistence.
+- The amber-root thread: sap-source awareness, independent 6m/7m/8m root states, Shiny Oil scars, shared non-consuming Hard Oil ignition, fixed burning-root battles, rematches after defeat, per-site defeat persistence, defeat-order-based first/second/third victory scenes, and 30%-of-max-HP stress-relief recovery.
+- The three-root pacification follow-through: the one-time forest-2m conversation, the one-time ordinary-room peaceful night, and finite encounters plus saved ALL targets for Amber Sap, Amberized Rat, and Amberized Weasel. Targets are fixed from the cumulative defeat counts only when the third root is defeated; old three-root saves without saved targets are intentionally unsupported.
+- The Key-Inside Amber / Forest Hut route: burn a held Key-Inside Amber at the freshly defeated root site for one Old Key, discover the 10m hut, enter its exterior and interior scenes, unlock it through the confirmed choice and snake scene, use Key-Inside Amber manually without consuming it, and receive Fireproof Gloves on the following interior examination.
 - At `ae75f53`, the focused inn-repair suite (100 tests), focused amber suite (187 tests), and full Playwright suite (504 tests) passed before this documentation/comment synchronization.
 - Level-11 opening of the Hard Bottle through its opening flourish.
 - Owen intervention text currently in code: four freeze lines, the two-line freeze activation, the frozen-turn line, wolf attack/swallow wording, the consolidated disappearance line, and the intimidation wording.
@@ -43,6 +45,9 @@ Status: confirmed development recovery baseline
 - Inn-repair damage inspection requires the innkeeper consultation, receipt of the rat-20 reward, and mining the amber-tree coin. Timber delivery consumes one Amber-Tree Timber and grants no oils. Once `phase6PostDeliverySleepDone` is true, the inn-front repair command starts the daughter's event; every choice grants one each of Shiny Oil, Glossy Oil, and Hard Oil. Completion consumes only Glossy Oil, leaves the other two oils, uses nails as dialogue only, and sets `innRepairCompleted`.
 - The inn-repair thread can be resumed safely from Phase 6, Phase 7, and a highway-defeat return to the inn front. Interrupted oil and completion events do not commit partial item or flag changes. The repaired-wall investigation, post-repair inn dialogue, and departure send-off differences will not be added.
 - Amber roots at forest 6m, 7m, and 8m each persist `unexamined -> examined -> scarred -> ignited -> defeated`. A normal knife and ordinary fire fail; Shiny Oil scars one site and Hard Oil ignites any site without being consumed. Burning roots are fixed bosses (HP 200, ATK 22, EXP 150, self-burn 10), can be rematched after defeat, and are excluded from the notebook and normal/Unknown Amber drops.
+- The first, second, and third root victories are determined by the number of defeated sites, not their distance. Each plays its own aftermath and restores `Math.floor(maxHP * 0.3)` without exceeding maximum HP or showing a numeric recovery log.
+- After the third root, Amber Sap, Amberized Rat, and Amberized Weasel receive fixed saved ALL targets based on their current cumulative defeats and stop appearing as normal random encounters when their own target is reached. Their existing notebook ALL tiers and rewards are active.
+- Forest 10m first reveals the hut through an ordinary examination. Thereafter `【森小屋】` enters the hut front at the same distance; the hut has no forward command. The Old Key branch is exclusive to `【開ける】` / `【…嫌な予感がする】`, consumes the key only when opened, transitions from the exterior to the interior under blackout, then plays the snake event. Key-Inside Amber alone leaves the hut locked and is not consumed.
 
 ### Test-only and provisional implementation
 
@@ -60,9 +65,8 @@ Status: confirmed development recovery baseline
 
 ### Unimplemented
 
-- ALL conditions, independent progress, unlock conversations, and claims for amber sap, amberized rat, and amberized weasel; their tiers remain disabled.
 - The Hard Bottle's contents and any post-opening result.
-- Distinct post-victory dialogue for the first, second, and third burning roots; stress-relief HP recovery; burned-root-site investigation and rewards; and the remaining three-root aftermath.
+- Burned-root-site investigation and the three Unknown Amber rewards, including the one rare amber.
 - Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Blue, Bee, and Ignored Amber.
 - Acquisition events for Bee Amber and Ignored Amber.
 - The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
@@ -71,8 +75,7 @@ Status: confirmed development recovery baseline
 ### On hold
 
 - Hard Bottle contents.
-- Remaining ALL conditions and rewards beyond the definitions currently disabled in code.
-- The amber-root aftermath after all three sites are defeated: the forest-2m conversation, normal-room peaceful night, finite encounters and ALL progression, Key-Inside Amber/Old Key/Forest Hut connection, and the forest-completion picnic.
+- The forest-completion daughter walk/picnic after all bounty entries are complete.
 - Final values for the provisional amberized-enemy replacement rate and hardened-part durability.
 - The morning wagon-departure scene pending its latest text, exact interaction flow, and handoff decision.
 - Final-boss defeat handling pending the Director-provided defeat scene and retry/return destination.
@@ -94,7 +97,7 @@ Status: confirmed development recovery baseline
 
 ### Next human gate
 
-- Before any further implementation or development-slice selection, the Director must manually play the integrated `main@2536c9c` state and confirm that the implemented features behave as intended together.
+- Before selecting the next development slice, the Director must manually play the current forest-hut guidance and confirm its latest text, command layout, blackout, background change, and screen shake.
 - Manual confirmation targets:
   - `【はじめから】` starts a new game without deleting existing journal or suspend records.
   - All five bounty-notebook entries appear, and rat/weasel ALL unlock, progress, suppression, and reward flows work as specified.
@@ -102,7 +105,8 @@ Status: confirmed development recovery baseline
   - Vampire Amber's combat effect, conversations, sixth-battle forced removal, and save/load persistence work through normal play.
   - Vampire Amber and matatabi mutually block each other, and the conflict accident returns Cain to the inn in the documented state.
 - The inn-repair thread completes after the post-rain start, daughter's three-oil event, and Glossy Oil repair step; confirm the command disappears after `innRepairCompleted`.
-- Amber-root verification reaches the 6m/7m/8m fixed battles, defeat/rematch behavior, and independent per-site `defeated` persistence. The next implementation target is distinct first/second/third-root victory dialogue plus stress-relief HP recovery.
+- Amber-root verification reaches the 6m/7m/8m fixed battles, defeat/rematch behavior, independent per-site `defeated` persistence, defeat-order aftermath, recovery, three-root forest-2m / peaceful-night flow, and finite ALL targets.
+- Forest-hut verification covers first 10m discovery, the exterior-only command layout, key cancellation, blackout-to-interior opening, the Key-Inside Amber-only reaction, manual Key-Inside Amber use stages, and the following Fireproof Gloves examination.
   - Owen's freeze, transparent-wolf, and intimidation battle text appears as intended.
 - Record any visible or progression mismatch before selecting the next development slice.
 - Morning wagon-departure decisions and selection of the next development slice remain post-verification candidates only.

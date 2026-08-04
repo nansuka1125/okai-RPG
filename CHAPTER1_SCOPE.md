@@ -19,9 +19,9 @@ The three retained side threads are:
 
 The merchant side thread is no longer part of Chapter 1. The wagon driver remains a separate main-story character and must not be reconnected to the removed merchant thread.
 
-All rare-amber effects are implemented. Chapter 1 does not use a separate amber-case acquisition system.
+Rare-amber equipment is implemented; Vampire Amber has its dedicated combat effect, while the other described rare-amber effects remain outside the current implementation. Chapter 1 does not use a separate amber-case acquisition system.
 
-The current active development slice is the amber-root aftermath: distinct first/second/third-root victory dialogue and the confirmed stress-relief HP recovery. Root discovery, ignition, and all three root battles are already implemented.
+The current active development slice is manual adjustment of the completed Forest Hut guidance. Root discovery, ignition, three root battles, victory aftermath, forest pacification, finite encounters, and the Key-Inside Amber / Forest Hut route are implemented. Do not select a new feature slice until the current hut flow is manually confirmed.
 
 ## Required Work Before Release
 
@@ -35,27 +35,22 @@ The current active development slice is the amber-root aftermath: distinct first
 - Completion sets `innRepairCompleted`; the command then disappears. The thread is resumable in Phase 6, Phase 7, and after a highway-defeat return to the inn front.
 - The repaired-wall investigation, post-repair inn dialogue differences, and departure send-off differences will not be added.
 
-### 2. Connect Key-Inside Amber to the Forest Hut
+### 2. Key-Inside Amber and Forest Hut — implemented; manual adjustment pending
 
-- Amber-root discovery, Shiny Oil scarring, Hard Oil ignition, fixed burning-root battles, defeat/rematch handling, and independent 6m/7m/8m site persistence are complete.
-- Decide the Key-Inside Amber exchange price and unlock timing against the actual Chapter 1 amber supply.
-- Add ordinary inn chatter establishing that amber can burn.
-- When igniting a root while Key-Inside Amber is held, offer `鍵入り琥珀を燃やす` and grant the Old Key.
-- Do not create a separate long key-burning event.
-- Decide and implement the miss-prevention route if all root ignition opportunities can end before the player obtains Key-Inside Amber.
-- Use the Old Key to unlock the Forest Hut at forest 10m.
+- Key-Inside Amber costs 3 in the existing exchange data and can be manually used without consumption; its three usage stages persist in saves.
+- When a held Key-Inside Amber is present at the freshly defeated root site, `鍵入り琥珀を燃やす` grants one Old Key and consumes the amber. The opportunity closes when the player leaves that site.
+- An ordinary first examination at forest 10m discovers the hut. `【森小屋】` then enters the exterior scene without changing the distance; the hut has only back, examine, and item commands.
+- The Old Key has an exclusive open/cancel choice. Opening consumes it, changes from the exterior to the interior during blackout, then plays the snake event. Key-Inside Amber alone only plays its locked-door reaction.
+- The following interior examination grants Fireproof Gloves once. The glove effect and existing acquisition tracking remain unchanged.
 
-### 3. Complete the amber-root aftermath and forest pacification
+### 3. Amber-root aftermath and forest pacification — implemented core
 
-- Next implementation target: add distinct post-victory dialogue for the first, second, and third burning roots together with the confirmed stress-relief HP recovery.
-- Add investigation of the three burned root sites and three Unknown Amber rewards, including one rare amber.
-- Add the forest-2m conversation after all three roots are defeated.
-- Add the normal-room-only peaceful-night event, with the giant-larva aftermath night taking priority.
-- Connect root completion to finite encounters and ALL progression for Amber Sap, Amberized Rat, and Amberized Weasel.
-- Decide the remaining ALL rewards.
-- Stop each corresponding forest encounter after its saved ALL target is reached.
-- Add the daughter walk/picnic event after all forest bounty entries are complete. Do not add an extra item reward.
-- Perform an integrated manual playtest of the deep-forest frequency, empowered sap, root battles, reward UI, finite encounters, and forest completion.
+- Root discovery, Shiny Oil scarring, Hard Oil ignition, fixed burning-root battles, defeat/rematch handling, and independent 6m/7m/8m site persistence are complete.
+- First, second, and third victories are selected by defeated-site count, each includes the confirmed stress-relief text, and each restores `Math.floor(maxHP * 0.3)` without exceeding maximum HP.
+- All three roots trigger the one-time forest-2m conversation and the first eligible ordinary-room peaceful night.
+- On the third root only, saved ALL targets for Amber Sap, Amberized Rat, and Amberized Weasel are calculated from current cumulative defeats and then fixed. Their existing ALL tiers and rewards are active, and each normal random encounter ends at its own target.
+- Remaining forest work is limited to burned-site investigation, the three Unknown Amber rewards including one rare amber, and the daughter walk/picnic after all bounty entries are complete. Do not add an extra item reward.
+- Perform an integrated manual playtest of the deep-forest frequency, empowered sap, root battles, reward UI, finite encounters, forest completion, and the current hut guidance before selecting the next slice.
 
 ### 4. Complete Cain's battle kit
 
@@ -119,14 +114,12 @@ Remove partial code or stale documentation for these only during an approved cle
 
 ## Required Implementation Order
 
-1. Complete the root aftermath's distinct first/second/third-root victory dialogue and stress-relief HP recovery.
-2. Complete burned-site mining, the forest-2m conversation, and the peaceful-night event.
-3. Complete finite encounters, remaining ALL progression, and the daughter picnic.
-4. Connect Key-Inside Amber, the Old Key, and Forest Hut unlocking.
-5. Complete Cain's sword techniques and battle balance.
-6. Complete departure, highway retry, final boss, and the Chapter 1 ending.
-7. Implement the Herb Garden back route last.
-8. Perform release cleanup and full-route verification.
+1. Manually verify the current Forest Hut guidance, including its text, exclusive command layout, blackout, background switch, screen shake, and item branches.
+2. Select an approved remaining forest slice: burned-site mining and rewards, or the forest-completion daughter walk/picnic.
+3. Complete Cain's sword techniques and battle balance.
+4. Complete departure, highway retry, final boss, and the Chapter 1 ending.
+5. Implement the Herb Garden back route last.
+6. Perform release cleanup and full-route verification.
 
 ## Implementation Rules
 

@@ -644,6 +644,18 @@ body.scene-forest-10m #sceneBackdrop {
     filter: saturate(0.86) brightness(0.9) contrast(1.04);
 }
 
+body.scene-forest-hut-front #sceneBackdrop {
+    background-image: url("images/amber-forest-hut-front.png");
+    background-position: 50% center;
+    filter: saturate(0.86) brightness(0.9) contrast(1.04);
+}
+
+body.scene-forest-hut-interior #sceneBackdrop {
+    background-image: url("images/amber-forest-hut-interior.png");
+    background-position: 50% center;
+    filter: saturate(0.86) brightness(0.9) contrast(1.04);
+}
+
 body.scene-herb-garden-entrance #sceneBackdrop {
     background-image: url("images/amber-herb-garden-entrance-mobile.webp");
     background-position: center center;

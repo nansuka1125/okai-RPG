@@ -501,6 +501,10 @@ const uiControl = {
             const btnEnterHerbGarden = document.getElementById('btnEnterHerbGarden');
             const btnMoveBack = document.getElementById('btnMoveBack');
             const btnTalk = document.getElementById('btnTalk');
+            const isAtForestHut =
+                RPG.State.explorationArea === 'forest' &&
+                RPG.State.currentDistance === 10 &&
+                (RPG.State.location === '森小屋前' || RPG.State.location === '森小屋内部');
             const isPhase6WagonSpot =
                 RPG.State.explorationArea !== "herbGarden" &&
                 RPG.State.storyPhase === 6 &&
@@ -586,6 +590,7 @@ const uiControl = {
                 if (btnEnterInn) btnEnterInn.style.display = 'none';
                 if (btnEnterHerbGarden) btnEnterHerbGarden.style.display = 'none';
                 if (btnMoveForward) {
+                    btnMoveForward.style.display = isAtForestHut ? 'none' : 'flex';
                     btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.moveForward;
                     btnMoveForward.onclick = () => explorationSystem.move(1);
 
@@ -667,6 +672,22 @@ const uiControl = {
                         ) ? "香草袋を試す" : "御者と話す";
                     } else if (isAmberTreeSecondInspect) {
                         btnTalk.textContent = "さらに調べる";
+                    } else if (
+                        RPG.State.explorationArea === "forest" &&
+                        (RPG.State.currentDistance === 6 || RPG.State.currentDistance === 7 || RPG.State.currentDistance === 8) &&
+                        RPG.State.flags.sapSourceAwarenessSeen === true &&
+                        (RPG.State.inventory.hardOil || 0) > 0 &&
+                        explorationSystem.getAmberRootState(RPG.State.currentDistance) !== "defeated"
+                    ) {
+                        btnTalk.textContent = "琥珀樹の根";
+                    } else if (
+                        RPG.State.explorationArea === "forest" &&
+                        RPG.State.currentDistance === 10 &&
+                        RPG.State.forestHutDiscovered === true &&
+                        RPG.State.location !== "森小屋前" &&
+                        RPG.State.location !== "森小屋内部"
+                    ) {
+                        btnTalk.textContent = "森小屋";
                     }
                 }
             }
@@ -1014,6 +1035,7 @@ const uiControl = {
             key === 'lightBook' ||
             key === 'purpleMacaron' ||
             key === 'glowingBunnyEars' ||
+            key === 'keyAmber' ||
             key === 'hardBottle' ||
             key === 'someonesDiary' ||
             canUseEmptyBottle ||

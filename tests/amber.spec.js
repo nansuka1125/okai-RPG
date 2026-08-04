@@ -3661,6 +3661,22 @@ test.describe('Chapter 1 amber system', () => {
       }
     });
 
+    test('hard oil replaces the generic examine command with 琥珀樹の根 at root sites', async ({ page }) => {
+      await setForestRootState(page, { distance: 7, sapSourceAwarenessSeen: true, hardOil: 0 });
+      const before = await page.evaluate(() => {
+        uiControl.updateUI();
+        return document.getElementById('btnTalk')?.textContent;
+      });
+      expect(before).toBe('調べる');
+
+      const after = await page.evaluate(() => {
+        RPG.State.inventory.hardOil = 1;
+        uiControl.updateUI();
+        return document.getElementById('btnTalk')?.textContent;
+      });
+      expect(after).toBe('琥珀樹の根');
+    });
+
     test('the three sites can be inspected in any order and are tracked independently', async ({ page }) => {
       await setForestRootState(page, { distance: 8, sapSourceAwarenessSeen: true });
       await callTalk(page);
@@ -5309,9 +5325,9 @@ test.describe('Chapter 1 amber system', () => {
       });
       expect(afterModal.opportunity).toBe(7);
       expect(afterModal.canBurn).toBe(true);
-      // Shown as an ordinary non-usable item: description only, no 使う button.
+      // The amber remains eligible for the root burn route while also being usable from inventory.
       expect(afterModal.detail).toContain('中に古びた鍵が閉じ込められている琥珀。');
-      expect(afterModal.detail).not.toContain("useItem('keyAmber')");
+      expect(afterModal.detail).toContain("useItem('keyAmber')");
 
       const afterReload = await page.evaluate(() => {
         const snapshot = uiControl.createSaveSnapshot('journal');

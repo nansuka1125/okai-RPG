@@ -1622,6 +1622,90 @@ const explorationSystem = {
         return RPG.State.forestHutState || "locked";
     },
 
+    enterForestHutFront: function () {
+        RPG.State.location = "森小屋前";
+        uiControl.updateUI();
+    },
+
+    showForestHutKeyChoices: function () {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        RPG.State.mode = 'choice';
+        container.innerHTML = '';
+        container.style.display = 'flex';
+        const addChoice = (text, action) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-full';
+            button.textContent = text;
+            button.onclick = action;
+            container.appendChild(button);
+        };
+
+        addChoice('【開ける】', () => {
+            container.style.display = 'none';
+            RPG.State.inventory.oldKey = Math.max(0, (RPG.State.inventory.oldKey || 0) - 1);
+            RPG.State.forestHutState = 'unlocked';
+            this.playForestHutUnlockScene();
+        });
+        addChoice('【…嫌な予感がする】', () => {
+            container.style.display = 'none';
+            RPG.State.mode = 'event';
+            RPG.State.dialogueQueue = [{ text: 'カイン（…今はやめておこう）' }];
+            this.playDialogueLoop();
+        });
+
+        // Use the shared choice-mode lock: only these two buttons remain visible and enabled.
+        uiControl.updateUI();
+    },
+
+    playForestHutUnlockScene: function () {
+        let blackout = null;
+        const snakeEventLines = RPG.Assets.GAME_TEXT.events.forestHutSnakeEvent || [];
+
+        uiControl.addSeparator();
+        RPG.State.mode = 'event';
+        RPG.State.dialogueQueue = [
+            { text: 'オーエン「本当に開けるの？何が起きても知らないよ」', color: '#a020f0' },
+            { text: 'カイン「無意味に脅かすなよ」' },
+            { text: 'カインは扉を開けた！' },
+            {
+                text: null,
+                action: () => {
+                    blackout = uiControl.fadeFullScreen('#000000', 250);
+                }
+            },
+            { text: null, delay: 250 },
+            {
+                text: null,
+                action: () => {
+                    RPG.State.location = '森小屋内部';
+                    uiControl.updateUI();
+                    if (blackout) {
+                        blackout.style.transition = 'opacity 250ms ease-out';
+                        blackout.style.opacity = '0';
+                        setTimeout(() => blackout.remove(), 250);
+                    }
+                }
+            },
+            { text: null, delay: 300 },
+            { text: null, action: () => uiControl.screenShake() },
+            ...snakeEventLines.map(line => (
+                line.startsWith('オーエン「')
+                    ? { text: line, color: '#a020f0' }
+                    : { text: line }
+            )),
+            {
+                text: null,
+                action: () => {
+                    RPG.State.forestHutState = 'eventPlayed';
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
     // Returns true if the forest-hut examine was handled (a branch fired), false if the hut
     // has nothing new to show (gloveGranted) so the caller should fall through to the generic
     // dungeon-examine fallback text.
@@ -1630,12 +1714,19 @@ const explorationSystem = {
 
         if (hutState === "locked") {
             if ((RPG.State.inventory.oldKey || 0) > 0) {
-                // Unlocking does not hand control back - fall through to the "unlocked" branch
-                // below, which owns the only copy of the snake scene, so one examine both opens
-                // the door and plays what is behind it.
-                RPG.State.inventory.oldKey = Math.max(0, (RPG.State.inventory.oldKey || 0) - 1);
-                RPG.State.forestHutState = "unlocked";
-                hutState = "unlocked";
+                uiControl.addLog('カイン（🗝️古びた鍵を使ってみるか？）');
+                this.showForestHutKeyChoices();
+                return true;
+            } else if ((RPG.State.inventory.keyAmber || 0) > 0) {
+                RPG.State.mode = 'event';
+                RPG.State.dialogueQueue = [
+                    { text: 'カイン（この鍵入り琥珀で開かないかな）' },
+                    { text: 'カインは琥珀を鍵穴に押し当ててみた。' },
+                    { text: 'オーエン「…何してるの？」', color: '#a020f0' },
+                    { text: 'カイン「さすがに無理か」' }
+                ];
+                this.playDialogueLoop();
+                return true;
             } else {
                 uiControl.addSeparator();
                 RPG.State.mode = "event";
@@ -1650,8 +1741,8 @@ const explorationSystem = {
         if (hutState === "unlocked") {
             uiControl.addSeparator();
             RPG.State.mode = "event";
-            // Owen's spoken lines get the same purple (#a020f0) used for her lines elsewhere
-            // (e.g. innRepairTimberObtain); the narration lines that merely mention her stay plain.
+            // This remains as the safe continuation for an existing unlocked state. New unlocks
+            // enter through playForestHutUnlockScene() so the backdrop transition happens first.
             const snakeEventLines = RPG.Assets.GAME_TEXT.events.forestHutSnakeEvent || [];
             RPG.State.dialogueQueue = snakeEventLines.map(line => (
                 line.startsWith("オーエン「")
@@ -1673,8 +1764,10 @@ const explorationSystem = {
             uiControl.addSeparator();
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
+                { text: '部屋の隅に、何か落ちている。' },
+                { text: 'カインはそれを拾い上げた。' },
                 {
-                    text: "《耐火グローブ》を手に入れた！",
+                    text: "《🥊耐火グローブを手に入れた！》",
                     type: "marker",
                     color: "#ffd166",
                     action: () => {
@@ -1682,7 +1775,9 @@ const explorationSystem = {
                         RPG.State.forestHutState = "gloveGranted";
                         uiControl.updateUI();
                     }
-                }
+                },
+                { text: 'カイン「………」' },
+                { text: 'カインは無言でそれを手に嵌めた。' }
             ];
             this.playDialogueLoop();
             return true;
@@ -1692,7 +1787,7 @@ const explorationSystem = {
     },
 
     // Post-giant_larva 10m corpse examination, staged 0 -> 1 -> 2 -> 3 via larvaCorpseStage.
-    // Stage 3 is terminal; the talk() caller falls through to inspectForestHut() once reached.
+    // Stage 3 is terminal; the talk() caller then resumes the normal forest-hut guidance.
     inspectGiantLarvaCorpse: function () {
         const stage = RPG.State.larvaCorpseStage || 0;
 
@@ -2352,8 +2447,19 @@ const explorationSystem = {
         }
 
         if (dist === 10 && RPG.State.location !== "かつての街道") {
-            const hutHandled = this.inspectForestHut();
-            if (hutHandled) return;
+            if (RPG.State.location === "森小屋前" || RPG.State.location === "森小屋内部") {
+                const hutHandled = this.inspectForestHut();
+                if (hutHandled) return;
+            } else if (RPG.State.forestHutDiscovered === true) {
+                this.enterForestHutFront();
+                return;
+            } else {
+                RPG.State.forestHutDiscovered = true;
+                RPG.State.mode = 'event';
+                RPG.State.dialogueQueue = this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.forestHutLocked);
+                this.playDialogueLoop();
+                return;
+            }
         }
 
         const forestObservation = this.getForestObservation(dist);
@@ -2934,6 +3040,25 @@ const explorationSystem = {
                 : this.buildSomeonesDiaryFirstReadQueue();
         }
 
+        if (itemId === 'keyAmber') {
+            const useCount = Math.max(0, Number(RPG.State.keyAmberUseCount) || 0);
+            if (useCount === 1) {
+                return [
+                    { text: 'カイン「ひらけごまー！」' },
+                    { text: 'オーエン「……」', color: '#a020f0' },
+                    { text: '特に何も起きなかった！' },
+                    { text: 'カイン（特別な力はないみたいだ）' }
+                ];
+            }
+            if (useCount === 2) {
+                return [
+                    { text: 'オーエン「もうやらないの？」', color: '#a020f0' },
+                    { text: 'カイン「もうやらない」' }
+                ];
+            }
+            return [{ text: 'カイン（もうやらないってば）' }];
+        }
+
         return null;
     },
 
@@ -3092,6 +3217,11 @@ const explorationSystem = {
                     uiControl.closeModal();
                     return;
                 }
+                success = true;
+                consumeItem = false;
+                break;
+            case 'keyAmber':
+                RPG.State.keyAmberUseCount = (RPG.State.keyAmberUseCount || 0) + 1;
                 success = true;
                 consumeItem = false;
                 break;

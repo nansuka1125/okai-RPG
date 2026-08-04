@@ -66,13 +66,18 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         isAtInn: false,
         isInDungeon: true,
         explorationArea: 'forest',
-        location: '琥珀の森',
+        location: c.location || '森小屋前',
         currentDistance: 10,
       });
       if (typeof c.forestHutState === 'string') RPG.State.forestHutState = c.forestHutState;
       if (typeof c.fireproofGloves === 'number') RPG.State.inventory.fireproofGloves = c.fireproofGloves;
       if (typeof c.defense === 'number') RPG.State.defense = c.defense;
+      RPG.State.forestHutDiscovered = typeof c.forestHutDiscovered === 'boolean'
+        ? c.forestHutDiscovered
+        : true;
+      RPG.State.keyAmberUseCount = typeof c.keyAmberUseCount === 'number' ? c.keyAmberUseCount : 0;
       RPG.State.inventory.oldKey = typeof c.oldKey === 'number' ? c.oldKey : 0;
+      RPG.State.inventory.keyAmber = typeof c.keyAmber === 'number' ? c.keyAmber : 0;
       const log = document.getElementById('logContainer');
       if (log) log.innerHTML = '';
     }, cfg);
@@ -83,6 +88,40 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
   }
 
   test.describe('forest hut discovery (森小屋)', () => {
+    test('the first ordinary 10m examine discovers the hut, then 森小屋 enters its front scene', async ({ page }) => {
+      await setForestHutState(page, {
+        location: '琥珀の森',
+        forestHutState: 'locked',
+        forestHutDiscovered: false,
+      });
+      await callTalk(page);
+      await drainDialogue(page);
+
+      const discovered = await page.evaluate(() => {
+        uiControl.updateUI();
+        return {
+          discovered: RPG.State.forestHutDiscovered,
+          location: RPG.State.location,
+          label: document.getElementById('btnTalk')?.textContent,
+        };
+      });
+      expect(discovered).toEqual({ discovered: true, location: '琥珀の森', label: '森小屋' });
+
+      await callTalk(page);
+      const front = await page.evaluate(() => ({
+        distance: RPG.State.currentDistance,
+        location: RPG.State.location,
+        scene: visualDirector.getActiveScene(),
+        background: getComputedStyle(document.getElementById('sceneBackdrop')).backgroundImage,
+        log: document.getElementById('logContainer')?.textContent || '',
+      }));
+      expect(front.distance).toBe(10);
+      expect(front.location).toBe('森小屋前');
+      expect(front.scene).toBe('forest-hut-front');
+      expect(front.background).toContain('amber-forest-hut-front.png');
+      expect(front.log).not.toContain('扉を開けた途端、上から蛇が落ちてきた。');
+    });
+
     test('a locked hut shows the discovery text every time, with no state change', async ({ page }) => {
       await setForestHutState(page, { forestHutState: 'locked' });
       await callTalk(page);
@@ -131,7 +170,9 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         state: RPG.State.forestHutState,
         gloves: RPG.State.inventory.fireproofGloves,
       }));
-      expect(result.log).toContain('《耐火グローブ》を手に入れた！');
+      expect(result.log).toContain('部屋の隅に、何か落ちている。');
+      expect(result.log).toContain('《🥊耐火グローブを手に入れた！》');
+      expect(result.log).toContain('カインは無言でそれを手に嵌めた。');
       expect(result.state).toBe('gloveGranted');
       expect(result.gloves).toBe(1);
     });
@@ -144,31 +185,37 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         gloves: RPG.State.inventory.fireproofGloves,
         state: RPG.State.forestHutState,
       }));
-      expect(result.log).not.toContain('《耐火グローブ》を手に入れた！');
+      expect(result.log).not.toContain('《🥊耐火グローブを手に入れた！》');
       expect(result.log).not.toContain('扉を開けた途端');
       expect(result.gloves).toBe(1);
       expect(result.state).toBe('gloveGranted');
     });
 
-    test('save/load preserves forestHutState, fireproofGloves, and base defense', async ({ page }) => {
+    test('save/load preserves forestHutState, hut discovery, key amber use count, fireproofGloves, and base defense', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.forestHutState = 'eventPlayed';
         RPG.State.inventory.fireproofGloves = 1;
         RPG.State.defense = 0;
+        RPG.State.forestHutDiscovered = true;
+        RPG.State.keyAmberUseCount = 2;
         const snapshot = uiControl.createSaveSnapshot('journal');
         localStorage.setItem('okai_rpg_forest_hut_test', JSON.stringify(snapshot));
 
         RPG.State.forestHutState = 'locked';
         RPG.State.inventory.fireproofGloves = 0;
+        RPG.State.forestHutDiscovered = false;
+        RPG.State.keyAmberUseCount = 0;
         uiControl.loadFromStorage('okai_rpg_forest_hut_test', '森小屋テスト');
 
         return {
           state: RPG.State.forestHutState,
           gloves: RPG.State.inventory.fireproofGloves,
           defense: RPG.State.defense,
+          discovered: RPG.State.forestHutDiscovered,
+          keyAmberUseCount: RPG.State.keyAmberUseCount,
         };
       });
-      expect(result).toEqual({ state: 'eventPlayed', gloves: 1, defense: 0 });
+      expect(result).toEqual({ state: 'eventPlayed', gloves: 1, defense: 0, discovered: true, keyAmberUseCount: 2 });
     });
 
     test('an old save missing the new fields defaults to locked/0/0', async ({ page }) => {
@@ -176,6 +223,8 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         const snapshot = uiControl.createSaveSnapshot('journal');
         const legacySave = JSON.parse(JSON.stringify(snapshot));
         delete legacySave.forestHutState;
+        delete legacySave.forestHutDiscovered;
+        delete legacySave.keyAmberUseCount;
         delete legacySave.defense;
         if (legacySave.inventory) delete legacySave.inventory.fireproofGloves;
         localStorage.setItem('okai_rpg_forest_hut_legacy_test', JSON.stringify(legacySave));
@@ -183,15 +232,19 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         RPG.State.forestHutState = 'gloveGranted';
         RPG.State.inventory.fireproofGloves = 1;
         RPG.State.defense = 5;
+        RPG.State.forestHutDiscovered = true;
+        RPG.State.keyAmberUseCount = 3;
         uiControl.loadFromStorage('okai_rpg_forest_hut_legacy_test', '旧セーブ森小屋テスト');
 
         return {
           state: RPG.State.forestHutState,
           gloves: RPG.State.inventory.fireproofGloves,
           defense: RPG.State.defense,
+          discovered: RPG.State.forestHutDiscovered,
+          keyAmberUseCount: RPG.State.keyAmberUseCount,
         };
       });
-      expect(result).toEqual({ state: 'locked', gloves: 0, defense: 0 });
+      expect(result).toEqual({ state: 'locked', gloves: 0, defense: 0, discovered: false, keyAmberUseCount: 0 });
     });
   });
 
@@ -213,9 +266,18 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result.oldKey).toBe(0);
     });
 
-    test('the key unlocks the hut and plays the snake scene in the same examine', async ({ page }) => {
-      await setForestHutState(page, { forestHutState: 'locked', oldKey: 1 });
+    test('the old key confirmation opens the hut and connects to the existing snake scene', async ({ page }) => {
+      await setForestHutState(page, { forestHutState: 'locked', oldKey: 1, keyAmber: 1 });
       await callTalk(page);
+      const prompt = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        mode: RPG.State.mode,
+        choices: [...document.querySelectorAll('#action-buttons button')].map(button => button.textContent),
+      }));
+      expect(prompt.log).toContain('カイン（🗝️古びた鍵を使ってみるか？）');
+      expect(prompt.mode).toBe('choice');
+      expect(prompt.choices).toEqual(['【開ける】', '【…嫌な予感がする】']);
+      await page.getByRole('button', { name: '【開ける】', exact: true }).click();
       await drainDialogue(page);
 
       const result = await page.evaluate(() => ({
@@ -223,6 +285,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         state: RPG.State.forestHutState,
         oldKey: RPG.State.inventory.oldKey,
         mode: RPG.State.mode,
+        scene: visualDirector.getActiveScene(),
       }));
 
       // One examine consumes the key and runs straight into the existing snake scene.
@@ -234,11 +297,93 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result.log).toContain('カイン「……嗅ぐな」');
       expect(result.state).toBe('eventPlayed');
       expect(result.mode).toBe('base');
+      expect(result.scene).toBe('forest-hut-interior');
+    });
+
+    test('the old key confirmation can be cancelled without consuming or unlocking', async ({ page }) => {
+      await setForestHutState(page, { forestHutState: 'locked', oldKey: 1 });
+      await callTalk(page);
+      await page.getByRole('button', { name: '【…嫌な予感がする】', exact: true }).click();
+      await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        oldKey: RPG.State.inventory.oldKey,
+        state: RPG.State.forestHutState,
+        location: RPG.State.location,
+      }));
+      expect(result.log).toContain('カイン（…今はやめておこう）');
+      expect(result).toMatchObject({ oldKey: 1, state: 'locked', location: '森小屋前' });
+    });
+
+    test('key amber alone only plays the keyhole reaction and leaves the hut locked', async ({ page }) => {
+      await setForestHutState(page, { forestHutState: 'locked', oldKey: 0, keyAmber: 1 });
+      await callTalk(page);
+      await drainDialogue(page);
+      const result = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        keyAmber: RPG.State.inventory.keyAmber,
+        oldKey: RPG.State.inventory.oldKey,
+        state: RPG.State.forestHutState,
+      }));
+      expect(result.log).toContain('カイン（この鍵入り琥珀で開かないかな）');
+      expect(result.log).toContain('カインは琥珀を鍵穴に押し当ててみた。');
+      expect(result.log).toContain('オーエン「…何してるの？」');
+      expect(result.log).toContain('カイン「さすがに無理か」');
+      expect(result).toMatchObject({ keyAmber: 1, oldKey: 0, state: 'locked' });
+    });
+
+    test('key amber is reusable from inventory with persisted first, second, and later dialogue', async ({ page }) => {
+      await setForestHutState(page, { keyAmber: 1 });
+      const detail = await page.evaluate(() => {
+        uiControl.openModal();
+        uiControl.selectItem('keyAmber', 1);
+        const html = document.getElementById('itemDetailArea')?.innerHTML || '';
+        uiControl.closeModal();
+        return html;
+      });
+      expect(detail).toContain("useItem('keyAmber')");
+
+      async function useKeyAmber() {
+        await page.evaluate(() => {
+          RPG.State.mode = 'base';
+          document.getElementById('logContainer').innerHTML = '';
+          explorationSystem.useItem('keyAmber');
+        });
+        await drainDialogue(page);
+        return page.evaluate(() => ({
+          log: document.getElementById('logContainer')?.textContent || '',
+          keyAmber: RPG.State.inventory.keyAmber,
+          useCount: RPG.State.keyAmberUseCount,
+        }));
+      }
+
+      const first = await useKeyAmber();
+      expect(first.log).toContain('カイン「ひらけごまー！」');
+      expect(first.log).toContain('オーエン「……」');
+      expect(first.log).toContain('特に何も起きなかった！');
+      expect(first).toMatchObject({ keyAmber: 1, useCount: 1 });
+
+      await page.evaluate(() => {
+        const snapshot = uiControl.createSaveSnapshot('journal');
+        localStorage.setItem('okai_rpg_key_amber_use_test', JSON.stringify(snapshot));
+        RPG.State.keyAmberUseCount = 0;
+        uiControl.loadFromStorage('okai_rpg_key_amber_use_test', '鍵入り琥珀使用テスト');
+      });
+
+      const second = await useKeyAmber();
+      expect(second.log).toContain('オーエン「もうやらないの？」');
+      expect(second.log).toContain('カイン「もうやらない」');
+      expect(second).toMatchObject({ keyAmber: 1, useCount: 2 });
+
+      const later = await useKeyAmber();
+      expect(later.log).toContain('カイン（もうやらないってば）');
+      expect(later).toMatchObject({ keyAmber: 1, useCount: 3 });
     });
 
     test('the examine after unlocking still grants the gloves exactly once', async ({ page }) => {
       await setForestHutState(page, { forestHutState: 'locked', oldKey: 1, fireproofGloves: 0 });
       await callTalk(page);
+      await page.getByRole('button', { name: '【開ける】', exact: true }).click();
       await drainDialogue(page);
 
       await page.evaluate(() => { document.getElementById('logContainer').innerHTML = ''; });
@@ -249,7 +394,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         state: RPG.State.forestHutState,
         gloves: RPG.State.inventory.fireproofGloves,
       }));
-      expect(afterGloves.log).toContain('《耐火グローブ》を手に入れた！');
+      expect(afterGloves.log).toContain('《🥊耐火グローブを手に入れた！》');
       expect(afterGloves.state).toBe('gloveGranted');
       expect(afterGloves.gloves).toBe(1);
 

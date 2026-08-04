@@ -70,6 +70,9 @@ const visualDirector = {
         if (this.isAmberForestScene()) {
             if (RPG.State.flags && RPG.State.flags.onWagon === true) return "wagon";
 
+            if (RPG.State.location === "森小屋前") return "forest-hut-front";
+            if (RPG.State.location === "森小屋内部") return "forest-hut-interior";
+
             const distance = Number(RPG.State.currentDistance) || 0;
             if (distance >= 10) return "forest-10m";
             if (distance >= 7) {
@@ -146,7 +149,14 @@ const visualDirector = {
         if (!body || !RPG.State) return;
 
         const activeScene = this.getActiveScene();
-        const forestScenes = ["forest", "forest-deep-day", "forest-deep-night", "forest-10m"];
+        const forestScenes = [
+            "forest",
+            "forest-deep-day",
+            "forest-deep-night",
+            "forest-10m",
+            "forest-hut-front",
+            "forest-hut-interior"
+        ];
         const innScenes = [
             "inn-lobby",
             "inn-storage",

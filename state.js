@@ -71,6 +71,10 @@ RPG.State = {
     // gloves obtained, terminal). The key itself comes from burning the 《鍵入り琥珀》 at a defeated
     // amber root's burn site.
     forestHutState: "locked",
+    // Forest 10m's hut is discovered by its first ordinary examination.
+    forestHutDiscovered: false,
+    // 《鍵入り琥珀》をアイテム欄から使った回数。三段階会話の進行を保存する。
+    keyAmberUseCount: 0,
     // 泥這う大幼蟲の死骸調査。0=未調査(銀貨3枚目 未取得) -> 1=銀貨3枚目 取得
     // -> 2=オーエンの一幕 済み -> 3=《誰かの日記》入手済み(終端)。
     larvaCorpseStage: 0,

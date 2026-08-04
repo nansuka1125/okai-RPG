@@ -87,51 +87,6 @@ const battleSystem = {
         RPG.State.poisonDamageRemaining = 0;
     },
 
-    hasNightMedicineEvasion: function () {
-        return RPG.State.battleState?.nightMedicineEvasionActive === true;
-    },
-
-    hasMikawashiEvasion: function () {
-        return RPG.State.battleState?.mikawashiEvasionActive === true;
-    },
-
-    getActiveEvasionEffect: function (options = {}) {
-        if (this.hasMikawashiEvasion()) {
-            return {
-                chance: RPG.Config.EVASION_RATE.mikawashiFeather,
-                log: "ミカワシ羽の力で、カインは攻撃をかわした！",
-                color: "#f1e6c8"
-            };
-        }
-
-        if (this.hasNightMedicineEvasion()) {
-            return {
-                chance: RPG.Config.EVASION_RATE.nightMedicine,
-                log: "カインは薬の余韻に導かれるように攻撃を避けた！",
-                color: "#f1e6c8"
-            };
-        }
-
-        return null;
-    },
-
-    tryEnemyAttackDodge: function (options = {}) {
-        const effect = this.getActiveEvasionEffect(options);
-        if (!effect) return false;
-
-        const chance = Number.isFinite(options.chanceCap)
-            ? Math.min(effect.chance, options.chanceCap)
-            : effect.chance;
-        if (Math.random() >= chance) return false;
-
-        uiControl.addLog(effect.log, "", effect.color);
-        return true;
-    },
-
-    tryNightMedicineDodge: function (options = {}) {
-        return this.tryEnemyAttackDodge(options);
-    },
-
     // Base defense (RPG.State.defense, currently always 0) plus the fireproof gloves' bonus
     // while held. Computed fresh every time rather than folded into RPG.State.defense itself,
     // so inventory stays the single source of truth for the gloves' effect.
@@ -141,9 +96,8 @@ const battleSystem = {
         return base + (hasFireproofGloves ? RPG.Config.FIREPROOF_GLOVES_DEFENSE_BONUS : 0);
     },
 
-    // The normal (10%) parry, independent of the mikawashi-feather/night-medicine full-avoidance
-    // dodges above. Unlike those, a successful parry does not skip damage - it only reduces it
-    // (see resolveEnemyDirectDamage). Judgement only - callers log their own flavor line using
+    // The normal (10%) parry reduces damage rather than skipping it (see
+    // resolveEnemyDirectDamage). Judgement only - callers log their own flavor line using
     // resolveEnemyDirectDamage's returned "parried" flag, so the attack announcement can stay
     // in its natural place before the parry/damage lines.
     tryNormalParry: function () {
@@ -752,21 +706,6 @@ const battleSystem = {
         const isRandomEncounter =
             enemyId === null ||
             options.randomEncounter === true;
-        const pendingMoveEligibility =
-            typeof explorationSystem !== "undefined" &&
-            typeof explorationSystem.consumeMikawashiMoveBattleEligibility === "function"
-                ? explorationSystem.consumeMikawashiMoveBattleEligibility()
-                : false;
-        const hasExplicitMikawashiState = Object.prototype.hasOwnProperty.call(
-            options,
-            "mikawashiEvasionActive"
-        );
-        const mikawashiEvasionActive = hasExplicitMikawashiState
-            ? options.mikawashiEvasionActive === true
-            : (
-                pendingMoveEligibility ||
-                Math.max(0, Number(RPG.State.mikawashiStepsRemaining) || 0) > 0
-            );
         const highwayFixedDistance = Number.isFinite(Number(options.highwayFixedDistance))
             ? Number(options.highwayFixedDistance)
             : null;
@@ -848,10 +787,7 @@ const battleSystem = {
                 {
                     text: null,
                     action: () => {
-                        this.beginBattle(template, {
-                            mikawashiEvasionActive,
-                            highwayFixedDistance
-                        });
+                        this.beginBattle(template, { highwayFixedDistance });
                     }
                 }
             ];
@@ -859,10 +795,7 @@ const battleSystem = {
             return true;
         }
 
-        this.beginBattle(template, {
-            mikawashiEvasionActive,
-            highwayFixedDistance
-        });
+        this.beginBattle(template, { highwayFixedDistance });
         return true;
     },
 
@@ -906,26 +839,15 @@ const battleSystem = {
             );
         }
         // Build 9.0.0: Battle State container
-        const usesNightMedicineEvasion =
-            (RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0 &&
-            !(template.id === "glowing_cat_rabbit" && template.rabbitLevel === 88);
-        const usesMikawashiEvasion =
-            options.mikawashiEvasionActive === true &&
-            !(template.id === "glowing_cat_rabbit" && template.rabbitLevel === 88);
         RPG.State.battleState = {
             skippedTurns: 0,
             playerTookDamage: false,
-            nightMedicineEvasionActive: usesNightMedicineEvasion,
-            mikawashiEvasionActive: usesMikawashiEvasion,
             gratefulTalismanSurvivalActive: false,
             highwayFixedDistance: Number.isFinite(options.highwayFixedDistance)
                 ? options.highwayFixedDistance
                 : null,
             highwayFixedVictoryRecorded: false
         };
-        if (usesNightMedicineEvasion) {
-            RPG.State.nightMedicineEvasionBattlesRemaining--;
-        }
         RPG.State.lastBlowBy = null;
         RPG.State.battleTurn = 1;
         RPG.State.hasOwenIntervened = false;
@@ -1496,12 +1418,6 @@ const battleSystem = {
             visualDirector.playBattleCue("enemy-attack");
         }
 
-        if (this.tryEnemyAttackDodge()) {
-            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
-            setTimeout(onComplete, delay);
-            return;
-        }
-
         const attackResult = this.resolveEnemyDirectDamage(RPG.State.currentEnemy.atk, { allowParry: true });
         let dmg = attackResult.damage;
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";
@@ -1626,10 +1542,6 @@ const battleSystem = {
         const damage = Math.max(1, enemy.atk);
         uiControl.addLog(text.standardAttack(rabbitLevel), "enemy-action");
         setTimeout(() => {
-            if (this.tryNightMedicineDodge()) {
-                setTimeout(callback, delay);
-                return;
-            }
             RPG.State.currentHP = Math.max(1, RPG.State.currentHP - damage);
             this.markPlayerTookDamage(damage);
             uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
@@ -1835,8 +1747,7 @@ const battleSystem = {
         const rewards = {
             5: { itemId: "lightBook", flag: "glowCatRabbitRewardLv5Received" },
             10: { itemId: "purpleMacaron", flag: "glowCatRabbitRewardLv10Received" },
-            15: { itemId: "glowingBunnyEars", flag: "glowCatRabbitRewardLv15Received" },
-            20: { itemId: "nightMedicine", flag: "glowCatRabbitRewardLv20Received" }
+            15: { itemId: "glowingBunnyEars", flag: "glowCatRabbitRewardLv15Received" }
         };
         const reward = rewards[rabbitLevel];
         if (!reward || RPG.State.flags[reward.flag] === true) return null;
@@ -2197,12 +2108,6 @@ const battleSystem = {
         }
 
         // Standard Enemy Logic (Others)
-        if (!isPreemptive && this.tryEnemyAttackDodge()) {
-            const delay = RPG.State.debug.isSkipping ? 50 : 1000;
-            setTimeout(() => this.runBattleLoop(), delay);
-            return;
-        }
-
         const attackResult = this.resolveEnemyDirectDamage(RPG.State.currentEnemy.atk, { allowParry: true });
         let dmg = attackResult.damage;
         let msg = RPG.State.currentEnemy.msg || "攻撃してきた！";

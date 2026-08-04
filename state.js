@@ -15,7 +15,6 @@ RPG.Config = {
     LEVEL_UP_TALK_BATTLE_ONLY: true, // Build 15.2.49: Reserve milestone level-up talks for battle victories only
     FAKE_WOUND_MEDICINE_HEAL_RATE: 0.3,
     SMOKE_BOMB_STEP_COUNT: 10,
-    MIKAWASHI_STEP_COUNT: 3,
     DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10: true,
     AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
     // Provisional Chapter 1 balance values: after metThiefBoy, the forest's 7m-9m depths raise
@@ -28,9 +27,7 @@ RPG.Config = {
     // shared ENEMIES template, so it can't stack across battles or duplicate on save/load.
     EMPOWERED_SAP_ATK_MULTIPLIER: 1.5,
     EVASION_RATE: {
-        normal: 0.1,
-        nightMedicine: 0.5,
-        mikawashiFeather: 0.5
+        normal: 0.1
     },
     // Provisional Chapter 1 balance values, pending playtest: fireproof gloves' flat defense
     // bonus, and the two normal-parry damage multipliers (with/without the gloves).
@@ -120,7 +117,6 @@ RPG.State = {
         smokeBomb: 0,
         hardBottle: 0,
         gratefulTalisman: 0,
-        mikawashiFeather: 0,
         edibleHerb: 0,
         mintFlower: 0,
         boneMeal: 0,
@@ -131,7 +127,6 @@ RPG.State = {
         lightBook: 0,
         purpleMacaron: 0,
         glowingBunnyEars: 0,
-        nightMedicine: 0,
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
         unknownAmber: 0,
@@ -267,9 +262,6 @@ RPG.State = {
         glowCatRabbitRewardLv5Received: false, // Build 15.2.106: Prevent duplicate Lv5 victory rewards
         glowCatRabbitRewardLv10Received: false, // Build 15.2.106: Prevent duplicate Lv10 victory rewards
         glowCatRabbitRewardLv15Received: false, // Build 15.2.106: Prevent duplicate Lv15 victory rewards
-        glowCatRabbitRewardLv20Received: false, // Build 15.2.106: Prevent duplicate Lv20 victory rewards
-        nightMedicineAftermathPending: false, // Build 15.2.106: Play the inn-front aftermath after the medicine night
-        nightMedicineAftermathSeen: false, // Build 15.2.106: Keep the inn-front aftermath one-time
         morningTraining1Done: false, // Build 15.2.107: First post-tree morning training scene
         morningTraining2Done: false, // Build 15.2.107: Post-fortune-request morning training scene
         morningTraining3Pending: false, // Build 15.2.107: Play the wood-chopping scene on a later inn-front exit
@@ -360,9 +352,7 @@ RPG.State = {
     lastBlowBy: null, // "Cain" or "Owen"
     defeatCounts: {}, // Track kills by ID
     glowCatRabbitDefeatCount: 0, // Build 15.2.57: Track how many glowing cat rabbits have been defeated
-    nightMedicineEvasionBattlesRemaining: 0, // Build 15.2.106: 50% evasion for the next five battles
     smokeBombStepsRemaining: 0,
-    mikawashiStepsRemaining: 0,
     playerTookCoin: null, // Track choice at tree event (true/false/null)
     matamatabiStepsRemaining: 0, // Build 15.2.64: Remaining forest steps before the activated branch effect fades
 };

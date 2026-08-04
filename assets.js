@@ -19,7 +19,6 @@ RPG.Assets.CONFIG = {
         smokeBomb: "💨煙玉",
         hardBottle: "🫙やみくもにかたい瓶",
         gratefulTalisman: "🧧ありがた〜い札",
-        mikawashiFeather: "🪶ミカワシ羽",
         edibleHerb: "🌱食用ハーブ",
         matamatabiBranch: "🌿マタマタビの枝",
         mintFlower: "🪻薄荷草",
@@ -30,7 +29,6 @@ RPG.Assets.CONFIG = {
         lightBook: "📙光の書",
         purpleMacaron: "🟣紫マカロン",
         glowingBunnyEars: "🐰光るうさ耳",
-        nightMedicine: "💊夜の薬",
         glowingBrooch: "💍光るブローチ",
         lightRabbitBrooch: "💍光兎のブローチ",
         unknownAmber: "🔸《？琥珀》",
@@ -68,7 +66,6 @@ RPG.Assets.CONFIG = {
         smokeBomb: "割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。",
         hardBottle: "対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。",
         gratefulTalisman: "『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。",
-        mikawashiFeather: "三歩の間だけ、戦闘中の身のこなしが軽くなる羽根。ミカワシという鷲の羽らしい。",
         edibleHerb: "料理に使える種類のハーブ。",
         matamatabiBranch: "獣っぽい魔物を妙に引き寄せるらしい、不思議な枝。",
         mintFlower: "触れるとひんやりする青い花。",
@@ -79,7 +76,6 @@ RPG.Assets.CONFIG = {
         lightBook: "光る猫うさぎの本？",
         purpleMacaron: "体に悪そうな色をしている。",
         glowingBunnyEars: "片方がうさ耳、片方が猫耳。",
-        nightMedicine: "寝る前に飲もう。",
         glowingBrooch: "小さく開く構造になっている。",
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
@@ -154,7 +150,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "20", label: "20", target: 20, claimedFlag: "weaselBounty20Received",
-                items: [{ itemId: "mikawashiFeather", qty: 3 }]
+                items: []
             },
             {
                 id: "all", label: "ALL", target: 3,

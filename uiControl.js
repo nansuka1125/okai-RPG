@@ -127,13 +127,8 @@ const uiControl = {
         const statusTags = [];
         if (RPG.State.isPoisoned) statusTags.push("毒");
         if (RPG.State.flags.matamatabiActive === true) statusTags.push("マタマタビ");
-        if ((RPG.State.nightMedicineEvasionBattlesRemaining || 0) > 0) {
-            statusTags.push(`夜の薬 ${RPG.State.nightMedicineEvasionBattlesRemaining}戦`);
-        }
         const smokeBombSteps = Math.max(0, Number(RPG.State.smokeBombStepsRemaining) || 0);
-        const mikawashiSteps = Math.max(0, Number(RPG.State.mikawashiStepsRemaining) || 0);
         if (smokeBombSteps > 0) statusTags.push(`煙玉 ${smokeBombSteps}歩`);
-        if (mikawashiSteps > 0) statusTags.push(`ミカワシ ${mikawashiSteps}歩`);
         const statusSuffix = statusTags.length > 0 ? ` 【${statusTags.join(" / ")}】` : "";
         if (statusInfo) statusInfo.textContent = `カイン Lv.${RPG.State.cainLv}${statusSuffix}`;
 
@@ -1009,10 +1004,6 @@ const uiControl = {
             key === 'smokeBomb' &&
             typeof explorationSystem !== 'undefined' &&
             explorationSystem.canUseSmokeBomb();
-        const canUseMikawashiFeather =
-            key === 'mikawashiFeather' &&
-            typeof explorationSystem !== 'undefined' &&
-            explorationSystem.canUseMikawashiFeather();
         if (
             key === 'herb' ||
             key === 'highHerb' ||
@@ -1023,14 +1014,12 @@ const uiControl = {
             key === 'lightBook' ||
             key === 'purpleMacaron' ||
             key === 'glowingBunnyEars' ||
-            key === 'nightMedicine' ||
             key === 'hardBottle' ||
             key === 'someonesDiary' ||
             canUseEmptyBottle ||
             canUseScentPouch ||
             canUseFakeWoundMedicine ||
-            canUseSmokeBomb ||
-            canUseMikawashiFeather
+            canUseSmokeBomb
         ) {
             html += `<br><button class="btn" style="height:35px;margin:10px auto 0;width:120px;" onclick="explorationSystem.useItem('${key}')">${RPG.Assets.GAME_TEXT.buttons.useItem}</button>`;
         }
@@ -1445,11 +1434,22 @@ const uiControl = {
 
             // Retired keys may still exist in older saves; do not reintroduce
             // confirmed-unreferenced state into the live runtime object.
-            ["gotTestCoin", "forest8mTreeHintShown", "duelCoinAwarded"].forEach(flag => {
+            [
+                "gotTestCoin",
+                "forest8mTreeHintShown",
+                "duelCoinAwarded",
+                "nightMedicineAftermathPending",
+                "nightMedicineAftermathSeen"
+            ].forEach(flag => {
                 delete mergedState.flags[flag];
+            });
+            ["nightMedicine", "mikawashiFeather"].forEach(itemId => {
+                delete mergedState.inventory[itemId];
             });
             delete mergedState.talkIndex;
             delete mergedState.battleStatus;
+            delete mergedState.nightMedicineEvasionBattlesRemaining;
+            delete mergedState.mikawashiStepsRemaining;
 
             // Preserve the shared RPG.State object identity while removing values
             // that belong only to the previously active save slot.

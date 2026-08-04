@@ -32,7 +32,6 @@ test.describe('field utility items', () => {
         currentHP: 100,
         maxHP: 140,
         smokeBombStepsRemaining: 0,
-        mikawashiStepsRemaining: 0,
       });
       RPG.State.flags.onWagon = false;
       Object.assign(RPG.State.inventory, {
@@ -40,7 +39,6 @@ test.describe('field utility items', () => {
         smokeBomb: 1,
         hardBottle: 1,
         gratefulTalisman: 1,
-        mikawashiFeather: 1,
       });
 
       const itemIds = [
@@ -48,7 +46,6 @@ test.describe('field utility items', () => {
         'smokeBomb',
         'hardBottle',
         'gratefulTalisman',
-        'mikawashiFeather',
       ];
       const useButtons = {};
       itemIds.forEach((itemId) => {
@@ -70,21 +67,18 @@ test.describe('field utility items', () => {
       smokeBomb: '💨煙玉',
       hardBottle: '🫙やみくもにかたい瓶',
       gratefulTalisman: '🧧ありがた〜い札',
-      mikawashiFeather: '🪶ミカワシ羽',
     });
     expect(result.descriptions).toEqual({
       fakeWoundMedicine: '戦闘中の怪我を誤魔化せる。HP回復。',
       smokeBomb: '割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。',
       hardBottle: '対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。',
       gratefulTalisman: '『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。',
-      mikawashiFeather: '三歩の間だけ、戦闘中の身のこなしが軽くなる羽根。ミカワシという鷲の羽らしい。',
     });
     expect(result.useButtons).toEqual({
       fakeWoundMedicine: true,
       smokeBomb: true,
       hardBottle: true,
       gratefulTalisman: false,
-      mikawashiFeather: true,
     });
   });
 
@@ -132,7 +126,6 @@ test.describe('field utility items', () => {
         currentDistance: 1,
         storyPhase: 5,
         smokeBombStepsRemaining: 0,
-        mikawashiStepsRemaining: 0,
       });
       Object.assign(RPG.State.flags, {
         onWagon: false,
@@ -209,95 +202,10 @@ test.describe('field utility items', () => {
     expect(result.simultaneous).toEqual({ smoke: 2, matatabi: 2, battles: 0 });
   });
 
-  test('mikawashi applies to a battle on the third step, not the fourth, and takes priority over night medicine', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      Object.assign(RPG.State, {
-        mode: 'base',
-        isAtInn: false,
-        isInDungeon: true,
-        explorationArea: 'forest',
-        location: uiControl.getLocData(1).name,
-        currentDistance: 1,
-        storyPhase: 5,
-        mikawashiStepsRemaining: 0,
-        smokeBombStepsRemaining: 0,
-      });
-      Object.assign(RPG.State.flags, {
-        onWagon: false,
-        silverDelivered: true,
-        isDebugEncountersOff: true,
-      });
-      RPG.State.inventory.mikawashiFeather = 1;
-
-      const originalRandom = Math.random;
-      const originalCheckEvents = explorationSystem.checkEvents;
-      const originalTreeEncounter = scenarioEvents.treeEventSystem.handleEncounter;
-      const originalStartBattle = battleSystem.startBattle;
-      const captured = [];
-
-      Math.random = () => 0;
-      explorationSystem.checkEvents = () => false;
-      scenarioEvents.treeEventSystem.handleEncounter = () => false;
-      battleSystem.startBattle = (_enemyId, options = {}) => {
-        captured.push(options.mikawashiEvasionActive === true);
-      };
-
-      explorationSystem.useItem('mikawashiFeather');
-      const initialStatus = document.getElementById('statusInfo')?.textContent || '';
-      explorationSystem.move(1, { skipTravelCue: true });
-      explorationSystem.move(-1, { skipTravelCue: true });
-      RPG.State.flags.isDebugEncountersOff = false;
-      explorationSystem.move(1, { skipTravelCue: true });
-      const afterThird = {
-        steps: RPG.State.mikawashiStepsRemaining,
-        battleActive: captured[captured.length - 1],
-      };
-      explorationSystem.move(-1, { skipTravelCue: true });
-      const afterFourth = {
-        steps: RPG.State.mikawashiStepsRemaining,
-        battleActive: captured[captured.length - 1],
-      };
-
-      battleSystem.startBattle = originalStartBattle;
-      explorationSystem.checkEvents = originalCheckEvents;
-      scenarioEvents.treeEventSystem.handleEncounter = originalTreeEncounter;
-
-      const logContainer = document.getElementById('logContainer');
-      if (logContainer) logContainer.innerHTML = '';
-      RPG.State.battleState = {
-        mikawashiEvasionActive: true,
-        nightMedicineEvasionActive: true,
-      };
-      Math.random = () => 0.49;
-      const dodged = battleSystem.tryEnemyAttackDodge();
-      const dodgeLog = logContainer?.textContent || '';
-
-      RPG.State.mode = 'base';
-      RPG.State.location = 'かつての街道';
-      RPG.State.isInDungeon = true;
-      RPG.State.isAtInn = false;
-      RPG.State.flags.onWagon = true;
-      RPG.State.mikawashiStepsRemaining = 0;
-      const usableOnHighway = explorationSystem.canUseMikawashiFeather();
-
-      Math.random = originalRandom;
-      return { initialStatus, afterThird, afterFourth, dodged, dodgeLog, usableOnHighway };
-    });
-
-    expect(result.initialStatus).toContain('ミカワシ 3歩');
-    expect(result.afterThird).toEqual({ steps: 0, battleActive: true });
-    expect(result.afterFourth).toEqual({ steps: 0, battleActive: false });
-    expect(result.dodged).toBe(true);
-    expect(result.dodgeLog).toContain('ミカワシ羽の力で、カインは攻撃をかわした！');
-    expect(result.dodgeLog).not.toContain('薬の余韻');
-    expect(result.usableOnHighway).toBe(true);
-  });
-
   test('temporary effects clear on inn entry, defeat, and the highway transition', async ({ page }) => {
     const result = await page.evaluate(() => {
       const setEffects = () => {
         RPG.State.smokeBombStepsRemaining = 7;
-        RPG.State.mikawashiStepsRemaining = 2;
       };
 
       Object.assign(RPG.State, {
@@ -311,7 +219,6 @@ test.describe('field utility items', () => {
       innSystem.enterInn(false, { skipEntryEvents: true });
       const afterInnEntry = {
         smoke: RPG.State.smokeBombStepsRemaining,
-        mikawashi: RPG.State.mikawashiStepsRemaining,
       };
 
       const originalDefeatSequence = innSystem.showDefeatSequence;
@@ -325,7 +232,6 @@ test.describe('field utility items', () => {
       battleSystem.resolveDefeat();
       const afterDefeat = {
         smoke: RPG.State.smokeBombStepsRemaining,
-        mikawashi: RPG.State.mikawashiStepsRemaining,
       };
       innSystem.showDefeatSequence = originalDefeatSequence;
 
@@ -333,16 +239,15 @@ test.describe('field utility items', () => {
       explorationSystem.transitionToHighway();
       const afterHighwayTransition = {
         smoke: RPG.State.smokeBombStepsRemaining,
-        mikawashi: RPG.State.mikawashiStepsRemaining,
       };
 
       return { afterInnEntry, afterDefeat, afterHighwayTransition };
     });
 
     expect(result).toEqual({
-      afterInnEntry: { smoke: 0, mikawashi: 0 },
-      afterDefeat: { smoke: 0, mikawashi: 0 },
-      afterHighwayTransition: { smoke: 0, mikawashi: 0 },
+      afterInnEntry: { smoke: 0 },
+      afterDefeat: { smoke: 0 },
+      afterHighwayTransition: { smoke: 0 },
     });
   });
 
@@ -505,17 +410,14 @@ test.describe('field utility items', () => {
     });
   });
 
-  test('temporary step counts survive saves and missing old-save fields normalize to zero', async ({ page }) => {
+  test('smoke-bomb step counts survive saves and missing old-save fields normalize to zero', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.smokeBombStepsRemaining = 7;
-      RPG.State.mikawashiStepsRemaining = 2;
       localStorage.setItem('okai_rpg_save_1', JSON.stringify(RPG.State));
       RPG.State.smokeBombStepsRemaining = 0;
-      RPG.State.mikawashiStepsRemaining = 0;
       uiControl.loadGame(1);
       const restored = {
         smoke: RPG.State.smokeBombStepsRemaining,
-        mikawashi: RPG.State.mikawashiStepsRemaining,
       };
 
       localStorage.setItem('okai_rpg_save_1', JSON.stringify({
@@ -526,26 +428,22 @@ test.describe('field utility items', () => {
       uiControl.loadGame(1);
       const oldSave = {
         smoke: explorationSystem.getTemporaryEffectSteps('smokeBombStepsRemaining'),
-        mikawashi: explorationSystem.getTemporaryEffectSteps('mikawashiStepsRemaining'),
         fakeWoundMedicine: RPG.State.inventory.fakeWoundMedicine,
         smokeBomb: RPG.State.inventory.smokeBomb,
         hardBottle: RPG.State.inventory.hardBottle,
         gratefulTalisman: RPG.State.inventory.gratefulTalisman,
-        mikawashiFeather: RPG.State.inventory.mikawashiFeather,
       };
 
       return { restored, oldSave };
     });
 
-    expect(result.restored).toEqual({ smoke: 7, mikawashi: 2 });
+    expect(result.restored).toEqual({ smoke: 7 });
     expect(result.oldSave).toEqual({
       smoke: 0,
-      mikawashi: 0,
       fakeWoundMedicine: 0,
       smokeBomb: 0,
       hardBottle: 0,
       gratefulTalisman: 0,
-      mikawashiFeather: 0,
     });
   });
 });

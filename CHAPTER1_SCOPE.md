@@ -52,28 +52,12 @@ The current active development slice is the amber-root aftermath: distinct first
 - Add the forest-2m conversation after all three roots are defeated.
 - Add the normal-room-only peaceful-night event, with the giant-larva aftermath night taking priority.
 - Connect root completion to finite encounters and ALL progression for Amber Sap, Amberized Rat, and Amberized Weasel.
-- Decide the remaining ALL rewards and replace the removed Weasel-20 reward.
+- Decide the remaining ALL rewards.
 - Stop each corresponding forest encounter after its saved ALL target is reached.
 - Add the daughter walk/picnic event after all forest bounty entries are complete. Do not add an extra item reward.
 - Perform an integrated manual playtest of the deep-forest frequency, empowered sap, root battles, reward UI, finite encounters, and forest completion.
 
-### 4. Remove obsolete full-evasion items
-
-Remove both `ミカワシ羽` and the night medicine from:
-
-- item definitions and descriptions
-- inventory UI and item-use handling
-- movement counters and active-effect state
-- save/default fields that exist only for these items
-- battle dodge logic and boss-specific caps
-- bounty rewards
-- automated tests, comments, and stale names
-
-Replace the Weasel-20 reward before completing this removal.
-
-Normal sword parry and Fireproof Gloves remain. Do not replace the removed items with another general full-evasion system unless the Director explicitly approves it.
-
-### 5. Complete Cain's battle kit
+### 4. Complete Cain's battle kit
 
 - Define and implement critical hits, sword-technique rate, and the Chapter 1 sword techniques.
 - Decide how sword techniques interact with hardened enemy parts.
@@ -83,7 +67,7 @@ Normal sword parry and Fireproof Gloves remain. Do not replace the removed items
 - Give Vampire Amber its formal acquisition route and disable the development grant before release.
 - Rebalance ordinary enemies, bosses, Fireproof Gloves, parry, criticals, and sword techniques together.
 
-### 6. Close the main progression and ending
+### 5. Close the main progression and ending
 
 - Audit the Phase-2-to-thief-boy trigger against current code.
 - Compare all approved BAD END designs with current implementation.
@@ -94,7 +78,7 @@ Normal sword parry and Fireproof Gloves remain. Do not replace the removed items
 - Finish final-boss behavior, boss-specific defeat, inn retreat, retry, and Chapter 1 clear flow.
 - Verify title return and record-opening behavior after completion.
 
-### 7. Implement the Herb Garden back route last
+### 6. Implement the Herb Garden back route last
 
 Only after the main story, Amber Forest, battle system, departure, final boss, and ending are complete:
 
@@ -106,7 +90,7 @@ Only after the main story, Amber Forest, battle system, departure, final boss, a
 - add route-specific deepest-garden differences
 - test both normal and back-route completion
 
-### 8. Release cleanup and verification
+### 7. Release cleanup and verification
 
 - Remove debug items, hooks, provisional grants, dead code, stale comments, and obsolete test names.
 - Remove any partial implementation left behind for excluded features.
@@ -120,11 +104,6 @@ Only after the main story, Amber Forest, battle system, departure, final boss, a
 Do not design, restore, or implement these features:
 
 - the merchant side thread, lost cargo, rewards, and merchant-to-driver convergence
-- `ミカワシ羽`
-- the night medicine
-
-Existing references to these features are cleanup targets, not future work.
-
 ## Explicitly Out of Scope
 
 Do not implement these for Chapter 1:
@@ -144,11 +123,10 @@ Remove partial code or stale documentation for these only during an approved cle
 2. Complete burned-site mining, the forest-2m conversation, and the peaceful-night event.
 3. Complete finite encounters, remaining ALL progression, and the daughter picnic.
 4. Connect Key-Inside Amber, the Old Key, and Forest Hut unlocking.
-5. Remove Mikawashi Feather and the night medicine and replace the Weasel-20 reward.
-6. Complete Cain's sword techniques and battle balance.
-7. Complete departure, highway retry, final boss, and the Chapter 1 ending.
-8. Implement the Herb Garden back route last.
-9. Perform release cleanup and full-route verification.
+5. Complete Cain's sword techniques and battle balance.
+6. Complete departure, highway retry, final boss, and the Chapter 1 ending.
+7. Implement the Herb Garden back route last.
+8. Perform release cleanup and full-route verification.
 
 ## Implementation Rules
 

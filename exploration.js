@@ -1,8 +1,6 @@
 // 🚩ーー【移動・探索システム】ーー
 // Build 14.1: Namespaces updated to RPG.State and RPG.Assets
 const explorationSystem = {
-    _pendingMikawashiMoveBattleEligibility: false,
-
     isInHerbGarden: function () {
         return RPG.State.explorationArea === "herbGarden";
     },
@@ -30,87 +28,49 @@ const explorationSystem = {
         );
     },
 
-    canUseMikawashiFeather: function () {
-        const isFormerHighway = RPG.State.location === "かつての街道";
-        return (
-            RPG.State.mode === "base" &&
-            RPG.State.isInDungeon === true &&
-            RPG.State.isAtInn !== true &&
-            (RPG.State.flags.onWagon !== true || isFormerHighway) &&
-            this.getTemporaryEffectSteps("mikawashiStepsRemaining") <= 0
-        );
-    },
-
     canOpenHardBottle: function () {
         return RPG.State.cainLv >= 11;
     },
 
     beginTemporaryFieldStep: function () {
-        const isFormerHighway = RPG.State.location === "かつての街道";
         const isCountedFreeMove =
             RPG.State.mode === "base" &&
             RPG.State.isInDungeon === true &&
             RPG.State.isAtInn !== true &&
-            (RPG.State.flags.onWagon !== true || isFormerHighway);
+            RPG.State.flags.onWagon !== true;
 
         if (!isCountedFreeMove) {
-            this._pendingMikawashiMoveBattleEligibility = false;
             return {
                 counted: false,
                 smokeActive: false,
-                mikawashiActive: false,
-                smokeExpired: false,
-                mikawashiExpired: false
+                smokeExpired: false
             };
         }
 
         const smokeSteps = this.getTemporaryEffectSteps("smokeBombStepsRemaining");
-        const mikawashiSteps = this.getTemporaryEffectSteps("mikawashiStepsRemaining");
         const effects = {
             counted: true,
             smokeActive: smokeSteps > 0,
-            mikawashiActive: mikawashiSteps > 0,
-            smokeExpired: smokeSteps === 1,
-            mikawashiExpired: mikawashiSteps === 1
+            smokeExpired: smokeSteps === 1
         };
 
         RPG.State.smokeBombStepsRemaining = Math.max(0, smokeSteps - 1);
-        RPG.State.mikawashiStepsRemaining = Math.max(0, mikawashiSteps - 1);
-        this._pendingMikawashiMoveBattleEligibility = effects.mikawashiActive;
         return effects;
     },
 
-    finishTemporaryFieldStep: function (effects, options = {}) {
+    finishTemporaryFieldStep: function (effects) {
         if (!effects || effects.counted !== true) return;
 
         if (effects.smokeExpired) {
             uiControl.addLog("煙が薄れ、気配が元に戻った。");
         }
-        if (effects.mikawashiExpired) {
-            uiControl.addLog("ミカワシ羽の力が消えた。");
-        }
-        if (options.preserveBattleEligibility !== true) {
-            this._pendingMikawashiMoveBattleEligibility = false;
-        }
-        if (effects.smokeExpired || effects.mikawashiExpired) {
+        if (effects.smokeExpired) {
             uiControl.updateUI();
         }
     },
 
-    consumeMikawashiMoveBattleEligibility: function () {
-        const isEligible = this._pendingMikawashiMoveBattleEligibility === true;
-        this._pendingMikawashiMoveBattleEligibility = false;
-        return isEligible;
-    },
-
-    clearMikawashiMoveBattleEligibility: function () {
-        this._pendingMikawashiMoveBattleEligibility = false;
-    },
-
     clearTemporaryItemEffects: function () {
         RPG.State.smokeBombStepsRemaining = 0;
-        RPG.State.mikawashiStepsRemaining = 0;
-        this.clearMikawashiMoveBattleEligibility();
     },
 
     getHerbGardenMaxDistance: function () {
@@ -263,33 +223,21 @@ const explorationSystem = {
         if (RPG.State.storyPhase >= 6 && distance <= 2) {
             return battleSystem.startBattle(
                 Math.random() < 0.35 ? "skull_bee" : "rat",
-                {
-                    mikawashiEvasionActive: options.mikawashiActive === true,
-                    randomEncounter: true
-                }
+                { randomEncounter: true }
             ) === true;
         }
 
         if (distance <= 2) {
-            return battleSystem.startBattle("rat", {
-                mikawashiEvasionActive: options.mikawashiActive === true,
-                randomEncounter: true
-            }) === true;
+            return battleSystem.startBattle("rat", { randomEncounter: true }) === true;
         }
 
         if (RPG.State.storyPhase >= 6 && Math.random() < 0.25) {
-            return battleSystem.startBattle("skull_bee", {
-                mikawashiEvasionActive: options.mikawashiActive === true,
-                randomEncounter: true
-            }) === true;
+            return battleSystem.startBattle("skull_bee", { randomEncounter: true }) === true;
         }
 
         // Match the forest's existing rat/weasel weight ratio (10:3) after 4m.
         const enemyId = Math.random() < (10 / 13) ? "rat" : "weasel";
-        return battleSystem.startBattle(enemyId, {
-            mikawashiEvasionActive: options.mikawashiActive === true,
-            randomEncounter: true
-        }) === true;
+        return battleSystem.startBattle(enemyId, { randomEncounter: true }) === true;
     },
 
     tryHerbGardenVineEncounter: function (distance, options = {}) {
@@ -302,9 +250,7 @@ const explorationSystem = {
                 ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6CarnivorousVineIntro),
                 {
                     text: null,
-                    action: () => battleSystem.startBattle("carnivorous_vine", {
-                        mikawashiEvasionActive: options.mikawashiActive === true
-                    })
+                    action: () => battleSystem.startBattle("carnivorous_vine")
                 }
             ];
             this.playDialogueLoop();
@@ -318,9 +264,7 @@ const explorationSystem = {
             !this.isRandomEncounterSuppressed(options) &&
             Math.random() < 0.08
         ) {
-            battleSystem.startBattle("carnivorous_vine", {
-                mikawashiEvasionActive: options.mikawashiActive === true
-            });
+            battleSystem.startBattle("carnivorous_vine");
             return true;
         }
 
@@ -944,9 +888,6 @@ const explorationSystem = {
             // A fully automatic scene can finish without a final player tap.
             // Always clear the transparent tap layer before restoring commands.
             this.cancelActiveTypewriter();
-            if (RPG.State.mode !== "choice") {
-                this.clearMikawashiMoveBattleEligibility();
-            }
             RPG.State.isWaitingForInput = false;
             uiControl.hideFloatingArrow();
             uiControl.disableTapOverlay();
@@ -1299,17 +1240,15 @@ const explorationSystem = {
             // 6m: Single crow battle (not handled by EVENT_DATA).
             // The count is a victory count and is updated only by battleSystem.
             if (dist === 6 && (Number(RPG.State.highwayBattleCount[6]) || 0) < 1) {
-                battleSystem.startHighwayFixedBattle(6, 'eye_eating_crow', {
-                    mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
-                });
-                this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                battleSystem.startHighwayFixedBattle(6, 'eye_eating_crow');
+                this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }
         }
 
         // Build 15.1.2: Delegated to scenarioEvents.treeEventSystem.handleEncounter()
         if (scenarioEvents.treeEventSystem.handleEncounter(step)) {
-            this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+            this.finishTemporaryFieldStep(temporaryEffects);
             return;
         }
 
@@ -1442,11 +1381,9 @@ const explorationSystem = {
                 ? RPG.Config.DEEP_FOREST_POST_THIEF_BOY_BATTLE_RATE
                 : RPG.Assets.CONFIG.BATTLE_RATE;
             if (Math.random() < effectiveBattleRate) {
-                const battleStarted = battleSystem.startBattle(null, {
-                    mikawashiEvasionActive: temporaryEffects?.mikawashiActive === true
-                });
+                const battleStarted = battleSystem.startBattle(null);
                 if (battleStarted) {
-                    this.finishTemporaryFieldStep(temporaryEffects, { preserveBattleEligibility: true });
+                    this.finishTemporaryFieldStep(temporaryEffects);
                     return;
                 }
             }
@@ -3040,21 +2977,6 @@ const explorationSystem = {
                 uiControl.addLog("煙がカインの気配を覆った。");
                 success = true;
                 break;
-            case 'mikawashiFeather':
-                if (!this.canUseMikawashiFeather()) {
-                    uiControl.addLog(
-                        this.getTemporaryEffectSteps("mikawashiStepsRemaining") > 0
-                            ? RPG.Assets.GAME_TEXT.items.notNeeded
-                            : RPG.Assets.GAME_TEXT.items.cannotUse
-                    );
-                    uiControl.closeModal();
-                    return;
-                }
-                RPG.State.mikawashiStepsRemaining = RPG.Config.MIKAWASHI_STEP_COUNT;
-                uiControl.addLog("🪶ミカワシ羽を使った！");
-                uiControl.addLog("身体が軽くなった。");
-                success = true;
-                break;
             case 'herb':
                 if (RPG.State.currentHP >= RPG.State.maxHP) {
                     uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
@@ -3173,17 +3095,6 @@ const explorationSystem = {
                 success = true;
                 consumeItem = false;
                 break;
-            case 'nightMedicine':
-                if (!RPG.State.isAtInn) {
-                    uiControl.addLog("カイン（寝る前に飲もう）");
-                    uiControl.closeModal();
-                    return;
-                }
-                RPG.State.inventory[itemId]--;
-                uiControl.updateUI();
-                uiControl.closeModal();
-                innSystem.playNightMedicineSleep();
-                return;
             case 'lightBook':
             case 'purpleMacaron':
                 success = true;

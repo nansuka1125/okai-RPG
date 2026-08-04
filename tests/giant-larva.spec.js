@@ -79,7 +79,6 @@ test.describe('giant larva balance', () => {
       const originalRandom = Math.random;
       const rolls = [0.65, 0.999];
       let appliedDamage = null;
-      let dodgeOptions = null;
 
       try {
         window.setTimeout = callback => {
@@ -98,21 +97,13 @@ test.describe('giant larva balance', () => {
             swallowUsed: true,
             waitingUsed: true,
           },
-          battleState: {
-            skippedTurns: 0,
-            nightMedicineEvasionActive: false,
-            mikawashiEvasionActive: false,
-          },
+          battleState: { skippedTurns: 0 },
         });
 
         RPG.Assets.BATTLE_AI.giant_larva.execute({
-          tryNightMedicineDodge: options => {
-            dodgeOptions = options;
-            return false;
-          },
           // Delegates to the real defense/parry resolution (Add fireproof glove / parry
           // -damage-reduction feature) so this test still isolates giant_larva's own branching
-          // (wait-vs-attack roll, dodge options) while exercising the real damage formula.
+          // (wait-vs-attack roll) while exercising the real damage formula.
           resolveEnemyDirectDamage: (baseDamage, options) => battleSystem.resolveEnemyDirectDamage(baseDamage, options),
           applyEnemyDirectDamage: damage => {
             appliedDamage = damage;
@@ -123,7 +114,6 @@ test.describe('giant larva balance', () => {
 
         return {
           appliedDamage,
-          dodgeOptions,
           turn: RPG.State.battleTurn,
           remainingRolls: rolls.length,
         };
@@ -135,7 +125,6 @@ test.describe('giant larva balance', () => {
 
     expect(result).toEqual({
       appliedDamage: 19,
-      dodgeOptions: { chanceCap: 0.25 },
       turn: 3,
       remainingRolls: 0,
     });
@@ -168,7 +157,6 @@ test.describe('giant larva balance', () => {
           poisonDamageRemaining: 0,
           isBattling: false,
           currentEnemy: null,
-          nightMedicineEvasionBattlesRemaining: 0,
         });
         Object.assign(RPG.State.inventory, {
           charm: 0,
@@ -200,35 +188,4 @@ test.describe('giant larva balance', () => {
     });
   });
 
-  test('caps special evasion at 25 percent only when requested', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      const originalRandom = Math.random;
-
-      try {
-        RPG.State.battleState = {
-          nightMedicineEvasionActive: true,
-          mikawashiEvasionActive: false,
-        };
-
-        Math.random = () => 0.24;
-        const larvaDodge = battleSystem.tryNightMedicineDodge({ chanceCap: 0.25 });
-
-        Math.random = () => 0.25;
-        const larvaHit = battleSystem.tryNightMedicineDodge({ chanceCap: 0.25 });
-
-        Math.random = () => 0.49;
-        const normalDodge = battleSystem.tryNightMedicineDodge();
-
-        return { larvaDodge, larvaHit, normalDodge };
-      } finally {
-        Math.random = originalRandom;
-      }
-    });
-
-    expect(result).toEqual({
-      larvaDodge: true,
-      larvaHit: false,
-      normalDodge: true,
-    });
-  });
 });

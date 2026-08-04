@@ -1382,7 +1382,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       'rat:10': [['herb', 3]],
       'rat:20': [['fakeWoundMedicine', 3]],
       'weasel:10': [['smokeBomb', 3]],
-      'weasel:20': [['mikawashiFeather', 3]],
+      'weasel:20': [],
       'sap:10': [['shinyOil', 3]],
       'sap:15': [['hardBottle', 1]],
       'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],

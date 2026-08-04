@@ -529,45 +529,6 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result).toBe(999 - 4); // floor((20 - 2) * 0.25)
     });
 
-    test('mikawashi-feather full avoidance is unchanged and takes priority over the normal parry', async ({ page }) => {
-      await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 1, currentHP: 999 });
-      await page.evaluate(() => {
-        RPG.State.battleState.mikawashiEvasionActive = true;
-      });
-      const result = await page.evaluate(async () => {
-        const originalRandom = Math.random;
-        Math.random = () => 0.0; // guarantees the mikawashi dodge chance (50%)
-        await new Promise(resolve => {
-          battleSystem.runJourneyEnemyTurn(resolve);
-        });
-        Math.random = originalRandom;
-        return {
-          currentHP: RPG.State.currentHP,
-          log: document.getElementById('logContainer')?.textContent || '',
-        };
-      });
-      expect(result.currentHP).toBe(999); // fully avoided, no damage at all
-      expect(result.log).toContain('ミカワシ羽の力で、カインは攻撃をかわした！');
-      expect(result.log).not.toContain('カインは攻撃を剣で受け流した！');
-    });
-
-    test('night-medicine full avoidance is unchanged', async ({ page }) => {
-      await setupJourneyBattle(page, { atk: 20, defense: 0, fireproofGloves: 0, currentHP: 999 });
-      await page.evaluate(() => {
-        RPG.State.battleState.nightMedicineEvasionActive = true;
-      });
-      const result = await page.evaluate(async () => {
-        const originalRandom = Math.random;
-        Math.random = () => 0.0; // guarantees the night-medicine dodge chance (50%)
-        await new Promise(resolve => {
-          battleSystem.runJourneyEnemyTurn(resolve);
-        });
-        Math.random = originalRandom;
-        return RPG.State.currentHP;
-      });
-      expect(result).toBe(999);
-    });
-
     test('the amber sap absorption amount matches the actual post-mitigation HP loss', async ({ page }) => {
       await setupJourneyBattle(page, {
         enemyId: 'sap', enemyName: '琥珀の樹液', atk: 20, defense: 4, fireproofGloves: 1, // effective defense 6

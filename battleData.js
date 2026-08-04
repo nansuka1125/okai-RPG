@@ -117,10 +117,6 @@ RPG.Assets.BATTLE_AI = {
 
             const dealDamage = (damage, message, color = null) => {
                 uiControl.addLog(message, "enemy-action", color);
-                if (sys.tryNightMedicineDodge()) {
-                    finishTurn();
-                    return;
-                }
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage", color);
                 sys.applyEnemyDirectDamage(damage);
                 uiControl.updateUI();
@@ -238,11 +234,6 @@ RPG.Assets.BATTLE_AI = {
 
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.bodySlam, "enemy-action");
             setTimeout(() => {
-                if (sys.tryNightMedicineDodge({ chanceCap: 0.25 })) {
-                    RPG.State.battleTurn++;
-                    setTimeout(() => sys.runBattleLoop(), 1200);
-                    return;
-                }
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 sys.applyEnemyDirectDamage(damage);
                 uiControl.updateUI();
@@ -274,11 +265,6 @@ RPG.Assets.BATTLE_AI = {
                 const damage = sys.resolveEnemyDirectDamage(enemy.atk * 1.5, { allowParry: false }).damage;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.strongAttack, "enemy-action", "#ff4d4d");
                 setTimeout(() => {
-                    if (sys.tryNightMedicineDodge()) {
-                        RPG.State.battleTurn++;
-                        setTimeout(() => sys.runBattleLoop(), loopDelay);
-                        return;
-                    }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     sys.applyEnemyDirectDamage(damage);
                     uiControl.updateUI();
@@ -291,11 +277,6 @@ RPG.Assets.BATTLE_AI = {
                 const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hungry_amber_tree.standardAttack, "enemy-action");
                 setTimeout(() => {
-                    if (sys.tryNightMedicineDodge()) {
-                        RPG.State.battleTurn++;
-                        setTimeout(() => sys.runBattleLoop(), loopDelay);
-                        return;
-                    }
                     uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                     sys.applyEnemyDirectDamage(damage);
                     uiControl.updateUI();
@@ -333,15 +314,6 @@ RPG.Assets.BATTLE_AI = {
 
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_burning_root.standardAttack, "enemy-action");
             setTimeout(() => {
-                if (sys.tryNightMedicineDodge()) {
-                    if (sys.checkBattleEnd()) return;
-                    this.applySelfBurnDamage(sys);
-                    if (sys.checkBattleEnd()) return;
-                    RPG.State.battleTurn++;
-                    setTimeout(() => sys.runBattleLoop(), delay);
-                    return;
-                }
-
                 const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 sys.applyEnemyDirectDamage(damage);
@@ -414,11 +386,6 @@ RPG.Assets.BATTLE_AI = {
             const damage = sys.resolveEnemyDirectDamage(enemy.atk, { allowParry: false }).damage;
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.standardAttack, "enemy-action");
             setTimeout(() => {
-                if (sys.tryNightMedicineDodge()) {
-                    RPG.State.battleTurn++;
-                    setTimeout(() => sys.runBattleLoop(), loopDelay);
-                    return;
-                }
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 sys.applyEnemyDirectDamage(damage);
 

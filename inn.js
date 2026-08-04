@@ -65,6 +65,59 @@ innSystem = {
         );
     },
 
+    buildPicnicDateSceneQueue: function (lines) {
+        return explorationSystem.buildDialogueQueue(lines).map(line => (
+            line.text && line.text.startsWith("オーエン「")
+                ? { ...line, color: "#a020f0" }
+                : line
+        ));
+    },
+
+    // Player-initiated: fired directly from the 【娘とデート】 button (see uiControl's
+    // updateControlPanels), not from stay(). No sleep/morning simulation needed - the click
+    // itself is the transition, so this only has to draw the scene.
+    playPicnicDateScene: function () {
+        if (RPG.State.mode !== "base") return;
+
+        RPG.State.mode = "event";
+        RPG.State.inventory.secretLetter = Math.max(0, RPG.State.inventory.secretLetter - 1);
+        RPG.State.flags.picnicDateStaySincePassed = false;
+
+        RPG.State.dialogueQueue = [
+            { text: null, action: () => visualDirector.setScene("forest") },
+            { text: "【ピクニックデート】", type: "marker", color: "#f1e6c8", autoAdvance: true, delay: 600 },
+            ...this.buildPicnicDateSceneQueue(RPG.Assets.GAME_TEXT.events.picnicDateForest),
+            {
+                text: null,
+                delay: 800,
+                action: () => {
+                    const logContainer = document.getElementById("logContainer");
+                    if (logContainer) logContainer.classList.add("night-mode");
+                }
+            },
+            {
+                text: null,
+                delay: 1200,
+                action: () => {
+                    visualDirector.setScene("inn-front");
+                    const logContainer = document.getElementById("logContainer");
+                    if (logContainer) logContainer.classList.remove("night-mode");
+                }
+            },
+            ...this.buildPicnicDateSceneQueue(RPG.Assets.GAME_TEXT.events.picnicDateInnFront),
+            {
+                text: null,
+                action: () => {
+                    visualDirector.clearScene();
+                    RPG.State.mode = "base";
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        uiControl.updateUI();
+        explorationSystem.playDialogueLoop();
+    },
+
     // The ordinary fixed-room stay. Despite the name it now serves every post-delivery stay,
     // not just Phase 7 - the name is kept because a test stubs it by name and renaming buys
     // nothing. Called with no arguments it behaves exactly as it always has.
@@ -240,6 +293,13 @@ innSystem = {
             if (RPG.State.flags.carnivorousVineStayCount >= 3) {
                 RPG.State.flags.carnivorousVineRegrown = true;
             }
+        }
+
+        // secretLetter is only ever granted by finishing the notebook (see
+        // isLastNotebookAllTierClaim), so holding it here means the picnic date's 【娘とデート】
+        // button is waiting to appear - but only from the stay after the letter arrived.
+        if (RPG.State.inventory.secretLetter > 0) {
+            RPG.State.flags.picnicDateStaySincePassed = true;
         }
     },
 
@@ -2322,7 +2382,24 @@ innSystem = {
         return true;
     },
 
+    // The notebook's final ALL claim - whichever entry that turns out to be - hands over
+    // secretLetter instead of its normal reward, in place of a fixed sixth "entry".
+    isLastNotebookAllTierClaim: function (entryId) {
+        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
+            ? RPG.Assets.NOTEBOOK_ENTRIES
+            : [];
+        return entries.every(entry => {
+            const allTier = entry.tiers.find(candidate => candidate.id === "all");
+            if (!allTier || entry.id === entryId) return true;
+            return RPG.State.flags[allTier.claimedFlag] === true;
+        });
+    },
+
     getNotebookClaimItems: function (entry, tier) {
+        if (tier.id === "all" && this.isLastNotebookAllTierClaim(entry.id)) {
+            return [{ itemId: "secretLetter", qty: 1 }];
+        }
+
         const items = tier.items.map(item => ({ ...item }));
         if (
             RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 === true &&
@@ -2338,7 +2415,13 @@ innSystem = {
         let intro = [
             { text: `娘「${entry.name}の討伐、ありがとうございます。こちらをどうぞ」` }
         ];
-        if (entry.id === "rat" && tier.id === "10") {
+        if (tier.id === "all" && this.isLastNotebookAllTierClaim(entry.id)) {
+            // Whichever entry the player actually finishes last, this line always plays -
+            // it hands over secretLetter, so it must win over the entry-specific cases below.
+            intro = [
+                { text: "娘「琥珀の森の魔物、いなくなりましたね。また森が歩けるなんて。本当にありがとうございます。あの…っ！これ、お礼、じゃないんですけど、受け取ってもらえますか…？」" }
+            ];
+        } else if (entry.id === "rat" && tier.id === "10") {
             intro = [
                 { text: "娘「ネズミ、もう10匹も倒してくれたんですか？　ありがとうございます。これ、持っていってください」" }
             ];

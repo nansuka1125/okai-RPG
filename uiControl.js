@@ -477,7 +477,30 @@ const uiControl = {
             }
 
             if (btnInnNotebook) {
-                btnInnNotebook.style.display = RPG.State.flags.notebookUnlocked === true ? 'flex' : 'none';
+                // secretLetter only exists as the notebook's dynamic final-completion reward
+                // (see innSystem.isLastNotebookAllTierClaim), so holding it doubles as "the
+                // notebook is done, the date is pending" without a separate completion flag.
+                const secretLetterHeld = RPG.State.inventory.secretLetter > 0;
+                const dateReady = secretLetterHeld &&
+                    RPG.State.flags.herbGardenHandholdAttempted === true &&
+                    RPG.State.flags.picnicDateStaySincePassed === true;
+
+                if (dateReady) {
+                    btnInnNotebook.style.display = 'flex';
+                    btnInnNotebook.disabled = false;
+                    btnInnNotebook.textContent = '娘とデート';
+                    btnInnNotebook.onclick = () => innSystem.playPicnicDateScene();
+                } else if (secretLetterHeld) {
+                    btnInnNotebook.style.display = 'flex';
+                    btnInnNotebook.disabled = true;
+                    btnInnNotebook.textContent = '討伐ノート';
+                    btnInnNotebook.onclick = null;
+                } else {
+                    btnInnNotebook.style.display = RPG.State.flags.notebookUnlocked === true ? 'flex' : 'none';
+                    btnInnNotebook.disabled = false;
+                    btnInnNotebook.textContent = '討伐ノート';
+                    btnInnNotebook.onclick = () => uiControl.openNotebookModal();
+                }
             }
 
             if (mode === "base" && RPG.State.flags.introDebtTalkPending === true) {

@@ -4,6 +4,7 @@ const visualDirector = {
     travelTimer: null,
     battleCueTimer: null,
     innSceneOverride: null,
+    sceneOverride: null,
     lastEnemySymbol: "×",
 
     enemySymbols: {
@@ -44,6 +45,8 @@ const visualDirector = {
     },
 
     getActiveScene: function () {
+        if (this.sceneOverride) return this.sceneOverride;
+
         const innScene = this.getInnScene();
         if (innScene) return `inn-${innScene}`;
 
@@ -136,6 +139,18 @@ const visualDirector = {
 
     clearInnScene: function () {
         this.innSceneOverride = null;
+        this.syncScene();
+    },
+
+    // State-independent scene override for cutscenes that must show a location's backdrop
+    // (e.g. the forest) without moving the player's actual exploration state there.
+    setScene: function (sceneName) {
+        this.sceneOverride = sceneName;
+        this.syncScene();
+    },
+
+    clearScene: function () {
+        this.sceneOverride = null;
         this.syncScene();
     },
 

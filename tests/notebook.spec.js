@@ -973,6 +973,10 @@ test.describe('討伐ノート (bounty notebook)', () => {
         sapBountyAllReceived: false,
         amberRatBountyAllReceived: false,
         amberWeaselBountyAllReceived: false,
+        // rat/weasel already finished so amber_weasel (claimed last below) is the notebook's
+        // actual final ALL claim and gets secretLetter instead of its normal reward.
+        ratBountyAllReceived: true,
+        weaselBountyAllReceived: true,
       });
       RPG.State.defeatCounts.sap = { cain: 28, owen: 12 };
       RPG.State.defeatCounts.amber_rat = { cain: 20, owen: 10 };
@@ -1366,6 +1370,45 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
+  test("the notebook's true final claim always uses the letter-handoff intro, regardless of which entry finishes last", async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        ratBountyAllReceived: true,
+        sapBountyAllReceived: true,
+        amberRatBountyAllReceived: true,
+        amberWeaselBountyAllReceived: true,
+        weaselBountyAllReceived: false,
+        weaselBountyAllUnlocked: true,
+        weaselBountyAllProgress: 3,
+      });
+      RPG.State.inventory.highHerb = 0;
+      RPG.State.inventory.secretLetter = 0;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.claimNotebookRewards('weasel', 'all');
+      return null;
+    });
+    expect(result).toBeNull();
+    await drainDialogue(page);
+
+    const claimResult = await page.evaluate(() => ({
+      lines: [...document.querySelectorAll('#logContainer .log-entry')].map(el => el.textContent),
+      highHerb: RPG.State.inventory.highHerb,
+      secretLetter: RPG.State.inventory.secretLetter,
+      received: RPG.State.flags.weaselBountyAllReceived,
+    }));
+    expect(claimResult).toEqual({
+      lines: [
+        '娘「琥珀の森の魔物、いなくなりましたね。また森が歩けるなんて。本当にありがとうございます。あの…っ！これ、お礼、じゃないんですけど、受け取ってもらえますか…？」',
+        '㊙️秘密のお手紙を1個受け取った！',
+      ],
+      highHerb: 0,
+      secretLetter: 1,
+      received: true,
+    });
+  });
+
   test('all normal notebook reward definitions use the requested items and quantities', async ({ page }) => {
     const rewards = await page.evaluate(() => Object.fromEntries(
       RPG.Assets.NOTEBOOK_ENTRIES.flatMap(entry => (
@@ -1553,7 +1596,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'amberWeaselBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['secretLetter', 1]],
+        items: [['highHerb', 3]],
       },
     });
     expect(result.lockedMarkers).toEqual(['－ALL', '－ALL', '－ALL', '－ALL', '－ALL']);

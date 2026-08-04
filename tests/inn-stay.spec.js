@@ -500,3 +500,127 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
     expect(result).toEqual({ roundTrip: true, legacyDefault: false });
   });
 });
+
+const PICNIC_DATE_MARKER = '【ピクニックデート】';
+const PICNIC_FOREST_FIRST_LINE = 'ーーー';
+const PICNIC_FOREST_LAST_LINE = '（一蓮托生という言葉が浮かんだ）';
+const PICNIC_INN_FRONT_FIRST_LINE = '娘は仕事に戻っていった。';
+const PICNIC_INN_FRONT_LAST_LINE = 'だが何も言わなかった。';
+
+// v2: the date is no longer forced from stay() - it's a button (【娘とデート】, swapped in for
+// 討伐ノート) the player clicks once secretLetter is held, the herb-garden handhold event is
+// behind him, and at least one stay has passed since the letter arrived.
+test.describe('inn stay: picnic date button (secretLetter)', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof uiControl !== 'undefined' &&
+      typeof explorationSystem !== 'undefined' &&
+      typeof innSystem !== 'undefined'
+    ));
+    await advanceUntilInteractive(page);
+  });
+
+  async function notebookButtonState(page) {
+    await page.evaluate(() => uiControl.updateUI());
+    return page.evaluate(() => {
+      const btn = document.getElementById('btnInnNotebook');
+      return { text: btn?.textContent, disabled: Boolean(btn?.disabled), display: btn?.style.display };
+    });
+  }
+
+  test('without secretLetter, the button stays the normal claimable notebook', async ({ page }) => {
+    await setStayState(page, { flags: { notebookUnlocked: true } });
+    const state = await notebookButtonState(page);
+    expect(state).toEqual({ text: '討伐ノート', disabled: false, display: 'flex' });
+  });
+
+  test('holding the letter before any stay, the button is 討伐ノート but grayed out', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
+    await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
+    const state = await notebookButtonState(page);
+    expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
+  });
+
+  test('without the herb-garden handhold event, a stay does not ready the date button', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: false } });
+    await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
+    await callStay(page);
+    await drainStay(page);
+
+    const state = await notebookButtonState(page);
+    expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
+  });
+
+  test('after one stay with the letter and the handhold event done, the button becomes 娘とデート', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
+    await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
+    await callStay(page);
+    await drainStay(page);
+
+    const state = await notebookButtonState(page);
+    expect(state).toEqual({ text: '娘とデート', disabled: false, display: 'flex' });
+  });
+
+  test('clicking the date button plays the full scene without touching real exploration state', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
+    await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
+    await callStay(page);
+    await drainStay(page);
+
+    await page.evaluate(() => innSystem.playPicnicDateScene());
+    await drainStay(page, 30000);
+
+    const lines = await logTexts(page);
+    const expectedOrder = [
+      PICNIC_DATE_MARKER,
+      PICNIC_FOREST_FIRST_LINE,
+      PICNIC_FOREST_LAST_LINE,
+      PICNIC_INN_FRONT_FIRST_LINE,
+      PICNIC_INN_FRONT_LAST_LINE,
+    ];
+    let cursor = -1;
+    for (const expected of expectedOrder) {
+      const idx = lines.indexOf(expected, cursor + 1);
+      expect(idx).toBeGreaterThan(cursor);
+      cursor = idx;
+    }
+
+    const result = await page.evaluate(() => ({
+      secretLetter: RPG.State.inventory.secretLetter,
+      mode: RPG.State.mode,
+      sceneOverride: visualDirector.sceneOverride,
+      isInDungeon: RPG.State.isInDungeon,
+      explorationArea: RPG.State.explorationArea,
+      currentDistance: RPG.State.currentDistance,
+      isAtInn: RPG.State.isAtInn,
+      picnicDateStaySincePassed: RPG.State.flags.picnicDateStaySincePassed,
+    }));
+    expect(result).toEqual({
+      secretLetter: 0,
+      mode: 'base',
+      sceneOverride: null,
+      isInDungeon: false,
+      explorationArea: null,
+      currentDistance: 0,
+      isAtInn: true,
+      picnicDateStaySincePassed: false,
+    });
+
+    const state = await notebookButtonState(page);
+    expect(state).toEqual({ text: '討伐ノート', disabled: false, display: 'flex' });
+  });
+
+  test('an ordinary stay is unaffected when no letter is held', async ({ page }) => {
+    await setStayState(page);
+    await callStay(page);
+    await drainStay(page);
+
+    const lines = await logTexts(page);
+    expect(lines).not.toContain(PICNIC_DATE_MARKER);
+    expect(lines).toContain('カインはぐっすり眠った…');
+  });
+});

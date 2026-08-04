@@ -31,8 +31,7 @@ RPG.Assets.CONFIG = {
         glowingBunnyEars: "🐰光るうさ耳",
         glowingBrooch: "💍光るブローチ",
         lightRabbitBrooch: "💍光兎のブローチ",
-        unknownAmber: "🔸《？琥珀》",
-        specialUnknownAmber: "🔸《？琥珀》",
+        unknownAmber: "🔸？琥珀",
         vampireAmber: "🔸《吸血琥珀》",
         secretLetter: "㊙️秘密のお手紙",
         borrowedMiningKnife: "🔪《借りたナイフ》",
@@ -80,7 +79,6 @@ RPG.Assets.CONFIG = {
         glowingBrooch: "小さく開く構造になっている。",
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
-        specialUnknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
         vampireAmber: "自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？",
         secretLetter: "誰かに宛てて書かれた手紙。",
         borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
@@ -159,7 +157,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 claimedFlag: "weaselBountyAllReceived", claimEnabled: true,
                 unlockFlag: "weaselBountyAllUnlocked",
                 progressFlag: "weaselBountyAllProgress",
-                items: [{ itemId: "highHerb", qty: 3 }]
+                items: [{ itemId: "unknownAmber", qty: 1, guaranteedAmberId: "vampireAmber" }]
             }
         ]
     },
@@ -206,7 +204,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 id: "all", label: "ALL", target: null,
                 targetStateKey: "amber_rat",
                 claimedFlag: "amberRatBountyAllReceived", claimEnabled: true,
-                items: [{ itemId: "specialUnknownAmber", qty: 1 }]
+                items: [{ itemId: "unknownAmber", qty: 1, guaranteedAmberId: "vampireAmber" }]
             }
         ]
     },
@@ -3024,7 +3022,7 @@ RPG.Assets.getJourneyMemo = function (state) {
             return "借りたナイフを持って森の8mへ戻り、埋まった銀貨を掘る。";
         }
         if (flags.firstAmberAppraisalDone !== true && (inventory.unknownAmber || 0) > 0) {
-            return "入手した《？琥珀》を琥珀商に見せる。";
+            return "入手した🔸？琥珀を琥珀商に見せる。";
         }
         return "琥珀樹から銀貨を得た。残りの銀貨を探す手掛かりを追う。";
     }

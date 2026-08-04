@@ -255,11 +255,11 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.exchangePreviewShown).toBe(true);
   });
 
-  test('the special unknown amber is appraised before the normal first appraisal', async ({ page }) => {
+  test('a confirmed amber is displayed with and appraised before the normal first amber', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
-      RPG.State.inventory.specialUnknownAmber = 1;
-      RPG.State.inventory.unknownAmber = 1;
+      RPG.State.inventory.unknownAmber = 2;
+      RPG.State.unappraisedAmberResults = ['vampireAmber'];
       RPG.State.inventory.vampireAmber = 0;
       RPG.State.flags.treeDefeated = true;
       RPG.State.flags.amberMerchantRecognized = true;
@@ -271,7 +271,6 @@ test.describe('Chapter 1 amber system', () => {
 
     await drainDialogue(page);
     let result = await page.evaluate(() => ({
-      specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
       unknownAmber: RPG.State.inventory.unknownAmber,
       vampireAmber: RPG.State.inventory.vampireAmber,
       sparkling: RPG.State.amberStorage.sparkling,
@@ -280,7 +279,6 @@ test.describe('Chapter 1 amber system', () => {
       log: document.getElementById('logContainer')?.textContent || '',
     }));
 
-    expect(result.specialUnknownAmber).toBe(0);
     expect(result.unknownAmber).toBe(1);
     expect(result.vampireAmber).toBe(1);
     expect(result.sparkling).toBe(0);
@@ -307,11 +305,11 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('special appraisal bypasses the unchanged normal random draw', async ({ page }) => {
+  test('confirmed appraisal bypasses the unchanged normal random draw', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.mode = 'base';
-      RPG.State.inventory.specialUnknownAmber = 1;
-      RPG.State.inventory.unknownAmber = 2;
+      RPG.State.inventory.unknownAmber = 3;
+      RPG.State.unappraisedAmberResults = ['vampireAmber'];
       RPG.State.inventory.vampireAmber = 0;
       RPG.State.flags.firstAmberAppraisalDone = true;
       RPG.State.flags.vampireAmberAppraisalSeen = false;
@@ -325,12 +323,11 @@ test.describe('Chapter 1 amber system', () => {
         randomCalls++;
         return 0.75;
       };
-      innSystem.appraiseAmber(3);
+      innSystem.appraiseAmber();
       Math.random = originalRandom;
 
       return {
         randomCalls,
-        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
         unknownAmber: RPG.State.inventory.unknownAmber,
         vampireAmber: RPG.State.inventory.vampireAmber,
         junk: RPG.State.amberStorage.junk,
@@ -344,13 +341,58 @@ test.describe('Chapter 1 amber system', () => {
 
     expect(result).toEqual({
       randomCalls: 2,
-      specialUnknownAmber: 0,
       unknownAmber: 0,
       vampireAmber: 1,
       junk: 2,
       weights: { sparkling: 70, junk: 15, insect: 15 },
     });
     await drainDialogue(page);
+  });
+
+  test('all appraisal combines normal and different confirmed amber into one displayed stack', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.flags.firstAmberAppraisalDone = true;
+      RPG.State.flags.miningKnifeAwarded = true;
+      RPG.State.inventory.unknownAmber = 3;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.State.inventory.monsterAmber = 0;
+      RPG.State.unappraisedAmberResults = ['monsterAmber', 'vampireAmber'];
+      RPG.State.amberStorage.junk = 0;
+
+      uiControl.openModal();
+      const inventoryText = document.getElementById('itemList')?.textContent || '';
+      innSystem.showAmberAppraisalMenu();
+      const menuText = document.getElementById('action-buttons')?.textContent || '';
+      const originalRandom = Math.random;
+      Math.random = () => 0.75;
+      document.getElementById('btnAmberAction0').click();
+      Math.random = originalRandom;
+      return { inventoryText, menuText };
+    });
+    await drainDialogue(page);
+
+    const after = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      queuedResults: RPG.State.unappraisedAmberResults,
+      monsterAmber: RPG.State.inventory.monsterAmber,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+      junk: RPG.State.amberStorage.junk,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.inventoryText).toContain('🔸？琥珀 (×3)');
+    expect(result.inventoryText).not.toContain('specialUnknownAmber');
+    expect(result.menuText).toContain('すべて鑑定（🔸？琥珀3個）');
+    expect(result.menuText).not.toContain('1個を鑑定');
+    expect(after).toMatchObject({
+      unknownAmber: 0,
+      queuedResults: [],
+      monsterAmber: 1,
+      vampireAmber: 1,
+      junk: 1,
+    });
+    expect(after.log).toContain('魔物入り琥珀');
+    expect(after.log).toContain('吸血琥珀');
   });
 
   test('merchant recognition, knife loan, return attempt, and overnight move stay ordered', async ({ page }) => {
@@ -561,7 +603,7 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.flags.miningKnifeAwarded = false;
       RPG.State.junkAmberDelivered = 0;
       Math.random = () => 0.75;
-      innSystem.appraiseAmber(3);
+      innSystem.appraiseAmber();
     });
 
     await drainDialogue(page);
@@ -592,6 +634,7 @@ test.describe('Chapter 1 amber system', () => {
       innSystem.showAmberExchangeMenu();
     });
     await page.click('#btnAmberAction1');
+    await page.click('#btnAmberAction0');
 
     let result = await page.evaluate(() => ({
       sparkling: RPG.State.amberStorage.sparkling,
@@ -4995,6 +5038,9 @@ test.describe('Chapter 1 amber system', () => {
         const row = [...document.querySelectorAll('#action-buttons button')]
           .find(b => b.textContent.includes('《鍵入り琥珀》'));
         row.click();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(b => b.textContent.includes('キラキラ3個で交換する'))
+          .click();
 
         return {
           sparkling: RPG.State.amberStorage.sparkling,
@@ -5034,6 +5080,51 @@ test.describe('Chapter 1 amber system', () => {
         () => document.getElementById('logContainer')?.textContent || ''
       );
       expect(firstAppraisalPreview).not.toContain('《鍵入り琥珀》');
+    });
+
+    test('exchange only spends sparkling after confirmation and cancel returns to the list', async ({ page }) => {
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 3;
+        RPG.State.inventory.keyAmber = 0;
+        RPG.State.flags.keyAmberExchanged = false;
+        innSystem.showAmberExchangeMenu();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(button => button.textContent.includes('《鍵入り琥珀》'))
+          .click();
+      });
+      let state = await page.evaluate(() => ({
+        sparkling: RPG.State.amberStorage.sparkling,
+        keyAmber: RPG.State.inventory.keyAmber,
+        confirmation: document.getElementById('action-buttons')?.textContent || '',
+      }));
+      expect(state).toEqual({
+        sparkling: 3,
+        keyAmber: 0,
+        confirmation: '《鍵入り琥珀》をキラキラ3個で交換するやめる',
+      });
+
+      await page.click('#btnAmberAction1');
+      state = await page.evaluate(() => ({
+        sparkling: RPG.State.amberStorage.sparkling,
+        keyAmber: RPG.State.inventory.keyAmber,
+        exchangeList: document.getElementById('action-buttons')?.textContent || '',
+      }));
+      expect(state.sparkling).toBe(3);
+      expect(state.keyAmber).toBe(0);
+      expect(state.exchangeList).toContain('《鍵入り琥珀》：3個');
+
+      await page.evaluate(() => {
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(button => button.textContent.includes('《鍵入り琥珀》'))
+          .click();
+      });
+      await page.click('#btnAmberAction0');
+      state = await page.evaluate(() => ({
+        sparkling: RPG.State.amberStorage.sparkling,
+        keyAmber: RPG.State.inventory.keyAmber,
+      }));
+      expect(state).toEqual({ sparkling: 0, keyAmber: 1 });
     });
 
     test('the key amber never appears as a socket or trade-in candidate', async ({ page }) => {
@@ -5083,6 +5174,9 @@ test.describe('Chapter 1 amber system', () => {
         innSystem.showAmberExchangeMenu();
         [...document.querySelectorAll('#action-buttons button')]
           .find(b => b.textContent.includes('《甘そうな琥珀》'))
+          .click();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(b => b.textContent.includes('キラキラ3個で交換する'))
           .click();
         const afterExchange = {
           sparkling: RPG.State.amberStorage.sparkling,

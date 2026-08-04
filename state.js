@@ -157,7 +157,6 @@ RPG.State = {
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
         unknownAmber: 0,
-        specialUnknownAmber: 0,
         vampireAmber: 0,
         secretLetter: 0,
         borrowedMiningKnife: 0,
@@ -183,6 +182,9 @@ RPG.State = {
         debug_lvl10: 1
     },
     equippedRareAmberId: null, // Rare amber currently socketed into the glowing brooch
+    // 未鑑定琥珀のうち、入手時に鑑定結果まで決まっているものだけを順に保持する。
+    // unknownAmber との差分が通常枠で、古いセーブの specialUnknownAmber は読込時に吸血琥珀へ移行する。
+    unappraisedAmberResults: [],
     amberStorage: {
         sparkling: 0,
         junk: 0,

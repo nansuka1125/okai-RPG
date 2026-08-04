@@ -1863,11 +1863,15 @@ const explorationSystem = {
             RPG.State.dialogueQueue = [
                 { text: "カイン「ん…これは？」" },
                 {
-                    text: "《📓誰かの日記を手に入れた！》",
+                    text: "🔸？琥珀を手に入れた！",
                     type: "marker",
                     color: "#ffd166",
                     action: () => {
-                        RPG.State.inventory.someonesDiary = (RPG.State.inventory.someonesDiary || 0) + 1;
+                        RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                        RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                            ? RPG.State.unappraisedAmberResults
+                            : [];
+                        RPG.State.unappraisedAmberResults.push("monsterAmber");
                         RPG.State.larvaCorpseStage = 3;
                         uiControl.updateUI();
                     }
@@ -2373,7 +2377,7 @@ const explorationSystem = {
                 },
                 { text: "カイン（周りの琥珀も採れたな）" },
                 {
-                    text: "🔸《？琥珀》を手に入れた！",
+                    text: "🔸？琥珀を手に入れた！",
                     type: "marker",
                     color: "#ffd166",
                     action: () => {

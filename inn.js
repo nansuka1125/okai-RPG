@@ -526,7 +526,6 @@ innSystem = {
     shouldUseAmberMerchantObserveRoute: function () {
         const flags = RPG.State.flags;
         const hasUnappraisedAmber =
-            (RPG.State.inventory.specialUnknownAmber || 0) > 0 ||
             (RPG.State.inventory.unknownAmber || 0) > 0;
         const hasFirstCoin =
             flags.hasFoundFirstCoin === true ||
@@ -766,6 +765,23 @@ innSystem = {
         if (typeof RPG.State.junkAmberDelivered !== "number") {
             RPG.State.junkAmberDelivered = 0;
         }
+        const legacySpecialUnknown = Math.max(0, Number(RPG.State.inventory.specialUnknownAmber) || 0);
+        RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+            ? RPG.State.unappraisedAmberResults.filter(itemId => typeof itemId === "string")
+            : [];
+        if (legacySpecialUnknown > 0) {
+            RPG.State.inventory.unknownAmber =
+                Math.max(0, Number(RPG.State.inventory.unknownAmber) || 0) + legacySpecialUnknown;
+            RPG.State.unappraisedAmberResults.push(
+                ...Array(legacySpecialUnknown).fill("vampireAmber")
+            );
+        }
+        delete RPG.State.inventory.specialUnknownAmber;
+        RPG.State.inventory.unknownAmber = Math.max(0, Number(RPG.State.inventory.unknownAmber) || 0);
+        RPG.State.unappraisedAmberResults = RPG.State.unappraisedAmberResults.slice(
+            0,
+            RPG.State.inventory.unknownAmber
+        );
     },
 
     closeAmberActionMenu: function () {
@@ -808,7 +824,6 @@ innSystem = {
         this.ensureAmberState();
         const flags = RPG.State.flags;
         const unknownCount = RPG.State.inventory.unknownAmber || 0;
-        const specialUnknownCount = RPG.State.inventory.specialUnknownAmber || 0;
 
         if (flags.amberMerchantRecognized !== true) {
             const existingMerchantObservation = RPG.Assets.GAME_TEXT.innObserve?.[1]?.[1] || [];
@@ -844,11 +859,6 @@ innSystem = {
                 { text: "琥珀商「大事な商売道具だからな。ちゃんと返してくれよ」" }
             ];
             explorationSystem.playDialogueLoop();
-            return;
-        }
-
-        if (specialUnknownCount > 0 && flags.firstAmberAppraisalDone !== true) {
-            this.playFirstVampireAmberAppraisal();
             return;
         }
 
@@ -890,7 +900,27 @@ innSystem = {
             .filter(item => this.isAmberExchangeOffered(item))
             .map(item => `${item.name}：${item.cost}個\n${item.effect}`)
             .join("\n\n");
+        this.ensureAmberState();
+        const fixedResult = RPG.State.unappraisedAmberResults.shift() || null;
         RPG.State.mode = "event";
+        if (fixedResult) {
+            RPG.State.dialogueQueue = [
+                {
+                    text: this.getRareAmberAppraisalText(fixedResult, 1, true),
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.unknownAmber = Math.max(0, (RPG.State.inventory.unknownAmber || 0) - 1);
+                        RPG.State.inventory[fixedResult] = (RPG.State.inventory[fixedResult] || 0) + 1;
+                        if (fixedResult === "vampireAmber") flags.vampireAmberAppraisalSeen = true;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: null, action: () => { RPG.State.mode = "base"; uiControl.updateUI(); } }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
         RPG.State.dialogueQueue = [
             { text: "琥珀商「琥珀持ってるじゃねえか。見せてみな」" },
             { text: "カイン「あんたが欲しがってたのはこれか？」" },
@@ -928,43 +958,16 @@ innSystem = {
         explorationSystem.playDialogueLoop();
     },
 
-    getVampireAmberAppraisalText: function (amount, includeDescription) {
+    getRareAmberAppraisalText: function (itemId, amount, includeDescription) {
         const quantity = amount > 1 ? ` ×${amount}` : "";
         const description = includeDescription
-            ? `\n${RPG.Assets.CONFIG.ITEM_DESC.vampireAmber}`
+            ? `\n${RPG.Assets.CONFIG.ITEM_DESC[itemId]}`
             : "";
-        return `《吸血琥珀》${quantity}と鑑定された。${description}`;
+        return `${RPG.Assets.CONFIG.ITEM_NAME[itemId]}${quantity}と鑑定された。${description}`;
     },
 
     playFirstVampireAmberAppraisal: function () {
-        if ((RPG.State.inventory.specialUnknownAmber || 0) <= 0) return;
-        const firstSeen = RPG.State.flags.vampireAmberAppraisalSeen !== true;
-        RPG.State.mode = "event";
-        RPG.State.dialogueQueue = [
-            {
-                text: this.getVampireAmberAppraisalText(1, firstSeen),
-                type: "marker",
-                color: "#ffd166",
-                action: () => {
-                    RPG.State.inventory.specialUnknownAmber = Math.max(
-                        0,
-                        (RPG.State.inventory.specialUnknownAmber || 0) - 1
-                    );
-                    RPG.State.inventory.vampireAmber =
-                        (RPG.State.inventory.vampireAmber || 0) + 1;
-                    RPG.State.flags.vampireAmberAppraisalSeen = true;
-                    uiControl.updateUI();
-                }
-            },
-            {
-                text: null,
-                action: () => {
-                    RPG.State.mode = "base";
-                    uiControl.updateUI();
-                }
-            }
-        ];
-        explorationSystem.playDialogueLoop();
+        this.playFirstAmberAppraisal();
     },
 
     playAmberKnifeReturnAttempt: function () {
@@ -988,11 +991,9 @@ innSystem = {
     showAmberMerchantMenu: function () {
         this.ensureAmberState();
         const storage = RPG.State.amberStorage;
-        const appraisalCount =
-            (RPG.State.inventory.specialUnknownAmber || 0) +
-            (RPG.State.inventory.unknownAmber || 0);
+        const appraisalCount = RPG.State.inventory.unknownAmber || 0;
         this.showAmberActionMenu([
-            { label: `鑑定する（《？琥珀》${appraisalCount}個）`, action: () => this.showAmberAppraisalMenu() },
+            { label: `すべて鑑定（🔸？琥珀${appraisalCount}個）`, action: () => this.showAmberAppraisalMenu() },
             { label: `交換する（キラキラ${storage.sparkling}個）`, action: () => this.showAmberExchangeMenu() },
             { label: "レア琥珀を下取りに出す", action: () => this.showAmberTradeInMenu() },
             { label: "預かり品を確認", action: () => this.showAmberStorage() },
@@ -1007,15 +1008,10 @@ innSystem = {
     },
 
     showAmberAppraisalMenu: function () {
-        const count =
-            (RPG.State.inventory.specialUnknownAmber || 0) +
-            (RPG.State.inventory.unknownAmber || 0);
+        const count = RPG.State.inventory.unknownAmber || 0;
         const choices = [];
         if (count > 0) {
-            choices.push({ label: "《？琥珀》1個を鑑定", action: () => this.appraiseAmber(1) });
-            if (count > 1) {
-                choices.push({ label: `${count}個をまとめて鑑定`, action: () => this.appraiseAmber(count) });
-            }
+            choices.push({ label: `すべて鑑定（🔸？琥珀${count}個）`, action: () => this.appraiseAmber() });
         } else {
             choices.push({ label: "鑑定する物がない", disabled: true, action: () => {} });
         }
@@ -1030,41 +1026,41 @@ innSystem = {
         return "insect";
     },
 
-    appraiseAmber: function (requestedCount) {
+    appraiseAmber: function () {
         this.ensureAmberState();
-        const specialAvailable = RPG.State.inventory.specialUnknownAmber || 0;
-        const normalAvailable = RPG.State.inventory.unknownAmber || 0;
-        const count = Math.min(requestedCount, specialAvailable + normalAvailable);
+        const count = RPG.State.inventory.unknownAmber || 0;
         if (count <= 0) {
             this.showAmberAppraisalMenu();
             return;
         }
 
-        const specialCount = Math.min(count, specialAvailable);
-        const normalCount = count - specialCount;
+        const fixedResults = RPG.State.unappraisedAmberResults.splice(0, count);
+        const normalCount = count - fixedResults.length;
         const resultCounts = { sparkling: 0, junk: 0, insect: 0 };
+        const rareResultCounts = {};
         for (let i = 0; i < normalCount; i++) {
             resultCounts[this.rollAmberAppraisal()]++;
         }
 
-        RPG.State.inventory.specialUnknownAmber -= specialCount;
-        RPG.State.inventory.vampireAmber =
-            (RPG.State.inventory.vampireAmber || 0) + specialCount;
-        RPG.State.inventory.unknownAmber -= normalCount;
+        RPG.State.inventory.unknownAmber = 0;
+        fixedResults.forEach(itemId => {
+            RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
+            rareResultCounts[itemId] = (rareResultCounts[itemId] || 0) + 1;
+        });
         Object.keys(resultCounts).forEach(type => {
             RPG.State.amberStorage[type] += resultCounts[type];
         });
 
         const lines = [];
-        if (specialCount > 0) {
-            const firstSeen = RPG.State.flags.vampireAmberAppraisalSeen !== true;
+        Object.entries(rareResultCounts).forEach(([itemId, amount]) => {
+            const firstSeen = itemId === "vampireAmber" && RPG.State.flags.vampireAmberAppraisalSeen !== true;
             lines.push({
-                text: this.getVampireAmberAppraisalText(specialCount, firstSeen),
+                text: this.getRareAmberAppraisalText(itemId, amount, firstSeen),
                 type: "marker",
                 color: "#ffd166"
             });
-            RPG.State.flags.vampireAmberAppraisalSeen = true;
-        }
+            if (itemId === "vampireAmber") RPG.State.flags.vampireAmberAppraisalSeen = true;
+        });
         Object.entries(resultCounts).forEach(([type, amount]) => {
             if (amount <= 0) return;
             const data = RPG.Assets.AMBER_APPRAISAL[type];
@@ -1137,19 +1133,34 @@ innSystem = {
             .map(item => ({
                 label: `${item.name}：${item.cost}個\n${item.effect}`,
                 disabled: sparkling < item.cost,
-                action: () => {
-                    RPG.State.amberStorage.sparkling -= item.cost;
-                    RPG.State.inventory[item.id] = (RPG.State.inventory[item.id] || 0) + 1;
-                    if (item.exchangeOnceFlag) {
-                        RPG.State.flags[item.exchangeOnceFlag] = true;
-                    }
-                    uiControl.addLog(`${item.name}と交換した！`, "marker", "#ffd166");
-                    uiControl.updateUI();
-                    this.showAmberExchangeMenu();
-                }
+                action: () => this.confirmAmberExchange(item)
             }));
         choices.push({ label: `戻る（キラキラ${sparkling}個）`, action: () => this.showAmberMerchantMenu() });
         this.showAmberActionMenu(choices);
+    },
+
+    confirmAmberExchange: function (item) {
+        this.showAmberActionMenu([
+            {
+                label: `${item.name}をキラキラ${item.cost}個で交換する`,
+                action: () => this.completeAmberExchange(item)
+            },
+            { label: "やめる", action: () => this.showAmberExchangeMenu() }
+        ]);
+    },
+
+    completeAmberExchange: function (item) {
+        this.ensureAmberState();
+        if (!this.isAmberExchangeOffered(item) || RPG.State.amberStorage.sparkling < item.cost) {
+            this.showAmberExchangeMenu();
+            return;
+        }
+        RPG.State.amberStorage.sparkling -= item.cost;
+        RPG.State.inventory[item.id] = (RPG.State.inventory[item.id] || 0) + 1;
+        if (item.exchangeOnceFlag) RPG.State.flags[item.exchangeOnceFlag] = true;
+        uiControl.addLog(`${item.name}と交換した！`, "marker", "#ffd166");
+        uiControl.updateUI();
+        this.showAmberExchangeMenu();
     },
 
     showAmberTradeInMenu: function () {
@@ -2469,6 +2480,14 @@ innSystem = {
         claimItems.forEach(item => {
             RPG.State.inventory[item.itemId] =
                 (RPG.State.inventory[item.itemId] || 0) + item.qty;
+            if (item.guaranteedAmberId) {
+                RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                    ? RPG.State.unappraisedAmberResults
+                    : [];
+                RPG.State.unappraisedAmberResults.push(
+                    ...Array(item.qty).fill(item.guaranteedAmberId)
+                );
+            }
         });
         RPG.State.flags[reward.tier.claimedFlag] = true;
         if (reward.entry.id === "rat" && reward.tier.id === "20") {

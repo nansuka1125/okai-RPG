@@ -1528,6 +1528,27 @@ const uiControl = {
             Object.keys(RPG.State).forEach(key => delete RPG.State[key]);
             Object.assign(RPG.State, mergedState);
 
+            // The former special unknown amber was visually identical to the normal one and
+            // always appraised as Vampire Amber.  Fold old saves into the unified stack while
+            // preserving that already-determined result.
+            const legacySpecialUnknown = Math.max(0, Number(RPG.State.inventory.specialUnknownAmber) || 0);
+            RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                ? RPG.State.unappraisedAmberResults.filter(itemId => typeof itemId === "string")
+                : [];
+            if (legacySpecialUnknown > 0) {
+                RPG.State.inventory.unknownAmber =
+                    Math.max(0, Number(RPG.State.inventory.unknownAmber) || 0) + legacySpecialUnknown;
+                RPG.State.unappraisedAmberResults.push(
+                    ...Array(legacySpecialUnknown).fill("vampireAmber")
+                );
+            }
+            delete RPG.State.inventory.specialUnknownAmber;
+            RPG.State.inventory.unknownAmber = Math.max(0, Number(RPG.State.inventory.unknownAmber) || 0);
+            RPG.State.unappraisedAmberResults = RPG.State.unappraisedAmberResults.slice(
+                0,
+                RPG.State.inventory.unknownAmber
+            );
+
             // Older builds could record the same one-time event twice because
             // both the event action and the event manager appended its ID.
             RPG.State.completedEvents = Array.isArray(RPG.State.completedEvents)

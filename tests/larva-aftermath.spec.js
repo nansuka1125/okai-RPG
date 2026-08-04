@@ -461,7 +461,7 @@ test.describe('giant_larva aftermath - corpse inspection stage 2 (Owen grabs the
   });
 });
 
-test.describe('giant_larva aftermath - corpse inspection stage 3 (the diary)', () => {
+test.describe('giant_larva aftermath - corpse inspection stage 3 (the confirmed amber)', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
       throw new Error(`Uncaught page error: ${error.message}`);
@@ -475,22 +475,24 @@ test.describe('giant_larva aftermath - corpse inspection stage 3 (the diary)', (
     });
   });
 
-  test('25. the diary-grant line updates inventory and stage together, before the closing line', async ({ page }) => {
+  test('25. the amber-grant line updates inventory and stage together, before the closing line', async ({ page }) => {
     await page.evaluate(() => explorationSystem.talk());
-    // [0]カイン「ん…これは？」 -> tap once lands on [1]《📓誰かの日記を手に入れた！》
+    // [0]カイン「ん…これは？」 -> tap once lands on [1]🔸？琥珀を手に入れた！
     await tap(page, 1);
 
     const midState = await page.evaluate(() => ({
       currentLine: document.querySelector('#logContainer .log-current')?.textContent,
       larvaCorpseStage: RPG.State.larvaCorpseStage,
-      diaryCount: RPG.State.inventory.someonesDiary,
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      results: RPG.State.unappraisedAmberResults,
     }));
-    expect(midState.currentLine).toBe('《📓誰かの日記を手に入れた！》');
+    expect(midState.currentLine).toBe('🔸？琥珀を手に入れた！');
     expect(midState.larvaCorpseStage).toBe(3);
-    expect(midState.diaryCount).toBe(1);
+    expect(midState.unknownAmber).toBe(1);
+    expect(midState.results).toEqual(['monsterAmber']);
   });
 
-  test('26. stage 3 talk() no longer starts the corpse event and does not duplicate the diary', async ({ page }) => {
+  test('26. stage 3 talk() no longer starts the corpse event and does not duplicate the amber', async ({ page }) => {
     await page.evaluate(() => explorationSystem.talk());
     await drainDialogue(page);
 
@@ -500,8 +502,8 @@ test.describe('giant_larva aftermath - corpse inspection stage 3 (the diary)', (
     ));
     expect(line).not.toBe('カイン「ん…これは？」');
 
-    const diaryCount = await page.evaluate(() => RPG.State.inventory.someonesDiary);
-    expect(diaryCount).toBe(1);
+    const amberCount = await page.evaluate(() => RPG.State.inventory.unknownAmber);
+    expect(amberCount).toBe(1);
   });
 
   test('27. all 3 confirmed lines are shown', async ({ page }) => {
@@ -512,8 +514,24 @@ test.describe('giant_larva aftermath - corpse inspection stage 3 (the diary)', (
       Array.from(document.querySelectorAll('#logContainer .log-entry')).map(el => el.textContent)
     ));
     expect(lines).toContain('カイン「ん…これは？」');
-    expect(lines).toContain('《📓誰かの日記を手に入れた！》');
+    expect(lines).toContain('🔸？琥珀を手に入れた！');
     expect(lines).toContain('カイン（もう何もないな。宿屋に戻ろう）');
+  });
+
+  test('the corpse amber always appraises as monster amber', async ({ page }) => {
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+    await page.evaluate(() => {
+      RPG.State.flags.firstAmberAppraisalDone = true;
+      innSystem.appraiseAmber();
+    });
+    await drainDialogue(page);
+    const result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      queuedResults: RPG.State.unappraisedAmberResults,
+      monsterAmber: RPG.State.inventory.monsterAmber,
+    }));
+    expect(result).toEqual({ unknownAmber: 0, queuedResults: [], monsterAmber: 1 });
   });
 
   test('28. after stage 3, move(-1) reaches 9m normally', async ({ page }) => {
@@ -579,7 +597,7 @@ test.describe('giant_larva aftermath - save/load round trip (new-format saves on
     expect(stage).toBe(2);
   });
 
-  test('32. stage 3 with the diary in inventory survives save and load', async ({ page }) => {
+  test('32. existing diary data survives save and load independently of the new corpse reward', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.flags.giantLarvaDefeated = true;
       RPG.State.larvaCorpseStage = 3;

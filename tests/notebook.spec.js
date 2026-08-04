@@ -982,7 +982,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
       RPG.State.defeatCounts.amber_rat = { cain: 20, owen: 10 };
       RPG.State.defeatCounts.amber_weasel = { cain: 10, owen: 10 };
       RPG.State.inventory.highHerb = 0;
-      RPG.State.inventory.specialUnknownAmber = 0;
+      RPG.State.inventory.unknownAmber = 0;
+      RPG.State.unappraisedAmberResults = [];
       RPG.State.inventory.secretLetter = 0;
 
       const beforeRows = Object.fromEntries(
@@ -999,7 +1000,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
       });
       const afterFirstClaim = {
         highHerb: RPG.State.inventory.highHerb,
-        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        results: RPG.State.unappraisedAmberResults,
         secretLetter: RPG.State.inventory.secretLetter,
         received: {
           sap: RPG.State.flags.sapBountyAllReceived,
@@ -1042,7 +1044,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.claimableBefore).toEqual(['sap', 'amber_rat', 'amber_weasel']);
     expect(result.afterFirstClaim).toEqual({
       highHerb: 5,
-      specialUnknownAmber: 1,
+      unknownAmber: 1,
+      results: ['vampireAmber'],
       secretLetter: 1,
       received: { sap: true, amberRat: true, amberWeasel: true },
     });
@@ -1317,6 +1320,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
       });
       RPG.State.inventory.gratefulTalisman = 0;
       RPG.State.inventory.highHerb = 0;
+      RPG.State.inventory.unknownAmber = 0;
+      RPG.State.unappraisedAmberResults = [];
       const log = document.getElementById('logContainer');
       if (log) log.innerHTML = '';
       innSystem.claimNotebookRewards('rat', 'all');
@@ -1348,26 +1353,53 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
 
     await drainDialogue(page);
-    const weaselResult = await page.evaluate(() => {
-      const result = {
-        lines: [...document.querySelectorAll('#logContainer .log-entry')]
-          .map(element => element.textContent),
-        item: RPG.State.inventory.highHerb,
+      const weaselResult = await page.evaluate(() => {
+        const result = {
+          lines: [...document.querySelectorAll('#logContainer .log-entry')]
+            .map(element => element.textContent),
+        item: RPG.State.inventory.unknownAmber,
+        results: RPG.State.unappraisedAmberResults,
         received: RPG.State.flags.weaselBountyAllReceived,
       };
       innSystem.claimNotebookRewards('weasel', 'all');
-      result.itemAfterRetry = RPG.State.inventory.highHerb;
+      result.itemAfterRetry = RPG.State.inventory.unknownAmber;
       return result;
     });
     expect(weaselResult).toEqual({
       lines: [
         '娘「あの剣士の方が、魔界のイタチを倒せるようになりました。お礼の品を預かっています」',
-        '🌿上薬草を3個受け取った！',
+        '🔸？琥珀を1個受け取った！',
       ],
-      item: 3,
+      item: 1,
+      results: ['vampireAmber'],
       received: true,
-      itemAfterRetry: 3,
+      itemAfterRetry: 1,
     });
+  });
+
+  test('the weasel ALL amber always appraises as vampire amber', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+      Object.assign(RPG.State.flags, {
+        weaselBountyAllUnlocked: true,
+        weaselBountyAllProgress: 3,
+        weaselBountyAllReceived: false,
+        firstAmberAppraisalDone: true,
+      });
+      RPG.State.inventory.unknownAmber = 0;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.State.unappraisedAmberResults = [];
+      innSystem.claimNotebookRewards('weasel', 'all');
+    });
+    await drainDialogue(page);
+    await page.evaluate(() => innSystem.appraiseAmber());
+    await drainDialogue(page);
+    const result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      queuedResults: RPG.State.unappraisedAmberResults,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+    }));
+    expect(result).toEqual({ unknownAmber: 0, queuedResults: [], vampireAmber: 1 });
   });
 
   test("the notebook's true final claim always uses the letter-handoff intro, regardless of which entry finishes last", async ({ page }) => {
@@ -1433,15 +1465,16 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
-  test('special ALL reward items are separate non-usable inventory entries', async ({ page }) => {
+  test('all unappraised amber is one non-usable inventory entry', async ({ page }) => {
     const result = await page.evaluate(() => {
-      RPG.State.inventory.unknownAmber = 2;
-      RPG.State.inventory.specialUnknownAmber = 1;
+      RPG.State.inventory.unknownAmber = 3;
+      RPG.State.unappraisedAmberResults = ['vampireAmber'];
       RPG.State.inventory.secretLetter = 1;
 
       uiControl.openModal();
-      uiControl.selectItem('specialUnknownAmber', 1);
-      const specialHasUseButton = Boolean(
+      const inventoryText = document.getElementById('itemList')?.textContent || '';
+      uiControl.selectItem('unknownAmber', 3);
+      const amberHasUseButton = Boolean(
         document.querySelector('#itemDetailArea button')
       );
       uiControl.selectItem('secretLetter', 1);
@@ -1450,52 +1483,80 @@ test.describe('討伐ノート (bounty notebook)', () => {
       );
 
       return {
-        normalUnknownAmber: RPG.State.inventory.unknownAmber,
-        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
+        unknownAmber: RPG.State.inventory.unknownAmber,
         secretLetter: RPG.State.inventory.secretLetter,
-        specialName: RPG.Assets.CONFIG.ITEM_NAME.specialUnknownAmber,
-        specialDescription: RPG.Assets.CONFIG.ITEM_DESC.specialUnknownAmber,
+        amberName: RPG.Assets.CONFIG.ITEM_NAME.unknownAmber,
+        amberDescription: RPG.Assets.CONFIG.ITEM_DESC.unknownAmber,
         letterName: RPG.Assets.CONFIG.ITEM_NAME.secretLetter,
         letterDescription: RPG.Assets.CONFIG.ITEM_DESC.secretLetter,
-        specialHasUseButton,
+        inventoryText,
+        amberHasUseButton,
         letterHasUseButton,
         socketable: RPG.Assets.RARE_AMBER_CATALOG.some(
-          amber => amber.id === 'specialUnknownAmber'
+          amber => amber.id === 'unknownAmber'
         ),
       };
     });
 
     expect(result).toEqual({
-      normalUnknownAmber: 2,
-      specialUnknownAmber: 1,
+      unknownAmber: 3,
       secretLetter: 1,
-      specialName: '🔸《？琥珀》',
-      specialDescription: 'まだ鑑定されていない琥珀。琥珀商なら正体が分かる。',
+      amberName: '🔸？琥珀',
+      amberDescription: 'まだ鑑定されていない琥珀。琥珀商なら正体が分かる。',
       letterName: '㊙️秘密のお手紙',
       letterDescription: '誰かに宛てて書かれた手紙。',
-      specialHasUseButton: false,
+      inventoryText: '🔸？琥珀 (×3)㊙️秘密のお手紙 (×1)',
+      amberHasUseButton: false,
       letterHasUseButton: false,
       socketable: false,
     });
   });
 
-  test('old saves default the two special reward item counts to zero', async ({ page }) => {
+  test('old special unknown amber saves migrate into the unified confirmed stack', async ({ page }) => {
     const result = await page.evaluate(() => {
       const legacySave = JSON.parse(JSON.stringify(RPG.State));
-      delete legacySave.inventory.specialUnknownAmber;
-      delete legacySave.inventory.secretLetter;
+      legacySave.inventory.unknownAmber = 2;
+      legacySave.inventory.specialUnknownAmber = 1;
+      delete legacySave.unappraisedAmberResults;
       localStorage.setItem('okai_rpg_notebook_special_item_legacy_test', JSON.stringify(legacySave));
 
-      RPG.State.inventory.specialUnknownAmber = 4;
-      RPG.State.inventory.secretLetter = 4;
+      RPG.State.inventory.unknownAmber = 0;
+      RPG.State.unappraisedAmberResults = [];
       uiControl.loadFromStorage('okai_rpg_notebook_special_item_legacy_test', 'テスト');
 
+      const migrated = {
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        results: RPG.State.unappraisedAmberResults,
+        specialUnknownAmberPresent: Object.hasOwn(RPG.State.inventory, 'specialUnknownAmber'),
+      };
+      const originalRandom = Math.random;
+      Math.random = () => 0.75;
+      innSystem.appraiseAmber();
+      Math.random = originalRandom;
+
       return {
-        specialUnknownAmber: RPG.State.inventory.specialUnknownAmber,
-        secretLetter: RPG.State.inventory.secretLetter,
+        migrated,
+        afterAppraisal: {
+          unknownAmber: RPG.State.inventory.unknownAmber,
+          results: RPG.State.unappraisedAmberResults,
+          vampireAmber: RPG.State.inventory.vampireAmber,
+          junkAmber: RPG.State.amberStorage.junk,
+        },
       };
     });
-    expect(result).toEqual({ specialUnknownAmber: 0, secretLetter: 0 });
+    expect(result).toEqual({
+      migrated: {
+        unknownAmber: 3,
+        results: ['vampireAmber'],
+        specialUnknownAmberPresent: false,
+      },
+      afterAppraisal: {
+        unknownAmber: 0,
+        results: [],
+        vampireAmber: 1,
+        junkAmber: 2,
+      },
+    });
   });
 
   test('rat and weasel ALL tiers keep independent progress while amber ALL tiers wait for saved targets', async ({ page }) => {
@@ -1572,7 +1633,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'weaselBountyAllReceived',
         unlockFlag: 'weaselBountyAllUnlocked',
         progressFlag: 'weaselBountyAllProgress',
-        items: [['highHerb', 3]],
+        items: [['unknownAmber', 1]],
       },
       sap: {
         target: null,
@@ -1588,7 +1649,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'amberRatBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['specialUnknownAmber', 1]],
+        items: [['unknownAmber', 1]],
       },
       amber_weasel: {
         target: null,

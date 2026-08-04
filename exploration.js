@@ -557,6 +557,17 @@ const explorationSystem = {
         RPG.State.travelStepsSinceStay =
             Math.max(0, Number(RPG.State.travelStepsSinceStay) || 0) + 1;
 
+        // herbAmber: shared by every genuine field-movement call site (forest and herb garden
+        // both route through here), so a single hook covers both without duplication.
+        if (RPG.State.equippedRareAmberId === "herbAmber" && RPG.State.currentHP < RPG.State.maxHP) {
+            const healAmount = Math.min(
+                RPG.State.maxHP - RPG.State.currentHP,
+                Math.max(1, Math.floor(RPG.State.maxHP * RPG.Config.RARE_AMBER_TUNING.HERB_AMBER_MOVE_HEAL_RATE))
+            );
+            RPG.State.currentHP += healAmount;
+            uiControl.addLog(`《薬草入り琥珀》の効果でHPが${healAmount}回復した。`, "", "#9acd32");
+        }
+
         if (typeof visualDirector !== "undefined") {
             visualDirector.syncScene();
         }
@@ -3108,7 +3119,10 @@ const explorationSystem = {
                     uiControl.closeModal();
                     return;
                 }
-                const healAmount = Math.floor(RPG.State.maxHP * 0.3);
+                const herbAmberHealMultiplier = RPG.State.equippedRareAmberId === "herbAmber"
+                    ? RPG.Config.RARE_AMBER_TUNING.HERB_AMBER_ITEM_HEAL_MULTIPLIER
+                    : 1;
+                const healAmount = Math.floor(RPG.State.maxHP * 0.3 * herbAmberHealMultiplier);
                 RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
                 uiControl.addLog(`🌿薬草を使い、HPが${healAmount}回復した。`);
                 RPG.State.herbUseCount = (RPG.State.herbUseCount || 0) + 1;
@@ -3120,7 +3134,10 @@ const explorationSystem = {
                     uiControl.closeModal();
                     return;
                 }
-                const highHerbHealAmount = Math.floor(RPG.State.maxHP * 0.6);
+                const highHerbAmberHealMultiplier = RPG.State.equippedRareAmberId === "herbAmber"
+                    ? RPG.Config.RARE_AMBER_TUNING.HERB_AMBER_ITEM_HEAL_MULTIPLIER
+                    : 1;
+                const highHerbHealAmount = Math.floor(RPG.State.maxHP * 0.6 * highHerbAmberHealMultiplier);
                 RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + highHerbHealAmount);
                 uiControl.addLog(`🌿上薬草を使い、HPが${highHerbHealAmount}回復した。`);
                 success = true;

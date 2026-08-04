@@ -877,6 +877,15 @@ const uiControl = {
         if (previousId === 'vampireAmber') {
             this.resetVampireAmberChain();
         }
+        if (previousId === 'milkAmber') {
+            this.revertMilkAmberMaxHpBonus();
+        }
+        if (itemId === 'milkAmber') {
+            this.applyMilkAmberMaxHpBonus();
+        }
+        if (itemId === 'ignoredAmber' && RPG.State.isPoisoned) {
+            battleSystem.curePoison();
+        }
 
         const message = previousAmber
             ? `${previousAmber.name}を外し、${nextAmber.name}を光るブローチに装着した。`
@@ -904,6 +913,9 @@ const uiControl = {
         if (equippedId === 'vampireAmber') {
             this.resetVampireAmberChain();
         }
+        if (equippedId === 'milkAmber') {
+            this.revertMilkAmberMaxHpBonus();
+        }
         if (shouldLog) {
             this.addLog(
                 `${equippedAmber.name}を光るブローチから外した。`,
@@ -929,6 +941,21 @@ const uiControl = {
     // (battle.js), inn entry (inn.js), and equip/detach above.
     resetVampireAmberChain: function () {
         RPG.State.flags.vampireAmberChainBattleCount = 0;
+    },
+
+    // milkAmber's maxHP bonus is banked as an exact delta on equip and subtracted back on
+    // unequip/swap, so a level-up while equipped can't cause drift or double-counting.
+    applyMilkAmberMaxHpBonus: function () {
+        const bonus = Math.floor(RPG.State.maxHP * RPG.Config.RARE_AMBER_TUNING.MILK_AMBER_MAX_HP_BONUS_RATE);
+        RPG.State.maxHP += bonus;
+        RPG.State.flags.milkAmberMaxHpBonus = bonus;
+    },
+
+    revertMilkAmberMaxHpBonus: function () {
+        const bonus = RPG.State.flags.milkAmberMaxHpBonus || 0;
+        RPG.State.maxHP = Math.max(1, RPG.State.maxHP - bonus);
+        RPG.State.flags.milkAmberMaxHpBonus = 0;
+        RPG.State.currentHP = Math.min(RPG.State.currentHP, RPG.State.maxHP);
     },
 
     // Build 15.6.x: Extra description text appended (never overwriting ITEM_DESC) while

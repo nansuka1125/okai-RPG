@@ -1037,7 +1037,7 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('all nine rare amber candidates remain scrollable on a phone', async ({ page }) => {
+  test('all ten rare amber candidates remain scrollable on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => {
       RPG.State.mode = 'base';
@@ -1052,7 +1052,7 @@ test.describe('Chapter 1 amber system', () => {
 
     await page.getByRole('button', { name: '琥珀を装着する' }).click();
     const rows = page.locator('#itemList .item-row');
-    await expect(rows).toHaveCount(9);
+    await expect(rows).toHaveCount(10);
     await expect(page.locator('#itemList')).toContainText('🔸《吸血琥珀》');
     await expect(page.locator('#itemList')).toContainText(
       '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
@@ -5402,6 +5402,218 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.legacyDefaults).toEqual({
         keyAmber: 0, oldKey: 0, exchanged: false, opportunity: null, forestHutState: 'locked',
       });
+    });
+  });
+
+  test.describe('newly wired rare amber effects', () => {
+    test('sweetAmber adds a flat bonus to Owen intervention chance without touching decideAction', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          hasOwenIntervened: false,
+          currentEnemy: { id: 'dummy', name: 'ダミー' },
+          isPoisoned: false,
+          mood: 50,
+        });
+        RPG.State.inventory.herb = 0;
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.currentHP = RPG.State.maxHP; // stay out of the emergency-herb bypass
+
+        const originalRandom = Math.random;
+        Math.random = () => 0.55; // 55 > 50 (unequipped) but 55 <= 60 (equipped +10pp)
+
+        RPG.State.equippedRareAmberId = null;
+        const withoutAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(2);
+
+        RPG.State.equippedRareAmberId = 'sweetAmber';
+        const withAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(2);
+
+        Math.random = originalRandom;
+        return { withoutAmber, withAmber };
+      });
+      expect(result).toEqual({ withoutAmber: false, withAmber: true });
+    });
+
+    test('beeAmber multiplies only Cain\'s first hit of the battle and halves incoming damage', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, { attack: 20, equippedRareAmberId: 'beeAmber' });
+        RPG.State.battleState = { cainFirstHitBonusUsed: false };
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 99999, armorHp: 0 };
+
+        const originalRandom = Math.random;
+        Math.random = () => 0.99; // avoid crit/sword-technique rolls
+
+        const first = battleSystem.performCainAttack({ allowSwordTechniques: false });
+        const second = battleSystem.performCainAttack({ allowSwordTechniques: false });
+
+        Math.random = originalRandom;
+
+        RPG.State.maxHP = 100;
+        RPG.State.currentHP = 100;
+        RPG.State.inventory.gratefulTalisman = 0;
+        battleSystem.applyEnemyDirectDamage(10);
+
+        return {
+          firstHitDamage: first.hits[0].damage,
+          secondHitDamage: second.hits[0].damage,
+          hpAfterDamage: RPG.State.currentHP,
+        };
+      });
+      expect(result.firstHitDamage).toBe(30); // floor(20 * 1.5)
+      expect(result.secondHitDamage).toBe(20); // bonus already spent
+      expect(result.hpAfterDamage).toBe(95); // 10 * 0.5
+    });
+
+    test('beeAmber drops from skull_bee at most once, ever', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, { exp: 0, cainLv: 1, equippedRareAmberId: null });
+        RPG.State.inventory.beeAmber = 0;
+        RPG.State.flags.beeAmberObtained = false;
+        RPG.State.defeatCounts.skull_bee = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+
+        const originalRandom = Math.random;
+        Math.random = () => 0; // guarantee any `< rate` roll succeeds
+
+        RPG.State.currentEnemy = {
+          id: 'skull_bee', name: 'ドクロ蜂', hp: 0, xp: 0, gold: 0, drop: { id: 'beeAmber', rate: 1 },
+        };
+        battleSystem.executeStandardVictory('skull_bee');
+        const afterFirst = { count: RPG.State.inventory.beeAmber, obtained: RPG.State.flags.beeAmberObtained };
+
+        RPG.State.currentEnemy = {
+          id: 'skull_bee', name: 'ドクロ蜂', hp: 0, xp: 0, gold: 0, drop: { id: 'beeAmber', rate: 1 },
+        };
+        RPG.State.lastBlowBy = 'Cain';
+        battleSystem.executeStandardVictory('skull_bee');
+
+        Math.random = originalRandom;
+        return { afterFirst, afterSecondCount: RPG.State.inventory.beeAmber };
+      });
+      expect(result.afterFirst).toEqual({ count: 1, obtained: true });
+      expect(result.afterSecondCount).toBe(1);
+    });
+
+    test('ignoredAmber blocks new poison and cures existing poison on equip', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.equippedRareAmberId = 'ignoredAmber';
+        RPG.State.isPoisoned = false;
+        const blockedWhileEquipped = battleSystem.inflictPoison();
+
+        RPG.State.equippedRareAmberId = null;
+        const inflictedWhenUnequipped = battleSystem.inflictPoison();
+
+        Object.assign(RPG.State, { mode: 'base', isAtInn: true });
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.ignoredAmber = 1;
+        RPG.State.equippedRareAmberId = null;
+        uiControl.equipRareAmber('ignoredAmber');
+
+        return {
+          blockedWhileEquipped,
+          inflictedWhenUnequipped,
+          poisonedAfterEquip: RPG.State.isPoisoned,
+        };
+      });
+      expect(result).toEqual({
+        blockedWhileEquipped: false,
+        inflictedWhenUnequipped: true,
+        poisonedAfterEquip: false,
+      });
+    });
+
+    test('herbAmber heals at battle turn end, per field move, and boosts herb item healing', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.equippedRareAmberId = 'herbAmber';
+        Object.assign(RPG.State, { maxHP: 100, currentHP: 50, isBattling: true });
+        RPG.State.currentEnemy = { id: 'dummy', name: 'ダミー', hp: 10, maxHp: 10 };
+        RPG.State.battleState = { skippedTurns: 0 };
+        const originalProcessOwenAction = battleSystem.processOwenAction;
+        battleSystem.processOwenAction = () => {}; // stop right after the turn-end tick under test
+        battleSystem.runBattleLoop();
+        battleSystem.processOwenAction = originalProcessOwenAction;
+        const afterTurnEndHeal = RPG.State.currentHP; // 50 + floor(100*0.03) = 53
+
+        RPG.State.flags.onWagon = false;
+        explorationSystem.recordTravelStep();
+        const afterMoveHeal = RPG.State.currentHP; // 53 + floor(100*0.02) = 55
+
+        RPG.State.currentHP = 40;
+        RPG.State.inventory.herb = 1;
+        explorationSystem.useItem('herb');
+        const afterHerbItem = RPG.State.currentHP; // 40 + floor(100*0.3*1.5) = 85
+
+        return { afterTurnEndHeal, afterMoveHeal, afterHerbItem };
+      });
+      expect(result).toEqual({ afterTurnEndHeal: 53, afterMoveHeal: 55, afterHerbItem: 85 });
+    });
+
+    test('monsterAmber grants 25% more XP from an ordinary victory only', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, { exp: 0, cainLv: 1 });
+        RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
+        RPG.State.lastBlowBy = 'Cain';
+
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 20, gold: 0,
+        };
+        battleSystem.executeStandardVictory('test_dummy');
+        const withoutAmber = RPG.State.exp;
+
+        RPG.State.exp = 0;
+        RPG.State.equippedRareAmberId = 'monsterAmber';
+        RPG.State.currentEnemy = {
+          id: 'test_dummy', name: 'テスト用ダミー', hp: 0, xp: 20, gold: 0,
+        };
+        battleSystem.executeStandardVictory('test_dummy');
+        const withAmber = RPG.State.exp;
+
+        return { withoutAmber, withAmber };
+      });
+      expect(result).toEqual({ withoutAmber: 20, withAmber: 25 }); // floor(20 * 1.25)
+    });
+
+    test('milkAmber adds 30% maxHP on equip and removes exactly that much on detach, clamping currentHP', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base', isAtInn: true, maxHP: 100, currentHP: 100, equippedRareAmberId: null,
+        });
+        RPG.State.inventory.glowingBrooch = 1;
+        RPG.State.inventory.milkAmber = 1;
+
+        uiControl.equipRareAmber('milkAmber');
+        const afterEquip = { maxHP: RPG.State.maxHP, currentHP: RPG.State.currentHP };
+
+        uiControl.detachRareAmber();
+        const afterDetach = { maxHP: RPG.State.maxHP, currentHP: RPG.State.currentHP };
+
+        return { afterEquip, afterDetach };
+      });
+      expect(result.afterEquip).toEqual({ maxHP: 130, currentHP: 100 }); // no extra heal on equip
+      expect(result.afterDetach).toEqual({ maxHP: 100, currentHP: 100 }); // exact revert + clamp
+    });
+
+    test('crackedAmber only grants its crit bonus while equipped and at/below half HP', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.maxHP = 100;
+
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.currentHP = 40;
+        const unequipped = battleSystem.getCrackedAmberCritBonus();
+
+        RPG.State.equippedRareAmberId = 'crackedAmber';
+        RPG.State.currentHP = 100;
+        const fullHp = battleSystem.getCrackedAmberCritBonus();
+
+        RPG.State.currentHP = 50;
+        const halfHp = battleSystem.getCrackedAmberCritBonus();
+
+        RPG.State.currentHP = 40;
+        const lowHp = battleSystem.getCrackedAmberCritBonus();
+
+        return { unequipped, fullHp, halfHp, lowHp };
+      });
+      expect(result).toEqual({ unequipped: 0, fullHp: 0, halfHp: 0.2, lowHp: 0.2 });
     });
   });
 });

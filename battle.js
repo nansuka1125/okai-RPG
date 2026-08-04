@@ -74,6 +74,7 @@ const battleSystem = {
 
     inflictPoison: function () {
         if (RPG.State.isPoisoned) return false;
+        if (RPG.State.equippedRareAmberId === "ignoredAmber") return false;
 
         RPG.State.isPoisoned = true;
         RPG.State.poisonDamageRemaining = Math.max(1, Math.floor(RPG.State.maxHP / 3));
@@ -104,6 +105,15 @@ const battleSystem = {
         return Math.min(1, combat.SWORD_TECHNIQUE_RATE + blueAmberBonus);
     },
 
+    // Only relevant to the ordinary crit roll, which already only runs when technique===null -
+    // sword techniques never crit, so no separate exclusion is needed here.
+    getCrackedAmberCritBonus: function () {
+        if (RPG.State.equippedRareAmberId !== "crackedAmber") return 0;
+        const tuning = RPG.Config.RARE_AMBER_TUNING;
+        const isLowHp = RPG.State.currentHP <= RPG.State.maxHP * tuning.CRACKED_AMBER_HP_THRESHOLD_RATE;
+        return isLowHp ? tuning.CRACKED_AMBER_CRIT_BONUS_PP / 100 : 0;
+    },
+
     // Shared resolution for an enemy's direct attack against Cain. Only callers that explicitly
     // opt in can trigger 《受け流し》; poison, fixed/event damage, and current boss AI attacks do
     // not opt in. A successful parry is a sword technique and completely cancels the attack.
@@ -125,7 +135,12 @@ const battleSystem = {
     },
 
     applyEnemyDirectDamage: function (damage) {
-        const normalizedDamage = Math.max(0, Number(damage) || 0);
+        let normalizedDamage = Math.max(0, Number(damage) || 0);
+        if (RPG.State.equippedRareAmberId === "beeAmber") {
+            normalizedDamage = Math.floor(
+                normalizedDamage * RPG.Config.RARE_AMBER_TUNING.BEE_AMBER_DAMAGE_TAKEN_MULTIPLIER
+            );
+        }
         this.clearGratefulTalismanSurvivalOnDamage();
         const nextHP = RPG.State.currentHP - normalizedDamage;
 
@@ -838,7 +853,10 @@ const battleSystem = {
             highwayFixedDistance: Number.isFinite(options.highwayFixedDistance)
                 ? options.highwayFixedDistance
                 : null,
-            highwayFixedVictoryRecorded: false
+            highwayFixedVictoryRecorded: false,
+            // beeAmber: only the very first hit Cain lands this battle gets the multiplier,
+            // even across a multi-hit 《連撃》 combo.
+            cainFirstHitBonusUsed: false
         };
         RPG.State.lastBlowBy = null;
         RPG.State.battleTurn = 1;
@@ -1051,6 +1069,17 @@ const battleSystem = {
         // Build 8.0: Poison Check
         if (this.applyPoisonTick()) {
             if (this.checkBattleEnd()) return;
+        }
+
+        // herbAmber: same per-turn tick point as poison, above.
+        if (RPG.State.equippedRareAmberId === "herbAmber" && RPG.State.currentHP < RPG.State.maxHP) {
+            const healAmount = Math.min(
+                RPG.State.maxHP - RPG.State.currentHP,
+                Math.max(1, Math.floor(RPG.State.maxHP * RPG.Config.RARE_AMBER_TUNING.HERB_AMBER_TURN_HEAL_RATE))
+            );
+            RPG.State.currentHP += healAmount;
+            uiControl.addLog(`《薬草入り琥珀》の効果でHPが${healAmount}回復した。`, "", "#9acd32");
+            uiControl.updateUI();
         }
 
         if (RPG.State.battleState && RPG.State.battleState.stunTurns > 0) {
@@ -1346,8 +1375,17 @@ const battleSystem = {
         }
 
         const hits = hitMultipliers.map(hitMultiplier => {
-            const isCritical = technique === null && allowCritical && Math.random() < combat.CRITICAL_RATE;
+            const critRate = combat.CRITICAL_RATE + this.getCrackedAmberCritBonus();
+            const isCritical = technique === null && allowCritical && Math.random() < critRate;
             let damage = Math.floor(RPG.State.attack * damageMultiplier * hitMultiplier);
+            if (
+                RPG.State.equippedRareAmberId === "beeAmber" &&
+                RPG.State.battleState &&
+                !RPG.State.battleState.cainFirstHitBonusUsed
+            ) {
+                damage = Math.floor(damage * RPG.Config.RARE_AMBER_TUNING.BEE_AMBER_FIRST_HIT_MULTIPLIER);
+                RPG.State.battleState.cainFirstHitBonusUsed = true;
+            }
             if (isCritical) {
                 damage = Math.floor(damage * combat.CRITICAL_DAMAGE_MULTIPLIER);
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.hardened.critical, "marker", "#ffd166");
@@ -2491,9 +2529,16 @@ const battleSystem = {
             RPG.State.silverCoins = (RPG.State.silverCoins || 0) + silverReward;
             uiControl.addLog(`銀貨を${silverReward}枚手に入れた。`);
         }
-        if (RPG.State.currentEnemy.drop && Math.random() < RPG.State.currentEnemy.drop.rate) {
+        if (
+            RPG.State.currentEnemy.drop &&
+            (RPG.State.currentEnemy.drop.id !== "beeAmber" || RPG.State.flags.beeAmberObtained !== true) &&
+            Math.random() < RPG.State.currentEnemy.drop.rate
+        ) {
             const itemId = RPG.State.currentEnemy.drop.id;
             RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
+            if (itemId === "beeAmber") {
+                RPG.State.flags.beeAmberObtained = true;
+            }
             uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`);
         }
         if (Array.isArray(RPG.State.currentEnemy.drops) && RPG.State.currentEnemy.drops.length > 0) {
@@ -2523,8 +2568,12 @@ const battleSystem = {
         let currentLevelUpTalkLevel = null;
 
         if (RPG.State.currentEnemy.xp) {
-            RPG.State.exp += RPG.State.currentEnemy.xp;
-            uiControl.addLog(`${RPG.State.currentEnemy.xp}の経験値を得た。`);
+            const xpMultiplier = RPG.State.equippedRareAmberId === "monsterAmber"
+                ? RPG.Config.RARE_AMBER_TUNING.MONSTER_AMBER_XP_MULTIPLIER
+                : 1;
+            const xpGained = Math.floor(RPG.State.currentEnemy.xp * xpMultiplier);
+            RPG.State.exp += xpGained;
+            uiControl.addLog(`${xpGained}の経験値を得た。`);
             if (RPG.State.exp >= 75 * Math.pow(1.5, RPG.State.cainLv - 1)) {
                 RPG.State.cainLv++;
                 RPG.State.maxHP += 10;

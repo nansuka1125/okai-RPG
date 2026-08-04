@@ -173,8 +173,13 @@ RPG.Assets.BATTLE_AI = {
                 return;
             }
 
-            // Priority 2: Swallow (HP <= 50%)
-            if (!enemy.swallowUsed && RPG.State.currentHP <= RPG.State.maxHP * 0.5) {
+            // Priority 2: Swallow (HP <= 50%). ignoredAmber blocks this incapacitation entirely -
+            // the AI just falls through to its next-priority action instead this turn.
+            if (
+                !enemy.swallowUsed &&
+                RPG.State.currentHP <= RPG.State.maxHP * 0.5 &&
+                RPG.State.equippedRareAmberId !== "ignoredAmber"
+            ) {
                 enemy.swallowUsed = true;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.larva.swallow, "enemy-action");
 
@@ -389,7 +394,13 @@ RPG.Assets.BATTLE_AI = {
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage");
                 sys.applyEnemyDirectDamage(damage);
 
-                if (enemy.hp <= maxHp * 0.6 && Math.random() < 0.25) {
+                // The standard-attack damage above still lands regardless; ignoredAmber only
+                // blocks the follow-up stun ailment, not the ordinary hit that carries it.
+                if (
+                    enemy.hp <= maxHp * 0.6 &&
+                    Math.random() < 0.25 &&
+                    RPG.State.equippedRareAmberId !== "ignoredAmber"
+                ) {
                     uiControl.screenShake();
                     uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.stun, "damage", "#ff4d4d");
                     RPG.State.battleState.stunTurns = 1;
@@ -417,8 +428,12 @@ RPG.Assets.OWEN_BEHAVIOR = {
         const isEmergency = (RPG.State.currentHP < (RPG.State.maxHP * 0.25) || RPG.State.isPoisoned) && (RPG.State.inventory.herb > 0);
         if (isEmergency) return true;
 
-        // Chance based on mood (Mood 50 = 50% chance to *stay silent*)
-        if (Math.random() * 100 > RPG.State.mood) return false;
+        // Chance based on mood (Mood 50 = 50% chance to *stay silent*). sweetAmber adds a flat
+        // equipment bonus to this gate only - it never touches decideAction's own odds below.
+        const sweetAmberBonus = RPG.State.equippedRareAmberId === "sweetAmber"
+            ? RPG.Config.RARE_AMBER_TUNING.SWEET_AMBER_INTERVENTION_BONUS_PP
+            : 0;
+        if (Math.random() * 100 > RPG.State.mood + sweetAmberBonus) return false;
         return true;
     },
 
@@ -537,6 +552,9 @@ RPG.Assets.ENEMIES = [
         area: null,
         poison: true,
         poisonRate: 0.2,
+        // beeAmber is capped to a single lifetime copy via flags.beeAmberObtained - see the
+        // drop-consumption guard in battle.js's executeStandardVictory.
+        drop: { id: "beeAmber", rate: RPG.Config.RARE_AMBER_TUNING.BEE_AMBER_DROP_RATE },
         msg: "ドクロ蜂は刺してきた！",
         ambientAttackChance: 0.25,
         ambientAttackLog: "ドクロ蜂は耳障りな羽音を立てた。"

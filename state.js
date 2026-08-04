@@ -41,7 +41,22 @@ RPG.Config = {
     },
     // The gloves always provide their flat defense bonus. Their former parry-damage reduction
     // is intentionally replaced by the counterattack in battle.js.
-    FIREPROOF_GLOVES_DEFENSE_BONUS: 2
+    FIREPROOF_GLOVES_DEFENSE_BONUS: 2,
+    // Provisional, pre-balance rare-amber effect values. Kept in one place so tuning later
+    // doesn't require hunting through battle.js/exploration.js/uiControl.js.
+    RARE_AMBER_TUNING: {
+        SWEET_AMBER_INTERVENTION_BONUS_PP: 10, // Flat bonus added to Owen's intervention chance (0-100 scale, same units as RPG.State.mood)
+        BEE_AMBER_FIRST_HIT_MULTIPLIER: 1.5, // Applied to Cain's first damage instance dealt each battle only
+        BEE_AMBER_DAMAGE_TAKEN_MULTIPLIER: 0.5, // Applied to ordinary enemy-attack damage against Cain
+        BEE_AMBER_DROP_RATE: 0.1, // skull_bee drop chance; capped to one lifetime copy via flags.beeAmberObtained
+        HERB_AMBER_TURN_HEAL_RATE: 0.03, // Fraction of maxHP healed at the end of each battle turn (min 1)
+        HERB_AMBER_MOVE_HEAL_RATE: 0.02, // Fraction of maxHP healed per field move (min 1)
+        HERB_AMBER_ITEM_HEAL_MULTIPLIER: 1.5, // Applied to herb/highHerb item heal amounts
+        MONSTER_AMBER_XP_MULTIPLIER: 1.25, // Applied to ordinary battle-victory XP only
+        MILK_AMBER_MAX_HP_BONUS_RATE: 0.3, // Flat % of maxHP added on equip, subtracted back on unequip
+        CRACKED_AMBER_CRIT_BONUS_PP: 20, // Flat percentage-point bonus to the crit roll while below the HP threshold
+        CRACKED_AMBER_HP_THRESHOLD_RATE: 0.5 // currentHP/maxHP at or below this fraction activates the crit bonus
+    }
 };
 
 // この下に既存の RPG.State = { ... } が続くようにする
@@ -161,6 +176,7 @@ RPG.State = {
         blueAmber: 0,
         beeAmber: 0,
         ignoredAmber: 0,
+        crackedAmber: 0,
         keyAmber: 0,
         oldKey: 0,
         debug_poison: 10,
@@ -259,6 +275,8 @@ RPG.State = {
         vampireAmberStage2TalkSeen: false, // One-time dialogue the first time the stage-2 (4th-battle) drain fires
         vampireAmberPendingTalkStages: [], // One-time vampire-amber talks waiting for a safe post-battle slot (1 or 2)
         pendingBattleCountEvents: [], // Enemy-count BATTLE_EVENTS deferred by a higher-priority vampire-amber talk
+        beeAmberObtained: false, // 蜂入り琥珀 drops at most once ever; survives being equipped/unequipped (inventory count alone can't gate this)
+        milkAmberMaxHpBonus: 0, // Exact maxHP delta 牛乳琥珀 added on equip, so unequip subtracts precisely that amount back
         amberKnifeReturnAttemptDone: false,
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,

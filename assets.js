@@ -51,6 +51,7 @@ RPG.Assets.CONFIG = {
         blueAmber: "🔹《ブルーアンバー》",
         beeAmber: "🔸《蜂入り琥珀》",
         ignoredAmber: "🔸《無視入り琥珀》",
+        crackedAmber: "🔸《ひび割れ琥珀》",
         keyAmber: "🔸《鍵入り琥珀》",
         oldKey: "🗝️古びた鍵",
         debug_poison: "《デバッグ毒》"
@@ -91,13 +92,14 @@ RPG.Assets.CONFIG = {
         hardOil: "火をつけると、なかなか消えない油。",
         fireproofGloves: "防御＋2。受け流し成功時、通常攻撃1回分で反撃する丈夫な手袋。拾った時のことは思い出したくない。",
         hatedAmber: "装備すると通常の魔物と遭遇しにくくなるレア琥珀。",
-        sweetAmber: "装備するとオーエンが戦闘へ介入しやすくなるレア琥珀。",
-        herbAmber: "装備すると徐々に回復し、薬草の効果も高まるレア琥珀。",
-        monsterAmber: "装備すると戦闘で得られる経験値が増えるレア琥珀。",
-        milkAmber: "装備すると最大HPが大きく増えるレア琥珀。",
+        sweetAmber: "オーエン「舐めてもいい？」\n蜂蜜色の綺麗な琥珀だ。",
+        herbAmber: "薬くさくて、舐めると苦い。",
+        monsterAmber: "カイン（中で何か動いてる！？）\nよく見ると、小さな何かが中で蠢いている琥珀。\n動くたびに微かな魔力を分け与えてくれる……らしい。",
+        milkAmber: "カイン（おいしくって強くなりそうだ）",
         blueAmber: "装備すると剣技が発動しやすくなるレア琥珀。",
-        beeAmber: "最初の攻撃を強化し、最初に受ける攻撃を軽減するレア琥珀。",
-        ignoredAmber: "装備すると状態異常を受けなくなるレア琥珀。",
+        beeAmber: "討伐した蜂がまるごと閉じ込められた琥珀。\n初撃は蜂の意地、防御も蜂の意地。",
+        ignoredAmber: "カイン（なんだ？　この空気は）\nあらゆる異常を無視する琥珀。\n空気を読まない性格が功を奏している。",
+        crackedAmber: "今にも砕けそうな琥珀。",
         keyAmber: "中に古びた鍵が閉じ込められている琥珀。",
         oldKey: "鍵入り琥珀を燃やして取り出した古びた鍵。",
         debug_poison: "【テスト用】使うとHPが1になります。",
@@ -235,7 +237,7 @@ RPG.Assets.AMBER_APPRAISAL = {
     sparkling: {
         name: "《キラキラ琥珀》",
         weight: 70,
-        firstText: "光をよく反射する琥珀。レア琥珀との交換に使える。",
+        firstText: "大都市では高く売れるらしい。",
         repeatText: "《キラキラ琥珀》と鑑定された。"
     },
     junk: {
@@ -247,7 +249,7 @@ RPG.Assets.AMBER_APPRAISAL = {
     insect: {
         name: "《虫入り琥珀》",
         weight: 15,
-        firstText: "小さな虫を閉じ込めた琥珀。琥珀商の預かり品になる。",
+        firstText: "大都市では売れるらしい。",
         repeatText: "《虫入り琥珀》と鑑定された。"
     }
 };
@@ -288,6 +290,12 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         name: "《ブルーアンバー》",
         cost: 5,
         effect: "装備中、剣技が発動しやすくなる。"
+    },
+    {
+        id: "crackedAmber",
+        name: "《ひび割れ琥珀》",
+        cost: 4,
+        effect: "装備中、HPが半分以下の間、会心率が上がる。"
     },
     {
         id: "beeAmber",

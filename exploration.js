@@ -29,7 +29,7 @@ const explorationSystem = {
     },
 
     canOpenHardBottle: function () {
-        return RPG.State.cainLv >= 11;
+        return RPG.State.cainLv >= 10;
     },
 
     beginTemporaryFieldStep: function () {
@@ -2501,6 +2501,27 @@ const explorationSystem = {
 
         const dist = RPG.State.currentDistance;
         const flags = RPG.State.flags;
+
+        if (
+            RPG.State.location === "かつての街道" &&
+            dist === 8 &&
+            flags.highway8mMasochistAmberAvailable === true &&
+            flags.highway8mMasochistAmberTaken !== true
+        ) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [{
+                text: "🔸被虐の琥珀を手に入れた！",
+                type: "marker",
+                color: "#ffd166",
+                action: () => {
+                    RPG.State.inventory.masochistAmber = (RPG.State.inventory.masochistAmber || 0) + 1;
+                    flags.highway8mMasochistAmberTaken = true;
+                    uiControl.updateUI();
+                }
+            }];
+            this.playDialogueLoop();
+            return;
+        }
 
         // Build 15.5.5: Forest-entrance rat-droppings inspection takes priority over the
         // amber merchant, but only once and only while unlocked and not yet inspected.

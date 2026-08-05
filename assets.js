@@ -677,6 +677,7 @@ RPG.Assets.GAME_TEXT = {
 
     // Event Messages
     events: {
+        highway8mMasochistAmberDiscovery: "隆起した石畳の隙間に、赤黒い琥珀が食い込んでいる。",
         prologueIntro: [
             "古い宿屋には、甘い香辛料の匂いが漂っている。",
             "窓の外には、深く湿った《琥珀の森》が広がっていた。",

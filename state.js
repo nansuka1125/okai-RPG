@@ -307,6 +307,9 @@ RPG.State = {
         hasSleptAfterThief: false, // Track if player slept after meeting thief
         heardScream: false, // Build 14.1.4: Track if 9m scream event is finished
         giantLarvaDefeated: false, // Build 14.1.3: Robust Boss Flag
+        highway8mMasochistAmberAvailable: false, // One-time inspection reward after the 8m fixed highway battle
+        highway8mMasochistAmberDiscoverySeen: false, // The 8m highway reward discovery text has been shown
+        highway8mMasochistAmberTaken: false, // The 8m highway masochist amber has been collected
         someonesDiaryReadUnlocked: false, // 日記を持った状態で一泊を終えたら true
         someonesDiaryFirstReadDone: false, // 初回読了キューを最後まで再生したら true
         onWagon: false, // Build 14.2.1: Track if player boarded wagon
@@ -376,7 +379,7 @@ RPG.State = {
         innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
         innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
         innRepairAmberRewardReceived: false, // One-time fixed milk-amber result from the completed repair
-        hardBottleOpened: false, // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11
+        hardBottleOpened: false, // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv10
         highHerbJamPrepared: false // Build 15.6.2: Prepared 上薬草のジャム; survives battles until it full-heals once at half HP or less
     },
 

@@ -738,6 +738,77 @@ test.describe('Chapter 1 completion route', () => {
     ).toBe(true);
   });
 
+  test('8m highway victory reveals and permanently grants the masochist amber on inspection', async ({ page }) => {
+    await page.evaluate(() => {
+      const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'hell_rat_swarm');
+      Object.assign(RPG.State, {
+        mode: 'battle',
+        storyPhase: 9,
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'highway',
+        location: 'かつての街道',
+        currentDistance: 8,
+        isBattling: true,
+        currentEnemy: { ...template, hp: 0 },
+        battleState: {
+          highwayFixedDistance: 8,
+          highwayFixedVictoryRecorded: false,
+        },
+        lastBlowBy: 'Cain',
+        defeatCounts: { hell_rat_swarm: { cain: 0, owen: 0 } },
+      });
+      Object.assign(RPG.State.flags, {
+        onWagon: true,
+        highway8mMasochistAmberAvailable: false,
+        highway8mMasochistAmberDiscoverySeen: false,
+        highway8mMasochistAmberTaken: false,
+      });
+      RPG.State.inventory.masochistAmber = 0;
+      battleSystem.executeStandardVictory('hell_rat_swarm');
+    });
+
+    await drainDialogue(page);
+    const afterVictory = await page.evaluate(() => ({
+      mode: RPG.State.mode,
+      available: RPG.State.flags.highway8mMasochistAmberAvailable,
+      discoverySeen: RPG.State.flags.highway8mMasochistAmberDiscoverySeen,
+      talkLabel: document.getElementById('btnTalk')?.textContent || '',
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(afterVictory.mode).toBe('base');
+    expect(afterVictory.available).toBe(true);
+    expect(afterVictory.discoverySeen).toBe(true);
+    expect(afterVictory.talkLabel).toBe('調べる');
+    expect(afterVictory.log).toContain('隆起した石畳の隙間に、赤黒い琥珀が食い込んでいる。');
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+    const afterTake = await page.evaluate(() => ({
+      count: RPG.State.inventory.masochistAmber,
+      taken: RPG.State.flags.highway8mMasochistAmberTaken,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(afterTake.count).toBe(1);
+    expect(afterTake.taken).toBe(true);
+    expect(afterTake.log).toContain('🔸被虐の琥珀を手に入れた！');
+
+    const snapshot = await page.evaluate(() => uiControl.createSaveSnapshot('journal'));
+    await page.evaluate(save => {
+      localStorage.setItem('highway_8m_masochist_amber_test', JSON.stringify(save));
+      RPG.State.inventory.masochistAmber = 0;
+      uiControl.loadFromStorage('highway_8m_masochist_amber_test', 'テスト記録');
+    }, snapshot);
+    await page.waitForTimeout(50);
+    await page.evaluate(() => explorationSystem.talk());
+    const afterReload = await page.evaluate(() => ({
+      count: RPG.State.inventory.masochistAmber,
+      taken: RPG.State.flags.highway8mMasochistAmberTaken,
+    }));
+    expect(afterReload.count).toBe(1);
+    expect(afterReload.taken).toBe(true);
+  });
+
   test('13. clear screen shows the chapter ending and returns to the title page', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {

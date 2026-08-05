@@ -779,24 +779,43 @@ const battleSystem = {
     },
 
     buildHighwayPostBattleQueue: function (victoryResult) {
-        if (!victoryResult?.postBattleEventId) return [];
-        const event = RPG.Assets.EVENT_DATA.find(
-            candidate => candidate.id === victoryResult.postBattleEventId
-        );
-        if (!event) return [];
+        const queue = [];
+        if (victoryResult?.postBattleEventId) {
+            const event = RPG.Assets.EVENT_DATA.find(
+                candidate => candidate.id === victoryResult.postBattleEventId
+            );
+            if (event) {
+                RPG.State.dialogueQueue = [];
+                event.action(RPG.State);
+                queue.push(...(
+                    Array.isArray(RPG.State.dialogueQueue)
+                        ? RPG.State.dialogueQueue
+                        : []
+                ));
 
-        RPG.State.dialogueQueue = [];
-        event.action(RPG.State);
-        const queue = Array.isArray(RPG.State.dialogueQueue)
-            ? [...RPG.State.dialogueQueue]
-            : [];
+                if (
+                    victoryResult.completePostBattleEvent === true &&
+                    !RPG.State.completedEvents.includes(event.id)
+                ) {
+                    RPG.State.completedEvents.push(event.id);
+                }
+            }
+        }
 
         if (
-            victoryResult.completePostBattleEvent === true &&
-            !RPG.State.completedEvents.includes(event.id)
+            victoryResult?.distance === 8 &&
+            victoryResult.completedWins === 1 &&
+            RPG.State.flags.highway8mMasochistAmberTaken !== true &&
+            RPG.State.flags.highway8mMasochistAmberDiscoverySeen !== true
         ) {
-            RPG.State.completedEvents.push(event.id);
+            RPG.State.flags.highway8mMasochistAmberAvailable = true;
+            RPG.State.flags.highway8mMasochistAmberDiscoverySeen = true;
+            queue.push({
+                text: RPG.Assets.GAME_TEXT.events.highway8mMasochistAmberDiscovery,
+                delay: 1800
+            });
         }
+
         return queue;
     },
 
@@ -2837,21 +2856,19 @@ const battleSystem = {
             hasPostBattleEvent = true;
         }
 
-        if (
-            !hasPostBattleEvent &&
-            highwayVictory.handled &&
-            highwayVictory.postBattleEventId
-        ) {
+        if (!hasPostBattleEvent && highwayVictory.handled) {
             const eventDialogues = this.buildHighwayPostBattleQueue(highwayVictory);
-            uiControl.addLog("---");
-            RPG.State.mode = "event";
-            RPG.State.dialogueQueue = [
-                ...levelUpTalkQueue,
-                ...eventDialogues,
-                ...matamatabiActivationQueue
-            ];
-            explorationSystem.playDialogueLoop();
-            hasPostBattleEvent = true;
+            if (eventDialogues.length > 0) {
+                uiControl.addLog("---");
+                RPG.State.mode = "event";
+                RPG.State.dialogueQueue = [
+                    ...levelUpTalkQueue,
+                    ...eventDialogues,
+                    ...matamatabiActivationQueue
+                ];
+                explorationSystem.playDialogueLoop();
+                hasPostBattleEvent = true;
+            }
         }
 
         if (

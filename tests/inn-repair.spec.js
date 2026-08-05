@@ -2172,14 +2172,22 @@ test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/com
         shinyOil: RPG.State.inventory.shinyOil,
         hardOil: RPG.State.inventory.hardOil,
         completed: RPG.State.flags.innRepairCompleted,
+        amberRewardReceived: RPG.State.flags.innRepairAmberRewardReceived,
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        queuedAmberResults: RPG.State.unappraisedAmberResults,
         logText: document.getElementById('logContainer')?.textContent || '',
       }));
       expect(result.glossyOil).toBe(0);
       expect(result.shinyOil).toBe(1);
       expect(result.hardOil).toBe(1);
       expect(result.completed).toBe(true);
+      expect(result.amberRewardReceived).toBe(true);
+      expect(result.unknownAmber).toBe(1);
+      expect(result.queuedAmberResults).toEqual(['milkAmber']);
       expect(result.logText).toContain('宿屋の修理が終わった！');
       expect(result.logText).toContain('釘を手に入れた！（店主が）');
+      expect(result.logText).toContain('店主「そうだ。物置にあったやつだが、これやるよ」');
+      expect(result.logText).toContain('🔸？琥珀を1個受け取った！');
     });
 
     test('the nail is not added as an inventory item', async ({ page }) => {
@@ -2209,6 +2217,10 @@ test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/com
       await page.evaluate(() => explorationSystem.talk());
       const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
       expect(logText).not.toContain('宿屋の修理が終わった！　宿屋の修理が終わった！');
+      expect(await page.evaluate(() => ({
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        queuedAmberResults: RPG.State.unappraisedAmberResults,
+      }))).toEqual({ unknownAmber: 1, queuedAmberResults: ['milkAmber'] });
     });
 
     test('repeated player-input taps during the finish event do not double-consume or double-complete', async ({ page }) => {

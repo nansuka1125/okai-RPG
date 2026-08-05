@@ -110,17 +110,20 @@ test.describe('okai-RPG smoke test', () => {
     await expect(page.getByRole('heading', { name: '攻略・FAQ' })).toBeVisible();
 
     const disclosures = page.locator('.guide-disclosures details');
-    await expect(disclosures).toHaveCount(5);
+    await expect(disclosures).toHaveCount(8);
     expect(await disclosures.evaluateAll(elements => elements.every(element => !element.open))).toBe(true);
 
     const firstQuestion = disclosures.first();
     await firstQuestion.locator('summary').click();
     expect(await firstQuestion.evaluate(element => element.open)).toBe(true);
-    await expect(firstQuestion).toContainText('内容は後から追加します。');
+    await expect(firstQuestion).toContainText('次のイベントが起きません');
 
     await firstQuestion.locator('summary').click();
     expect(await firstQuestion.evaluate(element => element.open)).toBe(false);
-    await expect(page.getByRole('link', { name: 'Googleフォーム' })).toHaveAttribute('href', '#');
+    await expect(page.getByRole('link', { name: 'Googleフォーム' })).toHaveAttribute(
+      'href',
+      'https://docs.google.com/forms/d/e/1FAIpQLSf7b5lXbea1iqDW8rWWz1cXl716Yjf9ePzcMOFH8yOl3iWO8w/viewform?usp=publish-editor'
+    );
   });
 
   test('guide page has no horizontal overflow on a phone', async ({ page }) => {

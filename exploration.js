@@ -250,7 +250,11 @@ const explorationSystem = {
                 ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6CarnivorousVineIntro),
                 {
                     text: null,
-                    action: () => battleSystem.startBattle("carnivorous_vine")
+                    action: () => {
+                        if (battleSystem.startBattle("carnivorous_vine") && RPG.State.battleState) {
+                            RPG.State.battleState.isInitialHerbGardenVine = true;
+                        }
+                    }
                 }
             ];
             this.playDialogueLoop();
@@ -2438,8 +2442,19 @@ const explorationSystem = {
                 RPG.State.mode = "event";
                 RPG.State.dialogueQueue = RPG.Assets.GAME_TEXT.events.innRepairFinish.map(text => ({ text }));
                 RPG.State.dialogueQueue.push({
-                    text: null,
+                    text: RPG.Assets.GAME_TEXT.events.innRepairAmberReward[0]
+                });
+                RPG.State.dialogueQueue.push({
+                    text: RPG.Assets.GAME_TEXT.events.innRepairAmberReward[1],
+                    type: "marker",
+                    color: "#ffd166",
                     action: () => {
+                        if (RPG.State.flags.innRepairAmberRewardReceived !== true) {
+                            innSystem.ensureAmberState();
+                            RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                            RPG.State.unappraisedAmberResults.push("milkAmber");
+                            RPG.State.flags.innRepairAmberRewardReceived = true;
+                        }
                         RPG.State.inventory.glossyOil = Math.max(0, (RPG.State.inventory.glossyOil || 0) - 1);
                         RPG.State.flags.innRepairCompleted = true;
                         uiControl.updateUI();

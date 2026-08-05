@@ -116,6 +116,60 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
+  test('only the fixed initial herb-garden vine grants someone\'s diary', async ({ page }) => {
+    await page.evaluate(() => {
+      window.__originalVineContinueBattleStart = battleSystem.continueBattleStart;
+      battleSystem.continueBattleStart = () => {};
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'herbGarden',
+        currentDistance: 5,
+        storyPhase: 6,
+      });
+      Object.assign(RPG.State.flags, {
+        carnivorousVineDefeated: false,
+        carnivorousVineRegrown: false,
+      });
+      RPG.State.inventory.someonesDiary = 0;
+      RPG.State.defeatCounts.carnivorous_vine = { cain: 0, owen: 0 };
+      explorationSystem.tryHerbGardenVineEncounter(5);
+    });
+    await drainDialogue(page);
+
+    const fixedResult = await page.evaluate(() => {
+      const markedAsInitial = RPG.State.battleState?.isInitialHerbGardenVine === true;
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.executeStandardVictory('carnivorous_vine');
+      return { markedAsInitial, diary: RPG.State.inventory.someonesDiary };
+    });
+    expect(fixedResult).toEqual({ markedAsInitial: true, diary: 1 });
+
+    const otherVineResults = await page.evaluate(() => {
+      const vine = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'carnivorous_vine');
+      RPG.State.inventory.someonesDiary = 0;
+      RPG.State.flags.carnivorousVineDefeated = true;
+      RPG.State.defeatCounts.carnivorous_vine = { cain: 0, owen: 0 };
+      battleSystem.beginBattle(vine);
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.executeStandardVictory('carnivorous_vine');
+      const regrownDiary = RPG.State.inventory.someonesDiary;
+
+      RPG.State.inventory.someonesDiary = 1;
+      RPG.State.defeatCounts.carnivorous_vine = { cain: 0, owen: 0 };
+      battleSystem.beginBattle(vine);
+      RPG.State.battleState.isInitialHerbGardenVine = true;
+      RPG.State.lastBlowBy = 'Cain';
+      battleSystem.executeStandardVictory('carnivorous_vine');
+      const existingDiary = RPG.State.inventory.someonesDiary;
+      battleSystem.continueBattleStart = window.__originalVineContinueBattleStart;
+      delete window.__originalVineContinueBattleStart;
+      return { regrownDiary, existingDiary };
+    });
+    expect(otherVineResults).toEqual({ regrownDiary: 0, existingDiary: 1 });
+  });
+
   test('amber-tree inspect restores both choices and preserves the leave dialogue', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
@@ -436,6 +490,7 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.mode = 'base';
       RPG.State.isAtInn = true;
       RPG.State.silverCoins = 1;
+      RPG.State.deathCount = 3;
       RPG.State.inventory.silverCoin = 1;
       RPG.State.flags.hasFoundFirstCoin = true;
       RPG.State.flags.treeDefeated = true;
@@ -505,8 +560,28 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.mode = 'base';
       innSystem.interactWithAmberMerchant();
     });
+    await drainDialogue(page);
     await expect.poll(() => page.evaluate(() => RPG.State.mode)).toBe('choice');
     await expect(page.locator('#action-buttons button')).toHaveCount(5);
+
+    result = await page.evaluate(() => ({
+      crackedAmber: RPG.State.inventory.crackedAmber,
+      rewardReceived: RPG.State.flags.amberMerchantCrackedAmberReceived,
+      logText: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.crackedAmber).toBe(1);
+    expect(result.rewardReceived).toBe(true);
+    expect(result.logText).toContain('あんたよくここ血まみれで通るよな');
+
+    result = await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      innSystem.interactWithAmberMerchant();
+      return {
+        mode: RPG.State.mode,
+        crackedAmber: RPG.State.inventory.crackedAmber,
+      };
+    });
+    expect(result).toEqual({ mode: 'choice', crackedAmber: 1 });
   });
 
   test('pending knife loan keeps priority over the unlocked second rat label', async ({ page }) => {

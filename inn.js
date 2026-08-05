@@ -884,6 +884,34 @@ innSystem = {
             return;
         }
 
+        if (
+            (Number(RPG.State.deathCount) || 0) >= 3 &&
+            flags.amberMerchantCrackedAmberReceived !== true
+        ) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "琥珀商「あんたよくここ血まみれで通るよな。そんなんじゃ命いくつあっても足んないだろ」" },
+                { text: "カイン「見られてたのか。恥ずかしいな」" },
+                { text: "琥珀商「…この琥珀、あんたにやるよ」" },
+                {
+                    text: "《🔸ひび割れ琥珀》をもらった！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.crackedAmber = (RPG.State.inventory.crackedAmber || 0) + 1;
+                        flags.amberMerchantCrackedAmberReceived = true;
+                        uiControl.updateUI();
+                    }
+                },
+                { text: "カイン「今にも砕けそうだな」" },
+                { text: "琥珀商「あんたみたいだろ！」" },
+                { text: "カイン（ちょっと笑えない）" },
+                { text: null, action: () => this.showAmberMerchantMenu() }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
         this.showAmberMerchantMenu();
     },
 

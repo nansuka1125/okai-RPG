@@ -2596,6 +2596,15 @@ const battleSystem = {
             uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[selectedDrop.id]}を手に入れた！`);
         }
 
+        if (
+            enemyId === "carnivorous_vine" &&
+            RPG.State.battleState?.isInitialHerbGardenVine === true &&
+            (RPG.State.inventory.someonesDiary || 0) <= 0
+        ) {
+            RPG.State.inventory.someonesDiary = 1;
+            uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME.someonesDiary}を手に入れた！`, "marker", "#ffd166");
+        }
+
         if (enemyId === "carnivorous_vine") {
             RPG.State.flags.carnivorousVineDefeated = true;
             RPG.State.flags.carnivorousVineRegrown = false;

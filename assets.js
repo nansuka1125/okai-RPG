@@ -1555,6 +1555,10 @@ RPG.Assets.GAME_TEXT = {
             "宿屋の修理が終わった！",
             "カイン（タダで泊めてもらってるからな）"
         ],
+        innRepairAmberReward: [
+            "店主「そうだ。物置にあったやつだが、これやるよ」",
+            "🔸？琥珀を1個受け取った！"
+        ],
         // Burning the 《鍵入り琥珀》 on the burn site of a just-defeated amber root. The
         // "🗝️古びた鍵を手に入れた！" line is matched verbatim in exploration.js to attach the
         // item-grant action, so keep it byte-identical if this text is ever edited.

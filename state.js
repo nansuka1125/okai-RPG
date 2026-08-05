@@ -285,6 +285,7 @@ RPG.State = {
         amberKnifeReturnAttemptDone: false,
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,
+        amberMerchantCrackedAmberReceived: false,
         miningKnifeAwarded: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
@@ -375,6 +376,7 @@ RPG.State = {
         innRepairHelpStarted: false, // The innkeeper repair-help intro has played; waiting on the daughter's oils
         innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
         innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
+        innRepairAmberRewardReceived: false, // One-time fixed milk-amber result from the completed repair
         hardBottleOpened: false // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11; contents undecided
     },
 

@@ -474,15 +474,28 @@ h1 {
 .utility-links {
     display: flex;
     justify-content: center;
-    gap: 9px;
+    gap: 14px;
     color: #958b7c;
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
-    font-size: 10px;
+    font-size: 14px;
 }
 
 .utility-links a:not([href]) {
     cursor: default;
     text-decoration: none;
+}
+
+.utility-links a {
+    display: inline-block;
+    padding: 8px 6px;
+}
+
+.utility-links a.feedback-link {
+    color: #f2d697;
+}
+
+.utility-links a.feedback-link:hover {
+    color: #f7dea0;
 }
 
 .utility-links a[href]:hover {

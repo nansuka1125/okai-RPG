@@ -2309,6 +2309,11 @@ const battleSystem = {
     },
 
     endBattle: function (playerWin, isDeathSave = false) {
+        if (window.debugBattlePresets?.isActive()) {
+            window.debugBattlePresets.finishBattle();
+            return;
+        }
+
         if (!RPG.State.defeatCounts) RPG.State.defeatCounts = {};
         if (!RPG.State.lastBlowBy) RPG.State.lastBlowBy = "Cain";
 
@@ -2922,6 +2927,11 @@ const battleSystem = {
     },
 
     resolveDefeat: function () {
+        if (window.debugBattlePresets?.isActive()) {
+            window.debugBattlePresets.finishBattle();
+            return;
+        }
+
         uiControl.addSeparator();
         if (typeof explorationSystem !== "undefined") {
             explorationSystem.clearTemporaryItemEffects();

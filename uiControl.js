@@ -1110,8 +1110,13 @@ const uiControl = {
     },
 
     // Build 15.3.1: Inn journal and safe one-slot suspend saves.
+    isDebugBattlePresetSession: function () {
+        return window.debugBattlePresets?.isActive() === true;
+    },
+
     canWriteJournalSave: function () {
         return (
+            !this.isDebugBattlePresetSession() &&
             RPG.State.isAtInn === true &&
             RPG.State.mode === "base" &&
             RPG.State.isBattling !== true
@@ -1120,6 +1125,7 @@ const uiControl = {
 
     canWriteSuspendSave: function () {
         return (
+            !this.isDebugBattlePresetSession() &&
             RPG.State.flags.chapter1Cleared !== true &&
             RPG.State.isAtInn !== true &&
             RPG.State.mode === "base" &&
@@ -1158,6 +1164,7 @@ const uiControl = {
     },
 
     readSaveData: function (storageKey) {
+        if (this.isDebugBattlePresetSession()) return null;
         const serialized = localStorage.getItem(storageKey);
         if (!serialized) return null;
 
@@ -1259,6 +1266,7 @@ const uiControl = {
     },
 
     openSaveModal: function () {
+        if (this.isDebugBattlePresetSession()) return;
         const modal = document.getElementById("saveModal");
         if (!modal) return;
 
@@ -1442,15 +1450,18 @@ const uiControl = {
     },
 
     loadGame: function (slot) {
+        if (this.isDebugBattlePresetSession()) return;
         if (!slot || slot < 1 || slot > 5) return;
         this.loadFromStorage(`okai_rpg_save_${slot}`, `第${["一", "二", "三", "四", "五"][slot - 1]}頁`);
     },
 
     loadSuspendGame: function () {
+        if (this.isDebugBattlePresetSession()) return;
         this.loadFromStorage("okai_rpg_suspend", "中断記録");
     },
 
     loadFromStorage: function (storageKey, sourceLabel) {
+        if (this.isDebugBattlePresetSession()) return false;
         const saveData = localStorage.getItem(storageKey);
         if (!saveData) {
             this.addLog("記録が見つからなかった。", "damage");

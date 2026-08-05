@@ -158,7 +158,7 @@ test.describe('giant_larva aftermath - post-victory event', () => {
       Math.random = () => 0.0;
       try {
         RPG.State.inventory.herb = 0;
-        RPG.State.currentEnemy = { id: 'giant_larva', name: '泥這う大幼蟲', gold: 0, xp: 130 };
+        RPG.State.currentEnemy = { id: 'giant_larva', name: '泥這う大幼蟲', gold: 0, xp: 180 };
         RPG.State.defeatCounts.giant_larva = { cain: 0, owen: 0 };
         RPG.State.lastBlowBy = 'Cain';
         battleSystem.executeStandardVictory('giant_larva');

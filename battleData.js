@@ -548,7 +548,7 @@ RPG.Assets.ENEMIES = [
         symbol: "✦",
         maxHp: 30,
         atk: 7,
-        xp: 18,
+        xp: 30,
         area: null,
         poison: true,
         poisonRate: 0.2,
@@ -586,7 +586,7 @@ RPG.Assets.ENEMIES = [
         maxHp: 100, // Dynamic: Atk * 12 (Build 9.1)
         atk: 12,
         area: null, // Build 12.0.6: Boss only summoned by event
-        xp: 130,
+        xp: 180,
         isBoss: true,
         msg: "大きな体をぶつけてきた！", // Default msg (Build 9.1)
         onDeathEvent: "thief_rescue_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
@@ -612,7 +612,7 @@ RPG.Assets.ENEMIES = [
         symbol: "╫",
         maxHp: 150,
         atk: 13, // Adjusted for survival balance
-        xp: 100,
+        xp: 500,
         isBoss: true,
         armorMax: 50, // Provisional Chapter 1 balance value
         armorLabel: "硬化した樹皮",
@@ -628,7 +628,7 @@ RPG.Assets.ENEMIES = [
         symbol: "🔥",
         maxHp: 200, // Provisional Chapter 1 balance value
         atk: 22, // Provisional Chapter 1 balance value
-        xp: 150, // Provisional Chapter 1 balance value
+        xp: 250, // Provisional Chapter 1 balance value
         area: null,
         isBoss: true,
         selfBurnDamage: 10 // Provisional Chapter 1 balance value: fixed self-damage after every enemy turn opportunity

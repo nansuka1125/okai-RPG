@@ -842,6 +842,14 @@ const battleSystem = {
             rabbitEnemyTurnCount: 0,
             rabbitExposed: false
         };
+        // The fixed first carnivorous-vine victory is worth more than a vine that has
+        // regrown after later stays.  The template's 30 EXP remains the repeat value.
+        if (
+            RPG.State.currentEnemy.id === "carnivorous_vine" &&
+            RPG.State.flags.carnivorousVineDefeated !== true
+        ) {
+            RPG.State.currentEnemy.xp = 250;
+        }
         if (this.isEmpoweredSap(RPG.State.currentEnemy)) {
             RPG.State.currentEnemy.atk = Math.round(
                 template.atk * RPG.Config.EMPOWERED_SAP_ATK_MULTIPLIER

@@ -80,6 +80,42 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.postTreeBattles).toBeNull();
   });
 
+  test('Chapter 1 configured EXP values keep the first and regrown carnivorous vines distinct', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const values = Object.fromEntries(
+        ['hungry_amber_tree', 'giant_larva', 'skull_bee', 'carnivorous_vine', 'amber_burning_root']
+          .map(id => [id, RPG.Assets.ENEMIES.find(enemy => enemy.id === id).xp])
+      );
+      const vine = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'carnivorous_vine');
+      const originalContinue = battleSystem.continueBattleStart;
+      try {
+        battleSystem.continueBattleStart = () => {};
+        RPG.State.flags.carnivorousVineDefeated = false;
+        battleSystem.beginBattle(vine);
+        const firstVineXp = RPG.State.currentEnemy.xp;
+
+        RPG.State.flags.carnivorousVineDefeated = true;
+        battleSystem.beginBattle(vine);
+        const regrownVineXp = RPG.State.currentEnemy.xp;
+        return { values, firstVineXp, regrownVineXp };
+      } finally {
+        battleSystem.continueBattleStart = originalContinue;
+      }
+    });
+
+    expect(result).toEqual({
+      values: {
+        hungry_amber_tree: 500,
+        giant_larva: 180,
+        skull_bee: 30,
+        carnivorous_vine: 30,
+        amber_burning_root: 250,
+      },
+      firstVineXp: 250,
+      regrownVineXp: 30,
+    });
+  });
+
   test('amber-tree inspect restores both choices and preserves the leave dialogue', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
@@ -4386,7 +4422,7 @@ test.describe('Chapter 1 amber system', () => {
         };
       });
       expect(result.isBattling).toBe(false);
-      expect(result.exp).toBe(150);
+      expect(result.exp).toBe(250);
       expect(result.rootState[6]).toBe('defeated');
     });
 
@@ -4399,7 +4435,7 @@ test.describe('Chapter 1 amber system', () => {
         battleSystem.executeStandardVictory('amber_burning_root');
         return { exp: RPG.State.exp, isBattling: RPG.State.isBattling };
       });
-      expect(result).toEqual({ exp: 150, isBattling: false });
+      expect(result).toEqual({ exp: 250, isBattling: false });
     });
 
     test('an Owen instant-kill grants no EXP, per existing behavior', async ({ page }) => {
@@ -4539,8 +4575,8 @@ test.describe('Chapter 1 amber system', () => {
       expect(first.rootState).toEqual({ 6: 'ignited', 7: 'ignited', 8: 'defeated' });
       expect(second.rootState).toEqual({ 6: 'defeated', 7: 'ignited', 8: 'defeated' });
       expect(third.rootState).toEqual({ 6: 'defeated', 7: 'defeated', 8: 'defeated' });
-      expect(first.exp).toBe(150);
-      expect(second.exp).toBe(150);
+      expect(first.exp).toBe(250);
+      expect(second.exp).toBe(250);
       expect(third.exp).toBe(0);
       expect(first.isBattling).toBe(false);
       expect(second.isBattling).toBe(false);

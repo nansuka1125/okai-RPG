@@ -1334,6 +1334,13 @@ innSystem = {
             container.innerHTML = '';
             container.style.display = 'none';
             RPG.State.mode = 'event';
+            // The choice button area (compact) and the event-mode inn button grid (taller, kept
+            // visible-but-disabled) have different heights, so the log viewport's available
+            // height changes with this mode switch. playDialogueLoop's first tick scrolls to the
+            // latest line before calling updateUI(), so without this call the very first line's
+            // scroll position is computed against the about-to-shrink (still choice-mode) layout
+            // and ends up below the fold once the taller footer reflows in.
+            uiControl.updateUI();
             RPG.State.dialogueQueue = this.buildDialogueQueue(
                 RPG.Assets.GAME_TEXT.events.phase4SweetDeliveryResponse,
                 () => {

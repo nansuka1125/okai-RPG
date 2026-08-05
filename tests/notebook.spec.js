@@ -1929,6 +1929,62 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result).toEqual({ callbackRan: true, enemyHp: 30, mode: 'battle' });
   });
 
+  test('a frozen glowing cat rabbit does not advance toward escape', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const originalEnd = battleSystem.endGlowingCatRabbitBattle;
+      battleSystem.endGlowingCatRabbitBattle = () => { throw new Error('猫うさぎが凍結中に逃げた'); };
+      RPG.State.debug.isSkipping = true;
+      RPG.State.currentEnemy = {
+        id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 5,
+        frozenTurns: 1, rabbitEnemyTurnCount: 2, rabbitExposed: false,
+      };
+
+      try {
+        await new Promise(resolve => battleSystem.runGlowingCatRabbitTurn(resolve));
+        const afterFrozenTurn = {
+          frozenTurns: RPG.State.currentEnemy.frozenTurns,
+          rabbitEnemyTurnCount: RPG.State.currentEnemy.rabbitEnemyTurnCount,
+          rabbitExposed: RPG.State.currentEnemy.rabbitExposed,
+        };
+        await new Promise(resolve => battleSystem.runGlowingCatRabbitTurn(resolve));
+        return {
+          afterFrozenTurn,
+          afterNextTurn: {
+            rabbitEnemyTurnCount: RPG.State.currentEnemy.rabbitEnemyTurnCount,
+            rabbitExposed: RPG.State.currentEnemy.rabbitExposed,
+          },
+        };
+      } finally {
+        battleSystem.endGlowingCatRabbitBattle = originalEnd;
+        RPG.State.debug.isSkipping = false;
+      }
+    });
+
+    expect(result).toEqual({
+      afterFrozenTurn: { frozenTurns: 0, rabbitEnemyTurnCount: 2, rabbitExposed: false },
+      afterNextTurn: { rabbitEnemyTurnCount: 3, rabbitExposed: true },
+    });
+  });
+
+  test('the matatabi branch remains after the fur scene deactivates it', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.matamatabiBranch = 1;
+      RPG.State.flags.matamatabiActive = true;
+      RPG.State.matamatabiStepsRemaining = 4;
+      const deactivation = battleSystem.buildGlowingCatRabbitFurQueue().find(
+        line => line.text === 'オーエンが散々舐めたため、枝は不活性化した。'
+      );
+      deactivation.action();
+      return {
+        branchCount: RPG.State.inventory.matamatabiBranch,
+        active: RPG.State.flags.matamatabiActive,
+        steps: RPG.State.matamatabiStepsRemaining,
+      };
+    });
+
+    expect(result).toEqual({ branchCount: 1, active: false, steps: 0 });
+  });
+
   test('the notebook modal fits a 390x844 phone viewport without horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => {

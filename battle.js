@@ -1615,6 +1615,13 @@ const battleSystem = {
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
         const rabbitLevel = enemy.rabbitLevel || 5;
         const delay = RPG.State.debug.isSkipping ? 50 : 900;
+        if (enemy.frozenTurns > 0) {
+            enemy.frozenTurns--;
+            uiControl.addLog(`${enemy.name}は氷の鎖に縛られて動けない！`, "");
+            setTimeout(callback, delay);
+            return;
+        }
+
         enemy.rabbitEnemyTurnCount = (enemy.rabbitEnemyTurnCount || 0) + 1;
 
         if (enemy.rabbitEnemyTurnCount >= 4) {
@@ -1626,13 +1633,6 @@ const battleSystem = {
         if (enemy.rabbitEnemyTurnCount === 3) {
             enemy.rabbitExposed = true;
             uiControl.addLog(text.yawn(rabbitLevel));
-            setTimeout(callback, delay);
-            return;
-        }
-
-        if (enemy.frozenTurns > 0) {
-            enemy.frozenTurns--;
-            uiControl.addLog(`${enemy.name}は氷の鎖に縛られて動けない！`, "");
             setTimeout(callback, delay);
             return;
         }
@@ -1884,12 +1884,11 @@ const battleSystem = {
                 };
             }
 
-            if (line === "オーエンが全て舐めとったため、枝は不活性化した。") {
+            if (line === "オーエンが散々舐めたため、枝は不活性化した。") {
                 return {
                     text: line,
                     color: "#9acd32",
                     action: () => {
-                        RPG.State.inventory.matamatabiBranch = 0;
                         RPG.State.flags.matamatabiActive = false;
                         RPG.State.matamatabiStepsRemaining = 0;
                         uiControl.updateUI();

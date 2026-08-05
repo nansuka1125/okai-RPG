@@ -5114,6 +5114,35 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.itemDesc).toBe('中に古びた鍵が閉じ込められている琥珀。');
     });
 
+    test('cracked, milk, and monster amber are not offered for exchange', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.amberStorage.sparkling = 99;
+        RPG.State.inventory.unknownAmber = 1;
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        innSystem.playFirstAmberAppraisal();
+        return true;
+      });
+      expect(result).toBe(true);
+      await drainDialogue(page);
+
+      const menus = await page.evaluate(() => {
+        const firstAppraisalPreview = document.getElementById('logContainer')?.textContent || '';
+        RPG.State.mode = 'base';
+        innSystem.showAmberExchangeMenu();
+        return {
+          firstAppraisalPreview,
+          exchangeMenu: document.getElementById('action-buttons')?.textContent || '',
+        };
+      });
+
+      for (const name of ['ひび割れ琥珀', '牛乳琥珀', '魔物入り琥珀']) {
+        expect(menus.firstAppraisalPreview).not.toContain(name);
+        expect(menus.exchangeMenu).not.toContain(name);
+      }
+    });
+
     // Affordability is enforced by the row's own click handler. The DOM disabled property is
     // not a usable signal here: updateUI() re-enables every #action-buttons child in choice
     // mode, so this asserts the outcome of clicking instead.

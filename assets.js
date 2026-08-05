@@ -274,12 +274,14 @@ RPG.Assets.RARE_AMBER_CATALOG = [
     {
         id: "monsterAmber",
         name: "《魔物入り琥珀》",
+        exchangeable: false,
         cost: 4,
         effect: "装備中、戦闘で得られる経験値が増える。"
     },
     {
         id: "milkAmber",
         name: "《牛乳琥珀》",
+        exchangeable: false,
         cost: 4,
         effect: "装備中、最大HPが大きく増える。"
     },
@@ -292,6 +294,7 @@ RPG.Assets.RARE_AMBER_CATALOG = [
     {
         id: "crackedAmber",
         name: "《ひび割れ琥珀》",
+        exchangeable: false,
         cost: 4,
         effect: "装備中、HPが半分以下の間、会心率が上がる。"
     },
@@ -998,7 +1001,7 @@ RPG.Assets.GAME_TEXT = {
             "カイン｢痛いからもうやめよう」",
             "カインは傷口を隠すように庇った。",
             "オーエンの目はまだギラギラしている……",
-            "オーエンが全て舐めとったため、枝は不活性化した。"
+            "オーエンが散々舐めたため、枝は不活性化した。"
         ],
         phase4GlowingRabbitNoFur: [
             "カイン（すばしっこくてなかなか取れないな…",

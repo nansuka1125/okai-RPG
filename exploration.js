@@ -1606,32 +1606,32 @@ const explorationSystem = {
         uiControl.updateUI();
     },
 
-    // Shared blackout for both nest transitions. Mirrors playForestHutUnlockScene()'s recipe:
-    // fade in, swap the location under cover of the blackout, fade back out.
+    // Shared blackout for both nest transitions. Darkens the log only, the same way the inn's
+    // scene changes do (#logContainer.night-mode), rather than covering the whole screen. The
+    // location is swapped while the log is dark, so the backdrop change lands unseen.
     buildVineNestTransitionQueue: function (line, applyMove) {
-        let blackout = null;
         return [
             {
                 text: null,
+                delay: 400,
                 action: () => {
-                    blackout = uiControl.fadeFullScreen('#000000', 250);
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.add('night-mode');
                 }
             },
-            { text: null, delay: 250 },
-            { text: line },
+            // Tagged so it stays readable while the log is dark - see the night-mode exception
+            // in style.css. Without it the darkened log hides every entry.
+            { text: line, type: "nightvisible" },
             {
                 text: null,
+                delay: 400,
                 action: () => {
                     applyMove();
                     uiControl.updateUI();
-                    if (blackout) {
-                        blackout.style.transition = 'opacity 250ms ease-out';
-                        blackout.style.opacity = '0';
-                        setTimeout(() => blackout.remove(), 250);
-                    }
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.remove('night-mode');
                 }
-            },
-            { text: null, delay: 250 }
+            }
         ];
     },
 

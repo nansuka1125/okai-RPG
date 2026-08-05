@@ -790,6 +790,13 @@ body.scene-former-highway #sceneBackdrop {
     display: none !important;
 }
 
+/* Opt-in exception: a line tagged with this type stays readable on the darkened log, for
+   scenes that narrate while the log is blacked out. Existing night-mode scenes are untagged
+   and keep hiding every entry. */
+#logContainer.night-mode .log-entry.log-nightvisible {
+    display: block !important;
+}
+
 /* Keep existing history intact while a special scene starts from a clean log view. */
 #logContainer.scene-focus .scene-history {
     display: none;

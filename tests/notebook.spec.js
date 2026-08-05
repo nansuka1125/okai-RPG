@@ -1929,40 +1929,46 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result).toEqual({ callbackRan: true, enemyHp: 30, mode: 'battle' });
   });
 
-  test('a frozen glowing cat rabbit does not advance toward escape', async ({ page }) => {
+  test('a frozen glowing cat rabbit does not advance toward escape and takes two guaranteed hits', async ({ page }) => {
     const result = await page.evaluate(async () => {
       const originalEnd = battleSystem.endGlowingCatRabbitBattle;
+      const originalRandom = Math.random;
       battleSystem.endGlowingCatRabbitBattle = () => { throw new Error('猫うさぎが凍結中に逃げた'); };
+      Math.random = () => 0.99;
       RPG.State.debug.isSkipping = true;
       RPG.State.currentEnemy = {
         id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 5,
-        frozenTurns: 1, rabbitEnemyTurnCount: 2, rabbitExposed: false,
+        frozenTurns: 2, rabbitEnemyTurnCount: 2, rabbitExposed: false, rabbitHitCount: 0,
       };
 
       try {
         await new Promise(resolve => battleSystem.runGlowingCatRabbitTurn(resolve));
-        const afterFrozenTurn = {
+        await new Promise(resolve => battleSystem.processCainAction(resolve));
+        const afterFirstFrozenTurn = {
           frozenTurns: RPG.State.currentEnemy.frozenTurns,
           rabbitEnemyTurnCount: RPG.State.currentEnemy.rabbitEnemyTurnCount,
-          rabbitExposed: RPG.State.currentEnemy.rabbitExposed,
+          rabbitHitCount: RPG.State.currentEnemy.rabbitHitCount,
         };
         await new Promise(resolve => battleSystem.runGlowingCatRabbitTurn(resolve));
+        await new Promise(resolve => battleSystem.processCainAction(resolve));
         return {
-          afterFrozenTurn,
-          afterNextTurn: {
+          afterFirstFrozenTurn,
+          afterSecondFrozenTurn: {
+            frozenTurns: RPG.State.currentEnemy.frozenTurns,
             rabbitEnemyTurnCount: RPG.State.currentEnemy.rabbitEnemyTurnCount,
-            rabbitExposed: RPG.State.currentEnemy.rabbitExposed,
+            rabbitHitCount: RPG.State.currentEnemy.rabbitHitCount,
           },
         };
       } finally {
         battleSystem.endGlowingCatRabbitBattle = originalEnd;
+        Math.random = originalRandom;
         RPG.State.debug.isSkipping = false;
       }
     });
 
     expect(result).toEqual({
-      afterFrozenTurn: { frozenTurns: 0, rabbitEnemyTurnCount: 2, rabbitExposed: false },
-      afterNextTurn: { rabbitEnemyTurnCount: 3, rabbitExposed: true },
+      afterFirstFrozenTurn: { frozenTurns: 1, rabbitEnemyTurnCount: 2, rabbitHitCount: 1 },
+      afterSecondFrozenTurn: { frozenTurns: 0, rabbitEnemyTurnCount: 2, rabbitHitCount: 2 },
     });
   });
 

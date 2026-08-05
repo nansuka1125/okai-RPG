@@ -852,7 +852,8 @@ const battleSystem = {
             cainHitCount: 0,
             rabbitHitCount: 0,
             rabbitEnemyTurnCount: 0,
-            rabbitExposed: false
+            rabbitExposed: false,
+            rabbitFrozenThisTurn: false
         };
         // The fixed first carnivorous-vine victory is worth more than a vine that has
         // regrown after later stays.  The template's 30 EXP remains the repeat value.
@@ -1446,7 +1447,7 @@ const battleSystem = {
         if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
             const enemy = RPG.State.currentEnemy;
             const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
-            const isFrozen = enemy.frozenTurns > 0;
+            const isFrozen = enemy.rabbitFrozenThisTurn === true || enemy.frozenTurns > 0;
             const hitChance = (isFrozen || enemy.rabbitExposed) ? 1 : 0.18;
 
             if (Math.random() < hitChance) {
@@ -1466,6 +1467,7 @@ const battleSystem = {
             }
 
             enemy.rabbitExposed = false;
+            enemy.rabbitFrozenThisTurn = false;
 
             const delay = RPG.State.debug.isSkipping ? 50 : 1000;
             setTimeout(next, delay);
@@ -1615,6 +1617,7 @@ const battleSystem = {
         const text = RPG.Assets.BATTLE_TEXT.glowing_cat_rabbit;
         const rabbitLevel = enemy.rabbitLevel || 5;
         const delay = RPG.State.debug.isSkipping ? 50 : 900;
+        enemy.rabbitFrozenThisTurn = enemy.frozenTurns > 0;
         if (enemy.frozenTurns > 0) {
             enemy.frozenTurns--;
             uiControl.addLog(`${enemy.name}は氷の鎖に縛られて動けない！`, "");

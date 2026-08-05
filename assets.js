@@ -51,6 +51,7 @@ RPG.Assets.CONFIG = {
         beeAmber: "🔸《蜂入り琥珀》",
         ignoredAmber: "🔸《無視入り琥珀》",
         crackedAmber: "🔸《ひび割れ琥珀》",
+        masochistAmber: "🔸《被虐の琥珀》",
         keyAmber: "🔸《鍵入り琥珀》",
         oldKey: "🗝️古びた鍵"
     },
@@ -61,7 +62,7 @@ RPG.Assets.CONFIG = {
         antidoteHerb: "毒を解除する薬草。HPは回復しない。",
         berry: "魔界の植物の実。甘くて美味しい。",
         charm: "旅の無事を願うお守り袋。",
-        fakeWoundMedicine: "戦闘中の怪我を誤魔化せる。HP回復。",
+        fakeWoundMedicine: "使うと準備状態になり、次以降の戦闘で体力が半分以下になった時、一度だけ回復する。",
         smokeBomb: "割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。",
         hardBottle: "対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。",
         gratefulTalisman: "『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。",
@@ -97,6 +98,7 @@ RPG.Assets.CONFIG = {
         beeAmber: "討伐した蜂がまるごと閉じ込められた琥珀。\n初撃は蜂の意地、防御も蜂の意地。",
         ignoredAmber: "カイン（なんだ？　この空気は）\nあらゆる異常を無視する琥珀。\n空気を読まない性格が功を奏している。",
         crackedAmber: "今にも砕けそうな琥珀。",
+        masochistAmber: "痛いのは嫌いなはずなのに……なんだ、この感じは。\n同じ戦闘でダメージを受け続けると、だんだん回復していくような錯覚がする。",
         keyAmber: "中に古びた鍵が閉じ込められている琥珀。",
         oldKey: "鍵入り琥珀を燃やして取り出した古びた鍵。",
         debug_lvl10: "【デバッグ用】使うと一気にLv.10になります。"
@@ -239,13 +241,13 @@ RPG.Assets.AMBER_APPRAISAL = {
     junk: {
         name: "《クズ琥珀》",
         weight: 15,
-        firstText: "商品価値の低い琥珀。琥珀商はこれも引き取ってくれる。",
+        firstText: "商品価値の低い琥珀。",
         repeatText: "《クズ琥珀》と鑑定された。"
     },
     insect: {
         name: "《虫入り琥珀》",
         weight: 15,
-        firstText: "大都市では売れるらしい。",
+        firstText: "琥珀の中に小さな虫が閉じ込められている。",
         repeatText: "《虫入り琥珀》と鑑定された。"
     }
 };
@@ -315,6 +317,12 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         name: "《吸血琥珀》",
         exchangeable: false,
         effect: "自分のHPを少し吸う代わりに、攻撃力を大きく高める。"
+    },
+    {
+        id: "masochistAmber",
+        name: "《被虐の琥珀》",
+        exchangeable: false,
+        effect: "痛いのは嫌いなはずなのに……なんだ、この感じは。\n同じ戦闘でダメージを受け続けると、だんだん回復していくような錯覚がする。"
     },
     // Not a socketable rare amber at all - it is a quest item the merchant happens to trade.
     // equippable/tradeInable let the socket and trade-in menus filter it out by capability

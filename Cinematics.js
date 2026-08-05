@@ -30,8 +30,10 @@ const Cinematics = {
             enemy.atk = enemy.baseAtk || enemy.atk;
             enemy.phaseTwoTriggered = false;
             enemy.phaseThreeTriggered = false;
-            enemy.halfHpTalkDone = false;
-            enemy.scytheMissIndex = 0;
+            enemy.neckHuntGuaranteed = false;
+            enemy.neckHuntCooldown = false;
+            enemy.neckHuntWarningDone = false;
+            enemy.neckHuntMercyUsed = false;
             uiControl.addLog("琥珀骸の巨虫との戦闘開始！", "marker", "#ff4d4d");
             uiControl.addLog(`琥珀骸の巨虫 (HP: ${enemy.hp})`, "marker");
             uiControl.screenShake();

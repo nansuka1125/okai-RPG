@@ -282,5 +282,37 @@ test.describe('okai-RPG smoke test', () => {
       await page.click('#btnInnExit');
       await expect(page.locator('#exploreUI')).toBeVisible();
     }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const layout = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        currentDistance: 1,
+      });
+      RPG.State.flags.onWagon = false;
+      uiControl.updateUI();
+
+      const ids = ['btnMoveBack', 'btnMoveForward', 'btnTalk', 'btnItem'];
+      const rects = Object.fromEntries(ids.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { left: rect.left, right: rect.right, top: rect.top, height: rect.height }];
+      }));
+      return {
+        columns: getComputedStyle(document.getElementById('exploreUI')).gridTemplateColumns.split(' ').length,
+        viewportWidth: window.innerWidth,
+        rects,
+      };
+    });
+
+    expect(layout.columns).toBe(2);
+    expect(layout.rects.btnMoveBack.top).toBe(layout.rects.btnMoveForward.top);
+    expect(layout.rects.btnMoveForward.left).toBeLessThan(layout.rects.btnMoveBack.left);
+    Object.values(layout.rects).forEach(rect => {
+      expect(rect.right).toBeLessThanOrEqual(layout.viewportWidth);
+      expect(rect.height).toBe(60);
+    });
   });
 });

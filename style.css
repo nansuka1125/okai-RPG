@@ -160,7 +160,7 @@ header {
 .xp-bar-bg {
     flex: 1 1 auto;
     height: 4px;
-    background: #3a3a3a;
+    background: #29261f;
     border-radius: 3px;
     overflow: hidden;
 }
@@ -168,7 +168,7 @@ header {
 .xp-bar-fill {
     width: 0%;
     height: 100%;
-    background: #8a8a8a;
+    background: linear-gradient(90deg, #5c4b32, #8c7041);
     transition: width 0.3s ease;
 }
 
@@ -811,7 +811,7 @@ footer {
     flex: 0 0 auto;
     background: linear-gradient(180deg, rgba(25, 25, 22, 0.98), #11110f);
     border-top: 1px solid rgba(198, 154, 75, 0.2);
-    padding: 10px 10px calc(10px + var(--safe-area-bottom));
+    padding: 5px 10px calc(5px + var(--safe-area-bottom));
 }
 
 /* btn-grid クラスを使用 */
@@ -884,34 +884,50 @@ footer {
     outline-offset: 2px;
 }
 
-#exploreUI.explore-forest {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+#exploreUI {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }
 
-#exploreUI.explore-forest #btnMoveForward {
-    grid-column: 1 / -1;
-    min-height: 62px;
+#exploreUI .btn {
+    grid-column: auto;
+    min-width: 0;
+    height: 60px;
+    white-space: nowrap;
+}
+
+#exploreUI #btnMoveForward {
+    order: 1;
+}
+
+#exploreUI #btnMoveBack {
+    order: 2;
+}
+
+#exploreUI #btnMoveForward {
     color: #f5ead1;
     background: linear-gradient(180deg, rgba(67, 57, 37, 0.98), rgba(39, 35, 27, 0.98));
     border-color: rgba(198, 154, 75, 0.62);
     box-shadow: inset 0 1px 0 rgba(255, 224, 160, 0.08), 0 0 18px rgba(198, 154, 75, 0.06);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
 }
 
-#exploreUI.explore-forest #btnMoveForward::after {
+#exploreUI #btnMoveForward::after {
     content: "›";
-    margin-left: 12px;
+    margin-left: 5px;
     color: #d9b56b;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 400;
 }
 
-#exploreUI.explore-forest #btnMoveBack,
-#exploreUI.explore-forest #btnTalk,
-#exploreUI.explore-forest #btnItem {
-    min-width: 0;
-    height: 50px;
-    font-size: 14px;
+#exploreUI #btnEnterInn,
+#exploreUI #btnEnterHerbGarden,
+#exploreUI #btnTalk {
+    order: 3;
+}
+
+#exploreUI #btnItem {
+    order: 4;
 }
 
 body.travel-active button {
@@ -1241,10 +1257,8 @@ body.travel-active button {
 }
 
 @media (max-width: 360px) {
-    #exploreUI.explore-forest #btnMoveBack,
-    #exploreUI.explore-forest #btnTalk,
-    #exploreUI.explore-forest #btnItem {
-        font-size: 12px;
+    #exploreUI .btn {
+        font-size: 13px;
     }
 }
 

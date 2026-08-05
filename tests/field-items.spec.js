@@ -69,7 +69,7 @@ test.describe('field utility items', () => {
       gratefulTalisman: '🧧ありがた〜い札',
     });
     expect(result.descriptions).toEqual({
-      fakeWoundMedicine: '戦闘中の怪我を誤魔化せる。HP回復。',
+      fakeWoundMedicine: '使うと準備状態になり、次以降の戦闘で体力が半分以下になった時、一度だけ回復する。',
       smokeBomb: '割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。',
       hardBottle: '対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。',
       gratefulTalisman: '『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。',
@@ -82,37 +82,65 @@ test.describe('field utility items', () => {
     });
   });
 
-  test('fake wound medicine heals the actual capped amount and is not wasted at full HP', async ({ page }) => {
+  test('fake wound medicine prepares across battles and saves, then heals once below half HP', async ({ page }) => {
     const result = await page.evaluate(() => {
       const logContainer = document.getElementById('logContainer');
       if (logContainer) logContainer.innerHTML = '';
       RPG.State.inventory.fakeWoundMedicine = 2;
-      RPG.State.maxHP = 140;
-      RPG.State.currentHP = 120;
+      RPG.State.mode = 'base';
+      RPG.State.maxHP = 100;
+      RPG.State.currentHP = 100;
+      RPG.State.flags.fakeWoundMedicinePrepared = false;
 
       explorationSystem.useItem('fakeWoundMedicine');
-      const afterUse = {
+      const afterPrepare = {
         hp: RPG.State.currentHP,
         count: RPG.State.inventory.fakeWoundMedicine,
+        prepared: RPG.State.flags.fakeWoundMedicinePrepared,
         log: logContainer?.textContent || '',
       };
 
       explorationSystem.useItem('fakeWoundMedicine');
+      const afterRepeatUse = {
+        count: RPG.State.inventory.fakeWoundMedicine,
+        prepared: RPG.State.flags.fakeWoundMedicinePrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_fake_wound_medicine_test', JSON.stringify(snapshot));
+      RPG.State.flags.fakeWoundMedicinePrepared = false;
+      uiControl.loadFromStorage('okai_rpg_fake_wound_medicine_test', '傷薬もどきテスト');
+      RPG.State.currentHP = 80;
+      RPG.State.battleState = {};
+      battleSystem.applyEnemyDirectDamage(20); // 60 HP: still above half, so it remains prepared.
+      const afterFirstBattle = {
+        hp: RPG.State.currentHP,
+        prepared: RPG.State.flags.fakeWoundMedicinePrepared,
+      };
+
+      RPG.State.battleState = {};
+      battleSystem.applyEnemyDirectDamage(20); // 40 HP, then +40 HP.
       return {
-        afterUse,
-        afterFullUse: {
+        afterPrepare,
+        afterRepeatUse,
+        afterFirstBattle,
+        afterTrigger: {
           hp: RPG.State.currentHP,
           count: RPG.State.inventory.fakeWoundMedicine,
+          prepared: RPG.State.flags.fakeWoundMedicinePrepared,
           log: logContainer?.textContent || '',
         },
       };
     });
 
-    expect(result.afterUse.hp).toBe(140);
-    expect(result.afterUse.count).toBe(1);
-    expect(result.afterUse.log).toContain('🩹傷薬もどきを使い、HPが20回復した。');
-    expect(result.afterFullUse.hp).toBe(140);
-    expect(result.afterFullUse.count).toBe(1);
+    expect(result.afterPrepare).toMatchObject({ hp: 100, count: 1, prepared: true });
+    expect(result.afterPrepare.log).toContain('🩹傷薬もどきを準備した。');
+    expect(result.afterRepeatUse).toMatchObject({ count: 1, prepared: true });
+    expect(result.afterRepeatUse.log).toContain('🩹傷薬もどきは、もう準備してある。');
+    expect(result.afterFirstBattle).toEqual({ hp: 60, prepared: true });
+    expect(result.afterTrigger).toMatchObject({ hp: 80, count: 1, prepared: false });
+    expect(result.afterTrigger.log).toContain('🩹傷薬もどきが効き、HPが40回復した。');
   });
 
   test('smoke bomb covers ten real moves, skips random encounters, and coexists with matatabi', async ({ page }) => {

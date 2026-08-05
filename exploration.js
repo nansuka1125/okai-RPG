@@ -10,7 +10,7 @@ const explorationSystem = {
     },
 
     canUseFakeWoundMedicine: function () {
-        return RPG.State.currentHP < RPG.State.maxHP;
+        return RPG.State.mode === "base";
     },
 
     canUseSmokeBomb: function () {
@@ -1638,6 +1638,8 @@ const explorationSystem = {
         uiControl.addSeparator();
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [
+            { text: null, action: () => uiControl.beginSceneLogFocus() },
+            { text: null, delay: 650 },
             ...this.buildVineNestTransitionQueue(
                 "カインは草むらを手探りで進んだ。",
                 () => {
@@ -1660,7 +1662,10 @@ const explorationSystem = {
                         this.showVineNestChoices();
                     } else {
                         RPG.State.mode = "event";
-                        RPG.State.dialogueQueue = [{ text: "行き止まりだ……。" }];
+                        RPG.State.dialogueQueue = [
+                            { text: "行き止まりだ……。" },
+                            { text: null, action: () => uiControl.endSceneLogFocus() }
+                        ];
                         this.playDialogueLoop();
                     }
                 }
@@ -1686,11 +1691,13 @@ const explorationSystem = {
 
         addChoice('【戦う】', () => {
             container.style.display = 'none';
+            uiControl.endSceneLogFocus();
             battleSystem.vineNestChainRemaining = 3;
             battleSystem.startBattle("carnivorous_vine");
         });
         addChoice('【逃げる】', () => {
             container.style.display = 'none';
+            uiControl.endSceneLogFocus();
             // Pure retreat: HP, defeat counts and every vine defeat/regrowth flag are left alone.
             battleSystem.clearVineNestChain();
             uiControl.addSeparator();
@@ -3270,21 +3277,17 @@ const explorationSystem = {
         switch (itemId) {
             case 'fakeWoundMedicine':
                 if (!this.canUseFakeWoundMedicine()) {
-                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);
                     uiControl.closeModal();
                     return;
                 }
-                const fakeMedicineHealAmount = Math.max(
-                    1,
-                    Math.floor(RPG.State.maxHP * RPG.Config.FAKE_WOUND_MEDICINE_HEAL_RATE)
-                );
-                const hpBeforeFakeMedicine = RPG.State.currentHP;
-                RPG.State.currentHP = Math.min(
-                    RPG.State.maxHP,
-                    RPG.State.currentHP + fakeMedicineHealAmount
-                );
-                const actualFakeMedicineRecovery = RPG.State.currentHP - hpBeforeFakeMedicine;
-                uiControl.addLog(`🩹傷薬もどきを使い、HPが${actualFakeMedicineRecovery}回復した。`);
+                if (RPG.State.flags.fakeWoundMedicinePrepared === true) {
+                    uiControl.addLog("🩹傷薬もどきは、もう準備してある。");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.flags.fakeWoundMedicinePrepared = true;
+                uiControl.addLog("🩹傷薬もどきを準備した。");
                 success = true;
                 break;
             case 'smokeBomb':

@@ -143,6 +143,61 @@ const battleSystem = {
         }
     },
 
+    applyPreparedFakeWoundMedicine: function (actualDamage, damageResult) {
+        if (
+            RPG.State.flags.fakeWoundMedicinePrepared !== true ||
+            actualDamage <= 0 ||
+            damageResult.lethal === true ||
+            RPG.State.currentHP <= 0 ||
+            RPG.State.currentHP > RPG.State.maxHP * 0.5
+        ) {
+            return;
+        }
+
+        const healAmount = Math.floor(
+            RPG.State.maxHP * RPG.Config.FAKE_WOUND_MEDICINE_AUTO_HEAL_RATE
+        );
+        const actualRecovery = Math.min(
+            RPG.State.maxHP - RPG.State.currentHP,
+            healAmount
+        );
+        RPG.State.flags.fakeWoundMedicinePrepared = false;
+        RPG.State.currentHP += actualRecovery;
+        uiControl.addLog(`🩹傷薬もどきが効き、HPが${actualRecovery}回復した。`, "", "#9acd32");
+    },
+
+    applyMasochistAmberRecovery: function (actualDamage, damageResult) {
+        if (
+            RPG.State.equippedRareAmberId !== "masochistAmber" ||
+            !RPG.State.battleState ||
+            damageResult.lethal === true ||
+            actualDamage <= 0 ||
+            RPG.State.currentHP <= 0
+        ) {
+            return;
+        }
+
+        const battleState = RPG.State.battleState;
+        battleState.masochistAmberHitCount = (battleState.masochistAmberHitCount || 0) + 1;
+        const hitCount = battleState.masochistAmberHitCount;
+        const recoveryRate = hitCount >= 5
+            ? RPG.Config.RARE_AMBER_TUNING.MASOCHIST_AMBER_LATE_HIT_HEAL_RATE
+            : hitCount >= 3
+                ? RPG.Config.RARE_AMBER_TUNING.MASOCHIST_AMBER_MID_HIT_HEAL_RATE
+                : 0;
+        const recoveryCap = Math.floor(RPG.State.maxHP * 0.5);
+        if (recoveryRate <= 0 || RPG.State.currentHP >= recoveryCap) return;
+
+        const actualRecovery = Math.min(
+            recoveryCap - RPG.State.currentHP,
+            Math.floor(actualDamage * recoveryRate)
+        );
+        if (actualRecovery <= 0) return;
+
+        RPG.State.currentHP += actualRecovery;
+        uiControl.addLog(`《被虐の琥珀》の効果でHPが${actualRecovery}回復した。`, "", "#9acd32");
+    },
+
     applyEnemyDirectDamage: function (damage) {
         let normalizedDamage = Math.max(0, Number(damage) || 0);
         if (RPG.State.equippedRareAmberId === "beeAmber") {
@@ -168,12 +223,17 @@ const battleSystem = {
             return { talismanActivated: true, lethal: true };
         }
 
+        const hpBeforeDamage = RPG.State.currentHP;
         RPG.State.currentHP = Math.max(0, nextHP);
         this.markPlayerTookDamage(normalizedDamage);
-        return {
+        const damageResult = {
             talismanActivated: false,
             lethal: RPG.State.currentHP <= 0
         };
+        const actualDamage = Math.max(0, hpBeforeDamage - RPG.State.currentHP);
+        this.applyPreparedFakeWoundMedicine(actualDamage, damageResult);
+        this.applyMasochistAmberRecovery(actualDamage, damageResult);
+        return damageResult;
     },
 
     applyPoisonTick: function () {
@@ -878,6 +938,7 @@ const battleSystem = {
                 : null,
             highwayFixedVictoryRecorded: false,
             paralysisAttacksRemaining: 0,
+            masochistAmberHitCount: 0,
             // beeAmber: only the very first hit Cain lands this battle gets the multiplier,
             // even across a multi-hit 《連撃》 combo.
             cainFirstHitBonusUsed: false
@@ -1108,6 +1169,7 @@ const battleSystem = {
 
         if (RPG.State.battleState && RPG.State.battleState.stunTurns > 0) {
             RPG.State.battleState.stunTurns--;
+            uiControl.addLog("カインは目を回していて、立ち上がれない！", "damage", "#ff4d4d");
             uiControl.updateUI();
 
             if (this.checkBattleEnd()) return;
@@ -1338,8 +1400,14 @@ const battleSystem = {
             damage = Math.floor(damage * vampireAmberMultiplier);
         }
 
-        const hasHardenedPart = (enemy.armorHp || 0) > 0;
         uiControl.addLog("カインの攻撃！", "player-action");
+
+        if (enemy.evasionRate && Math.random() < enemy.evasionRate) {
+            uiControl.addLog(`${enemy.name}はカインの攻撃をかわした！`, "player-action");
+            return;
+        }
+
+        const hasHardenedPart = (enemy.armorHp || 0) > 0;
 
         if (hasHardenedPart && isCritical) {
             uiControl.addLog(
@@ -2146,8 +2214,7 @@ const battleSystem = {
     playAmberHuskHalfHpScene: function (callback) {
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = [
-            { text: "カイン「…くっ…どんどん攻撃が強くなってる！」" },
-            { text: "オーエン「ああ、鎌が飛んでくる。首落ちちゃうよ」", color: "#a020f0" },
+            ...RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.neckHuntWarning,
             {
                 text: null,
                 action: () => {

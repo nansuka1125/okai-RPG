@@ -758,15 +758,15 @@ innSystem = {
     },
 
     ensureAmberState: function () {
-        RPG.State.amberStorage = RPG.State.amberStorage || { sparkling: 0, junk: 0, insect: 0 };
+        const legacyAmberStorage = RPG.State.amberStorage || {};
+        RPG.State.amberStorage = {
+            sparkling: Math.max(0, Number(legacyAmberStorage.sparkling) || 0)
+        };
         RPG.State.amberAppraisalSeen = RPG.State.amberAppraisalSeen || {
             sparkling: false,
             junk: false,
             insect: false
         };
-        if (typeof RPG.State.junkAmberDelivered !== "number") {
-            RPG.State.junkAmberDelivered = 0;
-        }
         const legacySpecialUnknown = Math.max(0, Number(RPG.State.inventory.specialUnknownAmber) || 0);
         RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
             ? RPG.State.unappraisedAmberResults.filter(itemId => typeof itemId === "string")
@@ -1026,7 +1026,6 @@ innSystem = {
             { label: `すべて鑑定（🔸？琥珀${appraisalCount}個）`, action: () => this.showAmberAppraisalMenu() },
             { label: `交換する（キラキラ${storage.sparkling}個）`, action: () => this.showAmberExchangeMenu() },
             { label: "レア琥珀を下取りに出す", action: () => this.showAmberTradeInMenu() },
-            { label: "預かり品を確認", action: () => this.showAmberStorage() },
             {
                 label: "戻る",
                 action: () => {
@@ -1077,9 +1076,7 @@ innSystem = {
             RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
             rareResultCounts[itemId] = (rareResultCounts[itemId] || 0) + 1;
         });
-        Object.keys(resultCounts).forEach(type => {
-            RPG.State.amberStorage[type] += resultCounts[type];
-        });
+        RPG.State.amberStorage.sparkling += resultCounts.sparkling;
 
         const lines = [];
         Object.entries(rareResultCounts).forEach(([itemId, amount]) => {
@@ -1103,55 +1100,10 @@ innSystem = {
             RPG.State.amberAppraisalSeen[type] = true;
         });
 
-        if (resultCounts.junk > 0) {
-            const previous = RPG.State.junkAmberDelivered;
-            RPG.State.junkAmberDelivered += resultCounts.junk;
-            if (previous === 0) {
-                lines.push({ text: "琥珀商「クズ琥珀でも引き取る。集めた分は覚えておいてやるよ」" });
-            }
-
-            if (previous < 3 && RPG.State.junkAmberDelivered >= 3 && RPG.State.flags.miningKnifeAwarded !== true) {
-                lines.push(
-                    { text: "琥珀商「クズでも三つ持ってきた努力賞だ。そのナイフ、もうあんたにやるよ」" },
-                    {
-                        text: "《借りたナイフ》が《採掘ナイフ》になった！\n性能は特に変わっていない。",
-                        type: "marker",
-                        color: "#ffd166",
-                        action: () => {
-                            RPG.State.inventory.borrowedMiningKnife = 0;
-                            RPG.State.inventory.miningKnife = 1;
-                            RPG.State.flags.miningKnifeAwarded = true;
-                        }
-                    }
-                );
-            } else if (RPG.State.junkAmberDelivered < 3) {
-                lines.push({
-                    text: `クズ琥珀の累積：${RPG.State.junkAmberDelivered}個\n努力賞まであと${3 - RPG.State.junkAmberDelivered}個。`,
-                    type: "system"
-                });
-            } else {
-                lines.push({ text: `クズ琥珀の累積：${RPG.State.junkAmberDelivered}個`, type: "system" });
-            }
-        }
-
         lines.push({ text: null, action: () => this.showAmberMerchantMenu() });
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = lines;
         uiControl.updateUI();
-        explorationSystem.playDialogueLoop();
-    },
-
-    showAmberStorage: function () {
-        this.ensureAmberState();
-        const storage = RPG.State.amberStorage;
-        RPG.State.mode = "event";
-        RPG.State.dialogueQueue = [
-            {
-                text: `琥珀商の預かり品\n《キラキラ琥珀》${storage.sparkling}個\n《クズ琥珀》${storage.junk}個\n《虫入り琥珀》${storage.insect}個`,
-                type: "system"
-            },
-            { text: null, action: () => this.showAmberMerchantMenu() }
-        ];
         explorationSystem.playDialogueLoop();
     },
 

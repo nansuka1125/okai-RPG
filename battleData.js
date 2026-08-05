@@ -62,18 +62,16 @@ RPG.Assets.BATTLE_TEXT = {
     },
     amber_husk_giant_larva: {
         standardAttack: "琥珀の殻を軋ませながら、巨大な鎌が振り下ろされる！",
+        watching: "巨虫は鎌を構えたまま、カインの動きをうかがっている。",
+        neckHunt: "巨虫の鎌が閃いた――《首狩り》！",
+        neckHuntMiss: "カインは間一髪で《首狩り》を避けた！",
+        neckHuntHit: "《首狩り》が深く食い込んだ！",
         phaseTwo: "巨虫の動きが変わった…",
         phaseThree: "巨虫の琥珀の殻が赤黒く変色し、殺気が膨れ上がる！",
         stun: "カインは立ち上がれない。",
-        halfHpTalk: [
-            { text: "カイン「…くっ…どんどん攻撃が強くなってる！」" },
-            { text: "オーエン「ああ、鎌が飛んでくる。首落ちちゃうよ」", color: "#a020f0" }
-        ],
-        scytheMisses: [
-            "カインはなんとか避けた。髪が数本、パラリと落ちた",
-            "鋭い鎌がカインの外套を浅く切り裂いた。布の端が宙を舞う。",
-            "わずかに回避が遅れ、頬を鋭利な刃がかすめる。一筋の血が流れた。",
-            "回避したカインの背後の木々が、音もなく両断された。凄まじい斬れ味だ。"
+        neckHuntWarning: [
+            { text: "カイン「こいつ…！もしかして、首を狙ってるのか！？」" },
+            { text: "オーエン「今更気がついたの？…ああ、来るよ」", color: "#a020f0" }
         ]
     },
     glowing_cat_rabbit: {
@@ -355,41 +353,81 @@ RPG.Assets.BATTLE_AI = {
 
             if (!enemy.phaseTwoTriggered && hpRatio <= 0.7) {
                 enemy.phaseTwoTriggered = true;
-                enemy.atk = Math.floor(enemy.baseAtk * 1.5);
+                enemy.atk = enemy.phaseTwoAtk ?? Math.floor(enemy.baseAtk * 1.5);
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.phaseTwo, "enemy-action", "#ffb347");
             }
 
             if (!enemy.phaseThreeTriggered && hpRatio <= 0.4) {
                 enemy.phaseThreeTriggered = true;
-                enemy.atk = Math.floor(enemy.baseAtk * 1.7);
+                enemy.neckHuntGuaranteed = true;
                 uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.phaseThree, "enemy-action", "#ff4d4d");
             }
 
-            if (!enemy.halfHpTalkDone && hpRatio <= 0.5) {
-                enemy.halfHpTalkDone = true;
+            if (!enemy.neckHuntWarningDone && enemy.phaseThreeTriggered) {
+                enemy.neckHuntWarningDone = true;
                 sys.playAmberHuskHalfHpScene(() => {
                     setTimeout(() => sys.runBattleLoop(), loopDelay);
                 });
                 return;
             }
 
-            if (hpRatio <= 0.5 && Math.random() < 0.35) {
-                const misses = RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.scytheMisses;
-                const missIndex = enemy.scytheMissIndex || 0;
-                uiControl.addLog("死神の鎌が唸りを上げて振るわれた！", "enemy-action", "#ff4d4d");
+            if (enemy.phaseThreeTriggered) {
+                if (enemy.neckHuntCooldown) {
+                    enemy.neckHuntCooldown = false;
+                    uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.watching, "ambient");
+                    setTimeout(() => {
+                        RPG.State.battleTurn++;
+                        setTimeout(() => sys.runBattleLoop(), loopDelay);
+                    }, bossDelay);
+                    return;
+                }
+
+                const shouldAttemptNeckHunt = enemy.neckHuntGuaranteed === true ||
+                    Math.random() < (enemy.neckHuntPhaseThreeChance ?? 0.5);
+                if (!shouldAttemptNeckHunt) {
+                    uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.watching, "ambient");
+                    setTimeout(() => {
+                        RPG.State.battleTurn++;
+                        setTimeout(() => sys.runBattleLoop(), loopDelay);
+                    }, bossDelay);
+                    return;
+                }
+
+                enemy.neckHuntGuaranteed = false;
+                enemy.neckHuntCooldown = true;
+                uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.neckHunt, "enemy-action", "#ff4d4d");
                 setTimeout(() => {
-                    uiControl.addLog(misses[missIndex], "ambient");
-                    enemy.scytheMissIndex = (missIndex + 1) % misses.length;
+                    if (Math.random() > (enemy.neckHuntHitRate ?? 0.6)) {
+                        uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.neckHuntMiss, "ambient");
+                        RPG.State.battleTurn++;
+                        setTimeout(() => sys.runBattleLoop(), loopDelay);
+                        return;
+                    }
+
+                    let damage = sys.resolveEnemyDirectDamage(enemy.neckHuntDamage ?? 90, { allowParry: false }).damage;
+                    if (!enemy.neckHuntMercyUsed) {
+                        enemy.neckHuntMercyUsed = true;
+                        damage = Math.min(damage, Math.max(0, RPG.State.currentHP - 1));
+                    }
+                    uiControl.flashFullScreen("#ff4d4d", 420);
+                    uiControl.screenShake();
+                    uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.neckHuntHit, "damage", "#ff4d4d");
+                    uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage", "#ff4d4d");
+                    sys.applyEnemyDirectDamage(damage);
+                    uiControl.updateUI();
+                    if (sys.checkBattleEnd()) return;
                     RPG.State.battleTurn++;
                     setTimeout(() => sys.runBattleLoop(), loopDelay);
                 }, bossDelay);
                 return;
             }
 
-            if (Math.random() > enemy.hitRate) {
-                uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.standardAttack, "enemy-action");
+            const standardHitRate = hpRatio > 0.7
+                ? (enemy.phaseOneHitRate ?? enemy.hitRate)
+                : (enemy.phaseTwoHitRate ?? enemy.hitRate);
+            if (Math.random() > standardHitRate) {
+                uiControl.addLog(RPG.Assets.BATTLE_TEXT.amber_husk_giant_larva.watching, "ambient");
                 setTimeout(() => {
-                    uiControl.addLog("カインは紙一重で回避した！", "ambient");
                     RPG.State.battleTurn++;
                     setTimeout(() => sys.runBattleLoop(), loopDelay);
                 }, bossDelay);
@@ -606,7 +644,14 @@ RPG.Assets.ENEMIES = [
         maxHp: 600,
         atk: 20,
         baseAtk: 20,
-        hitRate: 0.5,
+        phaseTwoAtk: 24,
+        hitRate: 0.55,
+        phaseOneHitRate: 0.55,
+        phaseTwoHitRate: 0.6,
+        evasionRate: 0.2,
+        neckHuntPhaseThreeChance: 0.5,
+        neckHuntHitRate: 0.6,
+        neckHuntDamage: 90,
         area: null,
         xp: 200,
         isBoss: true,

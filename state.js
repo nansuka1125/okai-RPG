@@ -13,7 +13,7 @@ RPG.Config = {
     NIGHT_STEP_THRESHOLD: 20, // Valid field moves after staying before night falls
     HEAL_ON_LEVEL_UP: false, // Build 15.2.47: Toggle full HP recovery on level up
     LEVEL_UP_TALK_BATTLE_ONLY: true, // Build 15.2.49: Reserve milestone level-up talks for battle victories only
-    FAKE_WOUND_MEDICINE_HEAL_RATE: 0.3,
+    FAKE_WOUND_MEDICINE_AUTO_HEAL_RATE: 0.4,
     SMOKE_BOMB_STEP_COUNT: 10,
     AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
     // Provisional Chapter 1 balance values: after metThiefBoy, the forest's 7m-9m depths raise
@@ -54,7 +54,9 @@ RPG.Config = {
         MONSTER_AMBER_XP_MULTIPLIER: 1.25, // Applied to ordinary battle-victory XP only
         MILK_AMBER_MAX_HP_BONUS_RATE: 0.3, // Flat % of maxHP added on equip, subtracted back on unequip
         CRACKED_AMBER_CRIT_BONUS_PP: 20, // Flat percentage-point bonus to the crit roll while below the HP threshold
-        CRACKED_AMBER_HP_THRESHOLD_RATE: 0.5 // currentHP/maxHP at or below this fraction activates the crit bonus
+        CRACKED_AMBER_HP_THRESHOLD_RATE: 0.5, // currentHP/maxHP at or below this fraction activates the crit bonus
+        MASOCHIST_AMBER_MID_HIT_HEAL_RATE: 0.2,
+        MASOCHIST_AMBER_LATE_HIT_HEAL_RATE: 0.4
     }
 };
 
@@ -175,6 +177,7 @@ RPG.State = {
         beeAmber: 0,
         ignoredAmber: 0,
         crackedAmber: 0,
+        masochistAmber: 0,
         keyAmber: 0,
         oldKey: 0,
         debug_lvl10: 1
@@ -184,16 +187,13 @@ RPG.State = {
     // unknownAmber との差分が通常枠で、古いセーブの specialUnknownAmber は読込時に吸血琥珀へ移行する。
     unappraisedAmberResults: [],
     amberStorage: {
-        sparkling: 0,
-        junk: 0,
-        insect: 0
+        sparkling: 0
     },
     amberAppraisalSeen: {
         sparkling: false,
         junk: false,
         insect: false
     },
-    junkAmberDelivered: 0,
     silverCoins: 0, // Currency tracking
     postTreeBattles: null, // Count battles after tree defeat
     searchCounter: 0, // Battle counter for finding the tree
@@ -283,7 +283,7 @@ RPG.State = {
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,
         amberMerchantCrackedAmberReceived: false,
-        miningKnifeAwarded: false,
+        fakeWoundMedicinePrepared: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
         glowCatRabbitPhase4EncounterSeen: false, // Build 15.2.59: Track the first rabbit encounter after phase 4 unlock

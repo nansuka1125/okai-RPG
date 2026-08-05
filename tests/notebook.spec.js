@@ -1465,7 +1465,6 @@ test.describe('討伐ノート (bounty notebook)', () => {
           unknownAmber: RPG.State.inventory.unknownAmber,
           results: RPG.State.unappraisedAmberResults,
           vampireAmber: RPG.State.inventory.vampireAmber,
-          junkAmber: RPG.State.amberStorage.junk,
         },
       };
     });
@@ -1479,7 +1478,6 @@ test.describe('討伐ノート (bounty notebook)', () => {
         unknownAmber: 0,
         results: [],
         vampireAmber: 1,
-        junkAmber: 2,
       },
     });
   });

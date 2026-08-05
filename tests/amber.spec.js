@@ -403,9 +403,6 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.inventory.vampireAmber = 0;
       RPG.State.flags.firstAmberAppraisalDone = true;
       RPG.State.flags.vampireAmberAppraisalSeen = false;
-      RPG.State.flags.miningKnifeAwarded = true;
-      RPG.State.amberStorage.junk = 0;
-      RPG.State.junkAmberDelivered = 3;
 
       const originalRandom = Math.random;
       let randomCalls = 0;
@@ -420,7 +417,6 @@ test.describe('Chapter 1 amber system', () => {
         randomCalls,
         unknownAmber: RPG.State.inventory.unknownAmber,
         vampireAmber: RPG.State.inventory.vampireAmber,
-        junk: RPG.State.amberStorage.junk,
         weights: {
           sparkling: RPG.Assets.AMBER_APPRAISAL.sparkling.weight,
           junk: RPG.Assets.AMBER_APPRAISAL.junk.weight,
@@ -433,7 +429,6 @@ test.describe('Chapter 1 amber system', () => {
       randomCalls: 2,
       unknownAmber: 0,
       vampireAmber: 1,
-      junk: 2,
       weights: { sparkling: 70, junk: 15, insect: 15 },
     });
     await drainDialogue(page);
@@ -443,12 +438,10 @@ test.describe('Chapter 1 amber system', () => {
     const result = await page.evaluate(() => {
       RPG.State.mode = 'base';
       RPG.State.flags.firstAmberAppraisalDone = true;
-      RPG.State.flags.miningKnifeAwarded = true;
       RPG.State.inventory.unknownAmber = 3;
       RPG.State.inventory.vampireAmber = 0;
       RPG.State.inventory.monsterAmber = 0;
       RPG.State.unappraisedAmberResults = ['monsterAmber', 'vampireAmber'];
-      RPG.State.amberStorage.junk = 0;
 
       uiControl.openModal();
       const inventoryText = document.getElementById('itemList')?.textContent || '';
@@ -467,7 +460,6 @@ test.describe('Chapter 1 amber system', () => {
       queuedResults: RPG.State.unappraisedAmberResults,
       monsterAmber: RPG.State.inventory.monsterAmber,
       vampireAmber: RPG.State.inventory.vampireAmber,
-      junk: RPG.State.amberStorage.junk,
       log: document.getElementById('logContainer')?.textContent || '',
     }));
     expect(result.inventoryText).toContain('🔸？琥珀 (×3)');
@@ -479,10 +471,10 @@ test.describe('Chapter 1 amber system', () => {
       queuedResults: [],
       monsterAmber: 1,
       vampireAmber: 1,
-      junk: 1,
     });
     expect(after.log).toContain('魔物入り琥珀');
     expect(after.log).toContain('吸血琥珀');
+    expect(after.log).toContain('クズ琥珀');
   });
 
   test('merchant recognition, knife loan, return attempt, and overnight move stay ordered', async ({ page }) => {
@@ -562,7 +554,7 @@ test.describe('Chapter 1 amber system', () => {
     });
     await drainDialogue(page);
     await expect.poll(() => page.evaluate(() => RPG.State.mode)).toBe('choice');
-    await expect(page.locator('#action-buttons button')).toHaveCount(5);
+    await expect(page.locator('#action-buttons button')).toHaveCount(4);
 
     result = await page.evaluate(() => ({
       crackedAmber: RPG.State.inventory.crackedAmber,
@@ -705,33 +697,27 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('three junk appraisals turn the borrowed knife into the mining knife', async ({ page }) => {
+  test('junk appraisals do not create stored amber or alter the borrowed knife', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
       RPG.State.inventory.unknownAmber = 3;
       RPG.State.inventory.borrowedMiningKnife = 1;
       RPG.State.flags.firstAmberAppraisalDone = true;
-      RPG.State.flags.miningKnifeAwarded = false;
-      RPG.State.junkAmberDelivered = 0;
       Math.random = () => 0.75;
       innSystem.appraiseAmber();
     });
 
     await drainDialogue(page);
     const result = await page.evaluate(() => ({
-      junk: RPG.State.amberStorage.junk,
-      delivered: RPG.State.junkAmberDelivered,
+      amberStorage: RPG.State.amberStorage,
       borrowedKnife: RPG.State.inventory.borrowedMiningKnife,
       miningKnife: RPG.State.inventory.miningKnife,
-      awarded: RPG.State.flags.miningKnifeAwarded,
     }));
 
     expect(result).toEqual({
-      junk: 3,
-      delivered: 3,
-      borrowedKnife: 0,
-      miningKnife: 1,
-      awarded: true,
+      amberStorage: { sparkling: 0 },
+      borrowedKnife: 1,
+      miningKnife: 0,
     });
   });
 
@@ -856,7 +842,6 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.inventory.unknownAmber = 2;
       RPG.State.inventory.borrowedMiningKnife = 1;
       RPG.State.amberStorage.sparkling = 4;
-      RPG.State.amberStorage.insect = 1;
       RPG.State.flags.amberTreeCoinMined = true;
       RPG.State.flags.firstAmberAppraisalDone = true;
       const snapshot = uiControl.createSaveSnapshot('journal');
@@ -865,7 +850,6 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.inventory.unknownAmber = 0;
       RPG.State.inventory.borrowedMiningKnife = 0;
       RPG.State.amberStorage.sparkling = 0;
-      RPG.State.amberStorage.insect = 0;
       RPG.State.flags.amberTreeCoinMined = false;
       RPG.State.flags.firstAmberAppraisalDone = false;
       uiControl.loadFromStorage('okai_rpg_amber_test', '琥珀テスト');
@@ -874,7 +858,6 @@ test.describe('Chapter 1 amber system', () => {
         unknownAmber: RPG.State.inventory.unknownAmber,
         knife: RPG.State.inventory.borrowedMiningKnife,
         sparkling: RPG.State.amberStorage.sparkling,
-        insect: RPG.State.amberStorage.insect,
         coinMined: RPG.State.flags.amberTreeCoinMined,
         firstAppraisal: RPG.State.flags.firstAmberAppraisalDone,
       };
@@ -884,7 +867,6 @@ test.describe('Chapter 1 amber system', () => {
       unknownAmber: 2,
       knife: 1,
       sparkling: 4,
-      insect: 1,
       coinMined: true,
       firstAppraisal: true,
     });
@@ -1194,7 +1176,7 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('all ten rare amber candidates remain scrollable on a phone', async ({ page }) => {
+  test('all eleven rare amber candidates remain scrollable on a phone', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => {
       RPG.State.mode = 'base';
@@ -1209,7 +1191,7 @@ test.describe('Chapter 1 amber system', () => {
 
     await page.getByRole('button', { name: '琥珀を装着する' }).click();
     const rows = page.locator('#itemList .item-row');
-    await expect(rows).toHaveCount(10);
+    await expect(rows).toHaveCount(11);
     await expect(page.locator('#itemList')).toContainText('🔸《吸血琥珀》');
     await expect(page.locator('#itemList')).toContainText(
       '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
@@ -5884,6 +5866,51 @@ test.describe('Chapter 1 amber system', () => {
       });
       expect(result).toEqual({ unequipped: 0, fullHp: 0, halfHp: 0.2, lowHp: 0.2 });
     });
+
+    test('masochistAmber recovers only after the third real hit, caps at half HP, resets per battle, and cannot prevent death', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base', maxHP: 100, currentHP: 100, equippedRareAmberId: 'masochistAmber',
+        });
+        RPG.State.inventory.gratefulTalisman = 0;
+        RPG.State.flags.fakeWoundMedicinePrepared = false;
+        RPG.State.battleState = { masochistAmberHitCount: 0 };
+
+        const hit = damage => {
+          battleSystem.applyEnemyDirectDamage(damage);
+          return { hp: RPG.State.currentHP, hits: RPG.State.battleState.masochistAmberHitCount };
+        };
+        const firstFourHits = [hit(20), hit(20), hit(20), hit(20)];
+
+        RPG.State.currentHP = 100;
+        RPG.State.battleState = { masochistAmberHitCount: 4 };
+        const cappedFifthHit = hit(60);
+
+        const originalContinueBattleStart = battleSystem.continueBattleStart;
+        battleSystem.continueBattleStart = () => {};
+        RPG.State.battleState = { masochistAmberHitCount: 5 };
+        battleSystem.beginBattle({ id: 'masochist_test', name: 'ダミー', maxHp: 1, atk: 1 });
+        const nextBattleHitCount = RPG.State.battleState.masochistAmberHitCount;
+        battleSystem.continueBattleStart = originalContinueBattleStart;
+
+        RPG.State.currentHP = 100;
+        RPG.State.battleState = { masochistAmberHitCount: 4 };
+        const lethal = battleSystem.applyEnemyDirectDamage(100);
+        return { firstFourHits, cappedFifthHit, nextBattleHitCount, lethal, hpAfterLethal: RPG.State.currentHP, hitsAfterLethal: RPG.State.battleState.masochistAmberHitCount };
+      });
+
+      expect(result.firstFourHits).toEqual([
+        { hp: 80, hits: 1 },
+        { hp: 60, hits: 2 },
+        { hp: 44, hits: 3 },
+        { hp: 28, hits: 4 },
+      ]);
+      expect(result.cappedFifthHit).toEqual({ hp: 50, hits: 5 });
+      expect(result.nextBattleHitCount).toBe(0);
+      expect(result.lethal).toMatchObject({ lethal: true, talismanActivated: false });
+      expect(result.hpAfterLethal).toBe(0);
+      expect(result.hitsAfterLethal).toBe(4);
+    });
   });
 
   test.describe('multiple level-ups from a single victory', () => {
@@ -6081,6 +6108,7 @@ test.describe('Chapter 1 amber system', () => {
         scene: visualDirector.getActiveScene(),
         forwardDisplay: document.getElementById('btnMoveForward')?.style.display,
         choices: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+        sceneFocus: document.getElementById('logContainer')?.classList.contains('scene-focus'),
       }));
       expect(inNest.log).toContain('カインは草むらを手探りで進んだ。');
       expect(inNest.log).toContain('肉食カズラの巣だ！');
@@ -6089,6 +6117,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(inNest.scene).toBe('vine-nest');
       expect(inNest.forwardDisplay).toBe('none');
       expect(inNest.choices).toEqual(['【戦う】', '【逃げる】']);
+      expect(inNest.sceneFocus).toBe(true);
 
       await page.getByRole('button', { name: '【逃げる】', exact: true }).click();
       await drainDialogue(page);
@@ -6097,6 +6126,7 @@ test.describe('Chapter 1 amber system', () => {
         log: document.getElementById('logContainer')?.textContent || '',
         location: RPG.State.location,
         label: document.getElementById('btnTalk')?.textContent,
+        sceneFocus: document.getElementById('logContainer')?.classList.contains('scene-focus'),
         state: {
           hp: RPG.State.currentHP,
           deathCount: RPG.State.deathCount,
@@ -6108,6 +6138,7 @@ test.describe('Chapter 1 amber system', () => {
       }));
       expect(after.log).toContain('カインは草むらを引き返した。');
       expect(after.location).toBe('薬草園入口');
+      expect(after.sceneFocus).toBe(false);
       // The examine command never comes back; the nest keeps the slot for good.
       expect(after.label).toBe('肉食カズラの巣');
       expect(after.state).toEqual(before);
@@ -6225,7 +6256,6 @@ test.describe('Chapter 1 amber system', () => {
       await page.evaluate(() => {
         RPG.State.mode = 'base';
         RPG.State.flags.firstAmberAppraisalDone = true;
-        RPG.State.flags.miningKnifeAwarded = true;
         innSystem.appraiseAmber();
       });
       await drainDialogue(page);

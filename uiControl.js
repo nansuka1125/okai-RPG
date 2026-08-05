@@ -756,7 +756,9 @@ const uiControl = {
         if (!list) return;
 
         list.innerHTML = '';
-        const items = Object.entries(RPG.State.inventory).filter(([k, v]) => v > 0);
+        const items = Object.entries(RPG.State.inventory).filter(([key, count]) => (
+            count > 0 && key !== 'debug_poison' && key !== 'debug_lvl10'
+        ));
         if (items.length === 0) {
             list.innerHTML = `<div style="text-align:center; padding:20px;">${RPG.Assets.GAME_TEXT.exploration.noInventory}</div>`;
             return;

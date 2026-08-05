@@ -145,7 +145,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       await callTalk(page);
       await drainDialogue(page);
       const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
-      expect(log).toContain('扉を開けた途端、上から蛇が落ちてきた。');
+      expect(log).toContain('中に入った途端、上から蛇が落ちてきた。');
       expect(log).toContain('カインはとっさに後ずさり、オーエンの腕の中へ入った。');
       expect(log).toContain('オーエンの腕が、そのままカインの腹へ回る。');
       expect(log).toContain('オーエン「あんなのが怖いの？」');
@@ -291,7 +291,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       // One examine consumes the key and runs straight into the existing snake scene.
       expect(result.oldKey).toBe(0);
       expect(result.log).not.toContain('扉には鍵がかかっている。');
-      expect(result.log).toContain('扉を開けた途端、上から蛇が落ちてきた。');
+      expect(result.log).toContain('中に入った途端、上から蛇が落ちてきた。');
       expect(result.log).toContain('カインはとっさに後ずさり、オーエンの腕の中へ入った。');
       expect(result.log).toContain('オーエン「あんなのが怖いの？」');
       expect(result.log).toContain('カイン「……嗅ぐな」');

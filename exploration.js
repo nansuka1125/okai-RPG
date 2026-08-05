@@ -3179,6 +3179,32 @@ const explorationSystem = {
         ];
     },
 
+    // Build 15.6.2: One-time hard-bottle opening. The bottle itself is lost here and
+    // replaced by a full set of 上薬草のジャム uses.
+    buildHardBottleOpeningQueue: function () {
+        return [
+            { text: "カインは渾身の力で瓶の蓋を捻った。" },
+            { text: "カイン「ふんっっっっ！！！」" },
+            { text: "バキッ", type: "marker" },
+            { text: "ついに蓋が開いた。" },
+            { text: "中に詰まっている黒っぽいドロドロはなんだろう。" },
+            { text: "オーエン「くんくん……僕はいらない」", color: "#a020f0" },
+            { text: "カイン「あ、この匂いもしかして」" },
+            {
+                text: `${RPG.Assets.CONFIG.ITEM_NAME.highHerbJam}を手に入れた！`,
+                type: "marker",
+                color: "#9acd32",
+                action: () => {
+                    RPG.State.flags.hardBottleOpened = true;
+                    RPG.State.inventory.hardBottle = Math.max(0, (RPG.State.inventory.hardBottle || 0) - 1);
+                    RPG.State.inventory.highHerbJam =
+                        (RPG.State.inventory.highHerbJam || 0) + RPG.Config.HIGH_HERB_JAM_MAX_USES;
+                    uiControl.updateUI();
+                }
+            }
+        ];
+    },
+
     getItemUseDialogue: function (itemId) {
         if (itemId === 'scentPouch') {
             if (this.canUseScentPouchOnHighway()) {
@@ -3235,6 +3261,10 @@ const explorationSystem = {
 
         if (itemId === 'matamatabiBranch') {
             return this.buildMatamatabiManualUseQueue();
+        }
+
+        if (itemId === 'hardBottle') {
+            return this.buildHardBottleOpeningQueue();
         }
 
         if (["lightBook", "purpleMacaron", "glowingBunnyEars"].includes(itemId)) {
@@ -3334,6 +3364,17 @@ const explorationSystem = {
                 uiControl.addLog(`🌿上薬草を使い、HPが${highHerbHealAmount}回復した。`);
                 success = true;
                 break;
+            case 'highHerbJam':
+                if (RPG.State.flags.highHerbJamPrepared === true) {
+                    uiControl.addLog("🫙🌿上薬草のジャムは、もう準備してある。");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.flags.highHerbJamPrepared = true;
+                uiControl.addLog("🫙🌿上薬草のジャムを口にした。", "", "#9acd32");
+                uiControl.addLog("薬草の力が体に残った。体力が半分以下になれば効いてくるだろう。");
+                success = true;
+                break;
             case 'antidoteHerb':
                 if (!RPG.State.isPoisoned) {
                     uiControl.addLog(RPG.Assets.GAME_TEXT.items.notNeeded);
@@ -3407,11 +3448,8 @@ const explorationSystem = {
                     uiControl.closeModal();
                     return;
                 }
-                uiControl.addLog("《やみくもにかたい瓶》に力を込める。");
-                uiControl.addLog("ゴリラも顔負けの怪力で、蓋がゆっくりと緩んでいく……");
-                uiControl.addLog("バキッ！");
-                uiControl.addLog("ようやく開いた。");
-                RPG.State.flags.hardBottleOpened = true;
+                // The bottle is lost and the jam is granted inside the opening dialogue,
+                // so the "手に入れた！" line lands in scene order.
                 success = true;
                 consumeItem = false;
                 break;

@@ -58,7 +58,6 @@ The current active development slice is manual adjustment of the completed Fores
 - Decide how sword techniques interact with hardened enemy parts.
 - Connect implemented rare-amber effects to the finalized battle rules and tune their values through playtesting.
 - Design and implement the final boss critical attack `首狩り` using the shared direct-damage/parry structure where approved.
-- Decide the Hard Bottle contents.
 - Give Vampire Amber its formal acquisition route and disable the development grant before release.
 - Rebalance ordinary enemies, bosses, Fireproof Gloves, parry, criticals, and sword techniques together.
 

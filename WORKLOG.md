@@ -30,7 +30,7 @@ Status: confirmed development recovery baseline
 - The three-root pacification follow-through: the one-time forest-2m conversation, the one-time ordinary-room peaceful night, and finite encounters plus saved ALL targets for Amber Sap, Amberized Rat, and Amberized Weasel. Targets are fixed from the cumulative defeat counts only when the third root is defeated; old three-root saves without saved targets are intentionally unsupported.
 - The Key-Inside Amber / Forest Hut route: burn a held Key-Inside Amber at the freshly defeated root site for one Old Key, discover the 10m hut, enter its exterior and interior scenes, unlock it through the confirmed choice and snake scene, use Key-Inside Amber manually without consuming it, and receive Fireproof Gloves on the following interior examination.
 - At `ae75f53`, the focused inn-repair suite (100 tests), focused amber suite (187 tests), and full Playwright suite (504 tests) passed before this documentation/comment synchronization.
-- Level-11 opening of the Hard Bottle through its opening flourish.
+- Level-11 opening of the Hard Bottle through its opening flourish, which consumes the bottle and grants three uses of 🫙🌿上薬草のジャム, plus that jam's prepared-state full recovery.
 - Owen intervention text currently in code: four freeze lines, the two-line freeze activation, the frozen-turn line, wolf attack/swallow wording, the consolidated disappearance line, and the intimidation wording.
 - The existing Chapter 1 backgrounds, amber trade/appraisal and hardened-enemy systems, journal/suspend saves, forest presentation layer, inn conversation availability rules, phase-7 legacy handoff, and current Former Highway route described below.
 
@@ -40,6 +40,8 @@ Status: confirmed development recovery baseline
 - Weasel ALL unlocks after the weasel-20 reward has been received and the notebook is next opened. Its independent target is three Cain defeats and its reward is three High Herbs.
 - Owen defeats and matatabi weasel escapes do not advance rat/weasel ALL progress. Completing an ALL target suppresses only the matching final normal random encounter; amberized variants and fixed battles remain available.
 - The amber-sap-20 reward is the Hard Bottle. Rat ALL is the Grateful Talisman reward.
+- Opening the Hard Bottle at level 11 is one-time: the bottle is lost and 🫙🌿上薬草のジャム is granted with `RPG.Config.HIGH_HERB_JAM_MAX_USES` (3) uses. The inventory shows it as `残り/最大` and states the remaining uses in its description.
+- Using one jam use outside battle sets `flags.highHerbJamPrepared`. The prepared state persists across battles and saves, cannot be stacked or re-spent while active, and triggers once when battle HP first reaches half of maximum or less, restoring HP to maximum. It is checked ahead of the Grateful Talisman, Owen's death save, the charm, and `resolveDefeat()`, so lethal damage never settles first. Triggering clears only the prepared state; the remaining uses are untouched.
 - Vampire Amber drains 10%, 15%, and 20% of maximum HP at the start of chain battles 1, 4, and 6 without reducing Cain below 1 HP. Cain's damage multiplier is 1.5x for battles 1-5 and 2x for battle 6. Glowing Cat Rabbit battles are excluded.
 - A normal defeat before battle 6 resets the Vampire Amber chain without removing the amber. Completing battle 6 removes it. Entering the inn, manually detaching it, or swapping it out also resets the chain.
 - If matatabi would activate at a battle ending while Vampire Amber is equipped, the accident takes priority. The accident removes the amber, bypasses normal EXP, rewards, drops, kill/death counts, and matatabi activation, then returns Cain to the inn at 10% HP with poison cleared.
@@ -61,13 +63,11 @@ Status: confirmed development recovery baseline
 
 ### Partially implemented
 
-- The Hard Bottle can be opened at level 11, but it is retained and has no implemented contents.
 - Rare-amber equipment UI is implemented. Vampire Amber and Blue Amber have combat effects; the other rare-amber effects described in item data are not implemented.
 - The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
 
 ### Unimplemented
 
-- The Hard Bottle's contents and any post-opening result.
 - Burned-root-site investigation and the three Unknown Amber rewards, including the one rare amber.
 - Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Bee, and Ignored Amber.
 - Acquisition events for Bee Amber and Ignored Amber.
@@ -76,7 +76,6 @@ Status: confirmed development recovery baseline
 
 ### On hold
 
-- Hard Bottle contents.
 - The forest-completion daughter walk/picnic after all bounty entries are complete.
 - Final values for the provisional amberized-enemy replacement rate and hardened-part durability.
 - The morning wagon-departure scene pending its latest text, exact interaction flow, and handoff decision.

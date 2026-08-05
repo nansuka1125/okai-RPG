@@ -15,6 +15,7 @@ RPG.Config = {
     LEVEL_UP_TALK_BATTLE_ONLY: true, // Build 15.2.49: Reserve milestone level-up talks for battle victories only
     FAKE_WOUND_MEDICINE_AUTO_HEAL_RATE: 0.4,
     SMOKE_BOMB_STEP_COUNT: 10,
+    HIGH_HERB_JAM_MAX_USES: 3, // Build 15.6.2: Uses granted by the one-time hard-bottle opening
     AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
     // Provisional Chapter 1 balance values: after metThiefBoy, the forest's 7m-9m depths raise
     // the base BATTLE_RATE (0.6) and give sap a heavier draw weight than its normal 5, so the
@@ -144,6 +145,7 @@ RPG.State = {
         fakeWoundMedicine: 0,
         smokeBomb: 0,
         hardBottle: 0,
+        highHerbJam: 0,
         gratefulTalisman: 0,
         edibleHerb: 0,
         mintFlower: 0,
@@ -374,7 +376,8 @@ RPG.State = {
         innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
         innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
         innRepairAmberRewardReceived: false, // One-time fixed milk-amber result from the completed repair
-        hardBottleOpened: false // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11; contents undecided
+        hardBottleOpened: false, // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv11
+        highHerbJamPrepared: false // Build 15.6.2: Prepared 上薬草のジャム; survives battles until it full-heals once at half HP or less
     },
 
     // 一時フラグ

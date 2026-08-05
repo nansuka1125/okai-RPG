@@ -166,6 +166,20 @@ const battleSystem = {
         uiControl.addLog(`🩹傷薬もどきが効き、HPが${actualRecovery}回復した。`, "", "#9acd32");
     },
 
+    // Build 15.6.2: A prepared 上薬草のジャム survives battles until Cain's HP first reaches
+    // half or less, then fully heals once. Checked ahead of the talisman, Owen's death save,
+    // and resolveDefeat(), so lethal damage never settles before it has had its chance.
+    applyPreparedHighHerbJam: function () {
+        if (RPG.State.flags.highHerbJamPrepared !== true) return false;
+        if (RPG.State.currentHP > RPG.State.maxHP * 0.5) return false;
+
+        RPG.State.flags.highHerbJamPrepared = false;
+        RPG.State.currentHP = RPG.State.maxHP;
+        uiControl.addLog("🫙🌿上薬草のジャムが効き、HPが全回復した！", "marker", "#9acd32");
+        uiControl.updateUI();
+        return true;
+    },
+
     applyMasochistAmberRecovery: function (actualDamage, damageResult) {
         if (
             RPG.State.equippedRareAmberId !== "masochistAmber" ||
@@ -210,6 +224,7 @@ const battleSystem = {
 
         if (
             nextHP <= 0 &&
+            RPG.State.flags.highHerbJamPrepared !== true &&
             (RPG.State.inventory.gratefulTalisman || 0) > 0
         ) {
             RPG.State.inventory.gratefulTalisman -= 1;
@@ -231,6 +246,9 @@ const battleSystem = {
             lethal: RPG.State.currentHP <= 0
         };
         const actualDamage = Math.max(0, hpBeforeDamage - RPG.State.currentHP);
+        if (this.applyPreparedHighHerbJam()) {
+            damageResult.lethal = false;
+        }
         this.applyPreparedFakeWoundMedicine(actualDamage, damageResult);
         this.applyMasochistAmberRecovery(actualDamage, damageResult);
         return damageResult;
@@ -1142,6 +1160,9 @@ const battleSystem = {
 
     runBattleLoop: function () {
         if (!RPG.State.isBattling || !RPG.State.currentEnemy) return;
+
+        // Covers a battle that starts with Cain already at half HP or less.
+        this.applyPreparedHighHerbJam();
 
         if (
             RPG.State.currentEnemy.id === "glowing_cat_rabbit" &&
@@ -2371,6 +2392,9 @@ const battleSystem = {
             this.endBattle(true);
             return true;
         }
+        // Damage paths that bypass applyEnemyDirectDamage (poison, fixed/event damage) reach
+        // the prepared jam here, still ahead of the charm and resolveDefeat().
+        this.applyPreparedHighHerbJam();
         if (
             RPG.State.currentHP >= 2 &&
             RPG.State.battleState?.gratefulTalismanSurvivalActive === true

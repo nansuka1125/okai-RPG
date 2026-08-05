@@ -795,7 +795,7 @@ const uiControl = {
         items.forEach(([key, count]) => {
             const div = document.createElement('div');
             div.className = 'item-row';
-            div.textContent = `${RPG.Assets.CONFIG.ITEM_NAME[key]} (×${count})`;
+            div.textContent = `${RPG.Assets.CONFIG.ITEM_NAME[key]} ${this.getInventoryCountLabel(key, count)}`;
             div.onclick = () => this.selectItem(key, count);
             list.appendChild(div);
         });
@@ -1002,6 +1002,20 @@ const uiControl = {
         return "";
     },
 
+    // Build 15.6.2: 上薬草のジャム counts remaining uses instead of stacked copies, so it
+    // shows "残り/最大" and states the remaining uses at the end of its description.
+    getInventoryCountLabel: function (itemId, count) {
+        if (itemId === 'highHerbJam') {
+            return `${count}/${RPG.Config.HIGH_HERB_JAM_MAX_USES}`;
+        }
+        return `(×${count})`;
+    },
+
+    getHighHerbJamDescriptionSuffix: function (itemId, count) {
+        if (itemId !== 'highHerbJam') return "";
+        return `あと${count}回分ある。`;
+    },
+
     advanceVampireAmberChainOnBattleEnd: function () {
         if (RPG.State.equippedRareAmberId !== 'vampireAmber') return;
 
@@ -1082,7 +1096,7 @@ const uiControl = {
     selectItem: function (key, count) {
         const detail = document.getElementById('itemDetailArea');
         if (!detail) return;
-        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> (×${count})<br><span style="font-size:12px;color:#aaa;">${RPG.Assets.CONFIG.ITEM_DESC[key]}${this.getVampireAmberChainDescriptionSuffix(key)}</span>`;
+        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> ${this.getInventoryCountLabel(key, count)}<br><span style="font-size:12px;color:#aaa;">${RPG.Assets.CONFIG.ITEM_DESC[key]}${this.getHighHerbJamDescriptionSuffix(key, count)}${this.getVampireAmberChainDescriptionSuffix(key)}</span>`;
 
         // アイテム使用ボタンの表示判定
         // 将来的にはtype判定などが望ましいが、今はswitchか個別判定
@@ -1116,6 +1130,7 @@ const uiControl = {
             key === 'glowingBunnyEars' ||
             key === 'keyAmber' ||
             key === 'hardBottle' ||
+            key === 'highHerbJam' ||
             key === 'someonesDiary' ||
             canUseEmptyBottle ||
             canUseScentPouch ||

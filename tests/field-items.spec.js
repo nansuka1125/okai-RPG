@@ -438,6 +438,175 @@ test.describe('field utility items', () => {
     });
   });
 
+  test('opening the hard bottle once yields three jam uses and shows the remaining count', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', cainLv: 11, dialogueQueue: [] });
+      RPG.State.flags.hardBottleOpened = false;
+      RPG.State.inventory.hardBottle = 1;
+      RPG.State.inventory.highHerbJam = 0;
+
+      explorationSystem.useItem('hardBottle');
+      const queue = RPG.State.dialogueQueue;
+      const lastLine = queue[queue.length - 1];
+      const grantText = lastLine.text;
+      lastLine.action();
+      const afterOpen = {
+        hardBottle: RPG.State.inventory.hardBottle,
+        jam: RPG.State.inventory.highHerbJam,
+        opened: RPG.State.flags.hardBottleOpened,
+      };
+
+      RPG.State.mode = 'base';
+      RPG.State.dialogueQueue = [];
+      uiControl.selectItem('highHerbJam', RPG.State.inventory.highHerbJam);
+      const detailAtThree = document.getElementById('itemDetailArea')?.textContent || '';
+      uiControl.selectItem('highHerbJam', 1);
+      const detailAtOne = document.getElementById('itemDetailArea')?.textContent || '';
+
+      // The bottle is gone, so the opening cannot repeat.
+      explorationSystem.useItem('hardBottle');
+      const afterRetry = {
+        hardBottle: RPG.State.inventory.hardBottle,
+        jam: RPG.State.inventory.highHerbJam,
+      };
+
+      return { grantText, afterOpen, detailAtThree, detailAtOne, afterRetry };
+    });
+
+    expect(result.grantText).toBe('🫙🌿上薬草のジャムを手に入れた！');
+    expect(result.afterOpen).toEqual({ hardBottle: 0, jam: 3, opened: true });
+    expect(result.detailAtThree).toContain('🫙🌿上薬草のジャム 3/3');
+    expect(result.detailAtThree).toContain(
+      '味は想像がつく。使うと準備状態になり、次以降の戦闘で体力が半分以下になった時、一度だけ全回復する。あと3回分ある。'
+    );
+    expect(result.detailAtOne).toContain('🫙🌿上薬草のジャム 1/3');
+    expect(result.detailAtOne).toContain('あと1回分ある。');
+    expect(result.afterRetry).toEqual({ hardBottle: 0, jam: 3 });
+  });
+
+  test('the jam prepares once, keeps the prepared state across battles, and full-heals only once', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const logContainer = document.getElementById('logContainer');
+      if (logContainer) logContainer.innerHTML = '';
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: false,
+        maxHP: 100,
+        currentHP: 100,
+      });
+      RPG.State.inventory.highHerbJam = 3;
+      RPG.State.flags.highHerbJamPrepared = false;
+
+      explorationSystem.useItem('highHerbJam');
+      const afterPrepare = {
+        jam: RPG.State.inventory.highHerbJam,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+      };
+
+      RPG.State.mode = 'base';
+      explorationSystem.useItem('highHerbJam');
+      const afterRepeatUse = {
+        jam: RPG.State.inventory.highHerbJam,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      // Battle 1: damage that stops above half leaves the prepared state alone,
+      // and it also survives the save/load round trip between battles.
+      RPG.State.mode = 'battle';
+      RPG.State.isBattling = true;
+      RPG.State.battleState = {};
+      battleSystem.applyEnemyDirectDamage(20);
+      const afterFirstBattle = {
+        hp: RPG.State.currentHP,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+      };
+
+      RPG.State.isBattling = false;
+      RPG.State.mode = 'base';
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_high_herb_jam_test', JSON.stringify(snapshot));
+      RPG.State.flags.highHerbJamPrepared = false;
+      uiControl.loadFromStorage('okai_rpg_high_herb_jam_test', '上薬草のジャムテスト');
+      const afterLoad = { prepared: RPG.State.flags.highHerbJamPrepared };
+
+      // Battle 2: the first drop to half HP or less fully heals, once.
+      RPG.State.maxHP = 100;
+      RPG.State.currentHP = 80;
+      RPG.State.isBattling = true;
+      RPG.State.battleState = {};
+      battleSystem.applyEnemyDirectDamage(30);
+      const afterTrigger = {
+        hp: RPG.State.currentHP,
+        jam: RPG.State.inventory.highHerbJam,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      battleSystem.applyEnemyDirectDamage(60);
+      const afterSecondDrop = {
+        hp: RPG.State.currentHP,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+      };
+
+      return { afterPrepare, afterRepeatUse, afterFirstBattle, afterLoad, afterTrigger, afterSecondDrop };
+    });
+
+    expect(result.afterPrepare).toEqual({ jam: 2, prepared: true });
+    expect(result.afterRepeatUse).toMatchObject({ jam: 2, prepared: true });
+    expect(result.afterRepeatUse.log).toContain('🫙🌿上薬草のジャムは、もう準備してある。');
+    expect(result.afterFirstBattle).toEqual({ hp: 80, prepared: true });
+    expect(result.afterLoad).toEqual({ prepared: true });
+    expect(result.afterTrigger).toMatchObject({ hp: 100, jam: 2, prepared: false });
+    expect(result.afterTrigger.log).toContain('🫙🌿上薬草のジャムが効き、HPが全回復した！');
+    expect(result.afterSecondDrop).toEqual({ hp: 40, prepared: false });
+  });
+
+  test('the prepared jam beats lethal damage to the talisman, Owen, and defeat', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'battle',
+        isBattling: true,
+        maxHP: 100,
+        currentHP: 30,
+        hasOwenSavedLife: false,
+        currentEnemy: { id: 'test_enemy', name: '試験魔物', hp: 10, atk: 10, msg: '攻撃してきた！' },
+        battleState: { skippedTurns: 0, playerTookDamage: false, gratefulTalismanSurvivalActive: false },
+      });
+      Object.assign(RPG.State.inventory, {
+        highHerbJam: 2,
+        gratefulTalisman: 1,
+        charm: 1,
+      });
+      RPG.State.flags.highHerbJamPrepared = true;
+
+      const damageResult = battleSystem.applyEnemyDirectDamage(500);
+      const ended = battleSystem.checkBattleEnd();
+
+      return {
+        damageResult,
+        ended,
+        hp: RPG.State.currentHP,
+        prepared: RPG.State.flags.highHerbJamPrepared,
+        jam: RPG.State.inventory.highHerbJam,
+        talismans: RPG.State.inventory.gratefulTalisman,
+        charm: RPG.State.inventory.charm,
+        owenSaved: RPG.State.hasOwenSavedLife,
+      };
+    });
+
+    expect(result.damageResult).toMatchObject({ talismanActivated: false, lethal: false });
+    expect(result).toMatchObject({
+      ended: false,
+      hp: 100,
+      prepared: false,
+      jam: 2,
+      talismans: 1,
+      charm: 1,
+      owenSaved: false,
+    });
+  });
+
   test('smoke-bomb step counts survive saves and missing old-save fields normalize to zero', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.smokeBombStepsRemaining = 7;

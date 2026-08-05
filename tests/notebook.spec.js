@@ -656,14 +656,13 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.atThreshold.claimable).toBe(true);
   });
 
-  test('the rat-10 debug branch grants herb x3 and vampire amber x1 once with both reward lines', async ({ page }) => {
+  test('the rat-10 reward grants only herb x3 once', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, { mode: 'base', isAtInn: true });
       RPG.State.flags.ratBounty10Received = false;
       RPG.State.defeatCounts.rat = { cain: 6, owen: 4 };
       RPG.State.inventory.herb = 0;
       RPG.State.inventory.vampireAmber = 0;
-      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = true;
       const log = document.getElementById('logContainer');
       if (log) log.innerHTML = '';
       innSystem.claimNotebookRewards();
@@ -685,10 +684,10 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
     expect(result).toEqual({
       herb: 3,
-      vampireAmber: 1,
+      vampireAmber: 0,
       received: true,
       herbRewardShown: true,
-      vampireRewardShown: true,
+      vampireRewardShown: false,
       modalDisplay: 'none',
       mode: 'base',
     });
@@ -702,81 +701,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       vampireAmber: RPG.State.inventory.vampireAmber,
       mode: RPG.State.mode,
     }));
-    expect(second).toEqual({ herb: 3, vampireAmber: 1, mode: 'base' });
-  });
-
-  test('disabling the rat-10 debug branch preserves the formal herb-only reward', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
-      RPG.State.flags.ratBounty10Received = false;
-      RPG.State.defeatCounts.rat = { cain: 10, owen: 0 };
-      RPG.State.inventory.herb = 0;
-      RPG.State.inventory.vampireAmber = 0;
-      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = false;
-
-      const reward = innSystem.getNotebookRewardDefinition('rat', '10');
-      const formalItemsBeforeClaim = reward?.tier.items.map(item => ({ ...item }));
-      innSystem.claimNotebookRewards('rat', '10');
-
-      return {
-        formalItemsBeforeClaim,
-        herb: RPG.State.inventory.herb,
-        vampireAmber: RPG.State.inventory.vampireAmber,
-        queueText: RPG.State.dialogueQueue.map(item => item.text || ''),
-      };
-    });
-
-    expect(result).toEqual({
-      formalItemsBeforeClaim: [{ itemId: 'herb', qty: 3 }],
-      herb: 3,
-      vampireAmber: 0,
-      queueText: [
-        '🌿薬草を3個受け取った！',
-      ],
-    });
-  });
-
-  test('the debug vampire amber appears in brooch candidates and survives save/reload', async ({ page }) => {
-    await page.evaluate(() => {
-      Object.assign(RPG.State, { mode: 'base', isAtInn: true });
-      RPG.State.flags.ratBounty10Received = false;
-      RPG.State.defeatCounts.rat = { cain: 10, owen: 0 };
-      Object.assign(RPG.State.inventory, {
-        herb: 0,
-        vampireAmber: 0,
-        glowingBrooch: 1,
-      });
-      RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 = true;
-      innSystem.claimNotebookRewards('rat', '10');
-    });
-    await drainDialogue(page);
-
-    const beforeSave = await page.evaluate(() => {
-      uiControl.selectItem('glowingBrooch', 1);
-      uiControl.showRareAmberSelection();
-      const candidates = document.getElementById('itemList')?.textContent || '';
-      const snapshot = uiControl.createSaveSnapshot('journal');
-      localStorage.setItem('okai_rpg_rat10_debug_amber_test', JSON.stringify(snapshot));
-
-      RPG.State.flags.ratBounty10Received = false;
-      RPG.State.inventory.herb = 0;
-      RPG.State.inventory.vampireAmber = 0;
-      uiControl.loadFromStorage('okai_rpg_rat10_debug_amber_test', 'デバッグ報酬テスト');
-
-      return {
-        candidateShown: candidates.includes('🔸《吸血琥珀》'),
-        received: RPG.State.flags.ratBounty10Received,
-        herb: RPG.State.inventory.herb,
-        vampireAmber: RPG.State.inventory.vampireAmber,
-      };
-    });
-
-    expect(beforeSave).toEqual({
-      candidateShown: true,
-      received: true,
-      herb: 3,
-      vampireAmber: 1,
-    });
+    expect(second).toEqual({ herb: 3, vampireAmber: 0, mode: 'base' });
   });
 
   test('rat 10 and 20 rewards remain independently claimable at 20 kills', async ({ page }) => {
@@ -1043,13 +968,13 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.beforeRows).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
     expect(result.claimableBefore).toEqual(['sap', 'amber_rat', 'amber_weasel']);
     expect(result.afterFirstClaim).toEqual({
-      highHerb: 5,
-      unknownAmber: 1,
-      results: ['vampireAmber'],
+      highHerb: 8,
+      unknownAmber: 0,
+      results: [],
       secretLetter: 1,
       received: { sap: true, amberRat: true, amberWeasel: true },
     });
-    expect(result.afterSecondClaim).toBe(5);
+    expect(result.afterSecondClaim).toBe(8);
     expect(result.afterReload).toEqual({
       targets: { sap: 40, amber_rat: 30, amber_weasel: 20 },
       received: { sap: true, amberRat: true, amberWeasel: true },
@@ -1457,7 +1382,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       'rat:10': [['herb', 3]],
       'rat:20': [['fakeWoundMedicine', 3]],
       'weasel:10': [['smokeBomb', 3]],
-      'weasel:20': [],
+      'weasel:20': [['highHerb', 3]],
       'sap:10': [['shinyOil', 3]],
       'sap:15': [['hardBottle', 1]],
       'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],
@@ -1649,7 +1574,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'amberRatBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['unknownAmber', 1]],
+        items: [['highHerb', 3]],
       },
       amber_weasel: {
         target: null,

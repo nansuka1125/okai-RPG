@@ -15,7 +15,6 @@ RPG.Config = {
     LEVEL_UP_TALK_BATTLE_ONLY: true, // Build 15.2.49: Reserve milestone level-up talks for battle victories only
     FAKE_WOUND_MEDICINE_HEAL_RATE: 0.3,
     SMOKE_BOMB_STEP_COUNT: 10,
-    DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10: true,
     AMBER_VARIANT_ENCOUNTER_RATE: 0.25, // Provisional Chapter 1 balance value for independent amberized rat/weasel encounters
     // Provisional Chapter 1 balance values: after metThiefBoy, the forest's 7m-9m depths raise
     // the base BATTLE_RATE (0.6) and give sap a heavier draw weight than its normal 5, so the
@@ -32,7 +31,7 @@ RPG.Config = {
         CRITICAL_RATE: 0.15,
         CRITICAL_DAMAGE_MULTIPLIER: 1.5,
         SWORD_TECHNIQUE_RATE: 0.20,
-        BLUE_AMBER_SWORD_TECHNIQUE_RATE_BONUS: 0.10,
+        BLUE_AMBER_SWORD_TECHNIQUE_RATE_BONUS: 0.20,
         STRONG_ATTACK_RATE: 0.50,
         STRONG_ATTACK_DAMAGE_MULTIPLIER: 1.8,
         RAPID_ATTACK_DAMAGE_MULTIPLIER: 0.7,
@@ -66,7 +65,7 @@ RPG.State = {
     version: "15.6.0 (Chapter 1 Complete)", // Build 15.6.0: Complete Chapter 1 flow, retreat/retry support, and preserved side events
     mode: "base", // base, event, battle
     location: "宿屋《琥珀亭》",
-    mood: 50,              // 気分値（デバッグ用表示あり）
+    mood: 50,              // 気分値
     isPoisoned: false,     // 毒状態
     poisonDamageRemaining: 0, // Remaining poison damage budget; starts at one third of max HP
     isInDungeon: false,    // 拠点(false)とダンジョン(true)の切り替え
@@ -178,7 +177,6 @@ RPG.State = {
         crackedAmber: 0,
         keyAmber: 0,
         oldKey: 0,
-        debug_poison: 10,
         debug_lvl10: 1
     },
     equippedRareAmberId: null, // Rare amber currently socketed into the glowing brooch
@@ -257,7 +255,6 @@ RPG.State = {
         innRatEvent2BattleActive: false, // Build 15.2.52: Temporary routing flag for the second inn rat post-battle dialogue
         hasTreeEventOccurred: false, // Hungry Amber Tree event at 8m
         treeDefeated: false, // Track if tree has been defeated
-        isDebugEncountersOff: false, // Toggle random encounters
         readyForThiefBoy: false, // Flag for Thief Boy event
         isTreeRematch: false, // Build 15.1.1a: Persistent tracker for rematch state
         treeFirstDefeat: false, // Build 15.2.8: Track first defeat against the hungry amber tree

@@ -170,7 +170,6 @@ const explorationSystem = {
     isRandomEncounterSuppressed: function (options = {}) {
         return (
             options.smokeActive === true ||
-            RPG.State.flags.isDebugEncountersOff === true ||
             (
                 RPG.State.storyPhase === 8 &&
                 RPG.State.flags.onWagon === true
@@ -3227,14 +3226,6 @@ const explorationSystem = {
             ];
         }
 
-        if (itemId === 'debug_poison') {
-            return [
-                { text: "オーエン「おいしかった？もう一個あるよ。ほら」", color: "#a020f0" },
-                { text: "カイン「もういらない…」" },
-                { text: "オーエン「ふうん？ああ、あそこのネズミがおまえのこと見てる」", color: "#a020f0" }
-            ];
-        }
-
         if (itemId === 'matamatabiBranch') {
             return this.buildMatamatabiManualUseQueue();
         }
@@ -3348,11 +3339,6 @@ const explorationSystem = {
                 }
                 battleSystem.curePoison();
                 uiControl.addLog("🌼毒消し草を使い、毒が浄化された。", "", "#a333c8");
-                success = true;
-                break;
-            case 'debug_poison':
-                RPG.State.currentHP = 30;
-                uiControl.addLog("《デバッグ毒》を煽った！カインの体力が30に設定されました。", "", "#ff4d4d");
                 success = true;
                 break;
             case 'debug_lvl10':

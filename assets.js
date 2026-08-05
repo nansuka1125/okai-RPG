@@ -52,8 +52,7 @@ RPG.Assets.CONFIG = {
         ignoredAmber: "🔸《無視入り琥珀》",
         crackedAmber: "🔸《ひび割れ琥珀》",
         keyAmber: "🔸《鍵入り琥珀》",
-        oldKey: "🗝️古びた鍵",
-        debug_poison: "《デバッグ毒》"
+        oldKey: "🗝️古びた鍵"
     },
     ITEM_DESC: {
         silverCoin: "宿屋に納品するための銀貨。3枚必要だ。",
@@ -100,7 +99,6 @@ RPG.Assets.CONFIG = {
         crackedAmber: "今にも砕けそうな琥珀。",
         keyAmber: "中に古びた鍵が閉じ込められている琥珀。",
         oldKey: "鍵入り琥珀を燃やして取り出した古びた鍵。",
-        debug_poison: "【テスト用】使うとHPが1になります。",
         debug_lvl10: "【デバッグ用】使うと一気にLv.10になります。"
     },
     // バトル設定（正式値は RPG.Config で一元管理）
@@ -150,7 +148,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
             },
             {
                 id: "20", label: "20", target: 20, claimedFlag: "weaselBounty20Received",
-                items: []
+                items: [{ itemId: "highHerb", qty: 3 }]
             },
             {
                 id: "all", label: "ALL", target: 3,
@@ -204,7 +202,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 id: "all", label: "ALL", target: null,
                 targetStateKey: "amber_rat",
                 claimedFlag: "amberRatBountyAllReceived", claimEnabled: true,
-                items: [{ itemId: "unknownAmber", qty: 1, guaranteedAmberId: "vampireAmber" }]
+                items: [{ itemId: "highHerb", qty: 3 }]
             }
         ]
     },

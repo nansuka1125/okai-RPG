@@ -30,7 +30,8 @@ test.describe('non-persistent debug battle presets', () => {
         canJournalSave: uiControl.canWriteJournalSave(),
         canSuspendSave: uiControl.canWriteSuspendSave(),
         miniSaveDisplay: document.getElementById('miniSaveButton')?.style.display,
-        debugControlsDisplay: document.getElementById('debugParams')?.style.display,
+        normalDebugUiPresent: ['debugParams', 'debugEncounterToggle', 'debugClearSaveToggle', 'debug-mood']
+          .some(id => document.getElementById(id) !== null),
         saveModalDisplay: document.getElementById('saveModal')?.style.display,
       };
     });
@@ -63,7 +64,7 @@ test.describe('non-persistent debug battle presets', () => {
       canJournalSave: false,
       canSuspendSave: false,
       miniSaveDisplay: 'none',
-      debugControlsDisplay: 'none',
+      normalDebugUiPresent: false,
       saveModalDisplay: '',
     });
   });

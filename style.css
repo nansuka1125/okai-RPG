@@ -66,17 +66,13 @@ body {
 #chapterHeader,
 header,
 footer,
-#debugParams,
-#miniSaveButton,
-#debug-mood {
+#miniSaveButton {
     transition: opacity 0.8s ease, transform 0.8s ease;
 }
 
 body.intro-opening #chapterHeader,
 body.intro-opening header,
-body.intro-opening #debugParams,
-body.intro-opening #miniSaveButton,
-body.intro-opening #debug-mood {
+body.intro-opening #miniSaveButton {
     opacity: 0 !important;
     transform: translateY(6px);
     pointer-events: none;
@@ -1100,42 +1096,6 @@ body.travel-active button {
     text-align: center;
     background: #111;
     min-height: 100px;
-}
-
-#debug-mood {
-    position: fixed;
-    bottom: 5px;
-    right: 5px;
-    font-size: 10px;
-    color: rgba(255, 132, 120, 0.72);
-    font-weight: bold;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.38;
-    background: rgba(0, 0, 0, 0.72);
-    font-family: monospace;
-    padding: 2px 5px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-}
-
-/* Inline styles from HTML that should be in CSS */
-#debugParams {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 2000;
-}
-
-#debugEncounterToggle,
-#debugClearSaveToggle {
-    cursor: pointer;
-    font-size: 16px;
-    opacity: 0.48;
-}
-
-#debugClearSaveToggle {
-    margin-left: 8px;
 }
 
 /* Inn-event load access and outside suspend bookmark */

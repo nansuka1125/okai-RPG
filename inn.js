@@ -2448,15 +2448,7 @@ innSystem = {
             return [{ itemId: "secretLetter", qty: 1 }];
         }
 
-        const items = tier.items.map(item => ({ ...item }));
-        if (
-            RPG.Config.DEBUG_GRANT_BLOOD_AMBER_FROM_RAT_10 === true &&
-            entry.id === "rat" &&
-            tier.id === "10"
-        ) {
-            items.push({ itemId: "vampireAmber", qty: 1 });
-        }
-        return items;
+        return tier.items.map(item => ({ ...item }));
     },
 
     buildNotebookClaimQueue: function (entry, tier, claimItems = tier.items) {

@@ -877,6 +877,7 @@ const battleSystem = {
                 ? options.highwayFixedDistance
                 : null,
             highwayFixedVictoryRecorded: false,
+            paralysisAttacksRemaining: 0,
             // beeAmber: only the very first hit Cain lands this battle gets the multiplier,
             // even across a multi-hit 《連撃》 combo.
             cainFirstHitBonusUsed: false
@@ -1357,6 +1358,10 @@ const battleSystem = {
         if (hasHardenedPart) {
             const armorDamage = Math.min(enemy.armorHp, damage);
             const overflowDamage = Math.max(0, damage - enemy.armorHp);
+            const armorChipDamage = enemy.armorChipDamageRatio
+                ? Math.max(1, Math.floor(damage * enemy.armorChipDamageRatio))
+                : 0;
+            const bodyDamage = Math.max(overflowDamage, armorChipDamage);
             enemy.armorHp = Math.max(0, enemy.armorHp - damage);
             uiControl.addLog(
                 RPG.Assets.BATTLE_TEXT.hardened.damage(enemy.armorLabel, armorDamage),
@@ -1366,10 +1371,10 @@ const battleSystem = {
             if (enemy.armorHp <= 0) {
                 uiControl.addLog(enemy.armorBreakText, "marker", "#ffd166");
             }
-            if (overflowDamage > 0) {
-                enemy.hp -= overflowDamage;
+            if (bodyDamage > 0) {
+                enemy.hp -= bodyDamage;
                 uiControl.addLog(
-                    RPG.Assets.BATTLE_TEXT.hardened.bodyDamage(enemy.name, overflowDamage),
+                    RPG.Assets.BATTLE_TEXT.hardened.bodyDamage(enemy.name, bodyDamage),
                     "player-action"
                 );
             }
@@ -1386,11 +1391,18 @@ const battleSystem = {
     // damage modifiers keep their current behavior.
     performCainAttack: function (options = {}) {
         const combat = RPG.Config.CAIN_COMBAT;
-        const allowSwordTechniques = options.allowSwordTechniques !== false;
-        const allowCritical = options.allowCritical !== false;
+        const consumesParalysis = options.consumeParalysis !== false;
+        const isParalyzed = consumesParalysis && (RPG.State.battleState?.paralysisAttacksRemaining || 0) > 0;
+        const allowSwordTechniques = options.allowSwordTechniques !== false && !isParalyzed;
+        const allowCritical = options.allowCritical !== false && !isParalyzed;
         const damageMultiplier = options.damageMultiplier ?? 1;
         let technique = null;
         let hitMultipliers = [1];
+
+        if (isParalyzed) {
+            RPG.State.battleState.paralysisAttacksRemaining--;
+            uiControl.addLog("カインは痺れていて、剣技も急所も狙えない！", "marker", "#d9c44c");
+        }
 
         if (allowSwordTechniques && Math.random() < this.getCainSwordTechniqueRate()) {
             if (Math.random() < combat.STRONG_ATTACK_RATE) {
@@ -1435,6 +1447,7 @@ const battleSystem = {
         return this.performCainAttack({
             allowSwordTechniques: false,
             allowCritical: true,
+            consumeParalysis: false,
             damageMultiplier: RPG.Config.CAIN_COMBAT.FIREPROOF_GLOVES_COUNTER_DAMAGE_MULTIPLIER
         });
     },

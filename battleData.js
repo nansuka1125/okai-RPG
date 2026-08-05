@@ -115,10 +115,18 @@ RPG.Assets.BATTLE_AI = {
                 setTimeout(() => sys.runBattleLoop(), delay);
             };
 
-            const dealDamage = (damage, message, color = null) => {
+            const inflictParalysis = () => {
+                if (RPG.State.equippedRareAmberId === "ignoredAmber") return;
+                if (!RPG.State.battleState) RPG.State.battleState = {};
+                RPG.State.battleState.paralysisAttacksRemaining = 2;
+                uiControl.addLog("カインは溶解液で痺れた！", "damage", "#d9c44c");
+            };
+
+            const dealDamage = (damage, message, color = null, causesParalysis = false) => {
                 uiControl.addLog(message, "enemy-action", color);
                 uiControl.addLog(`カインは${damage}のダメージを受けた！`, "damage", color);
                 sys.applyEnemyDirectDamage(damage);
+                if (causesParalysis && RPG.State.currentHP > 0) inflictParalysis();
                 uiControl.updateUI();
                 finishTurn();
             };
@@ -127,9 +135,9 @@ RPG.Assets.BATTLE_AI = {
                 enemy.vineMouthOpen = false;
                 if (Math.random() < 0.6) {
                     uiControl.flashFullScreen("#8b7d25", 420);
-                    dealDamage(18, text.preparedAcid, "#d9c44c");
+                    dealDamage(36, text.preparedAcid, "#d9c44c", true);
                 } else {
-                    dealDamage(17, text.preparedVineStrike, "#b7df62");
+                    dealDamage(38, text.preparedVineStrike, "#b7df62");
                 }
                 return;
             }
@@ -144,7 +152,7 @@ RPG.Assets.BATTLE_AI = {
 
             if (roll < 0.55) {
                 uiControl.flashFullScreen("#8b7d25", 320);
-                dealDamage(16, text.acid, "#d9c44c");
+                dealDamage(27, text.acid, "#d9c44c", true);
                 return;
             }
 
@@ -465,8 +473,8 @@ RPG.Assets.OWEN_BEHAVIOR = {
 // 🚩ーー【敵データ】ーー
 RPG.Assets.ENEMIES = [
     {
-        id: "rat", name: "魔界のネズミ", symbol: "×", maxHp: 40,
-        atk: 5,
+        id: "rat", name: "魔界のネズミ", symbol: "×", maxHp: 45,
+        atk: 10,
         xp: 15,
         area: [1, 9], weight: 10
     },
@@ -474,11 +482,11 @@ RPG.Assets.ENEMIES = [
         id: "amber_rat",
         name: "琥珀化ネズミ",
         symbol: "◆",
-        maxHp: 40,
-        atk: 5,
+        maxHp: 80,
+        atk: 18,
         xp: 15,
         area: null,
-        armorMax: 20, // Provisional Chapter 1 balance value
+        armorMax: 40, // Provisional Chapter 1 balance value
         armorLabel: "硬化した皮膚",
         armorBreakText: "硬化した皮膚が砕け散った！",
         drop: { id: "unknownAmber", rate: 0.2 },
@@ -489,9 +497,9 @@ RPG.Assets.ENEMIES = [
         id: 'hell_rat_swarm',
         name: '魔界のネズミ《群》',
         symbol: '× × ×',
-        hp: 40,
-        maxHp: 40,
-        atk: 6,
+        hp: 100,
+        maxHp: 100,
+        atk: 24,
         xp: 25,
         msg: "ネズミの大群がよじ登ってくる！",
         preBattleDialogue: [
@@ -502,9 +510,9 @@ RPG.Assets.ENEMIES = [
         id: 'eye_eating_crow',
         name: '目食いカラス',
         symbol: '⌃',
-        hp: 30,
-        maxHp: 30,
-        atk: 8,
+        hp: 120,
+        maxHp: 120,
+        atk: 28,
         xp: 30,
         msg: "目食いカラスは目玉を突いてきた！"
     },
@@ -530,13 +538,13 @@ RPG.Assets.ENEMIES = [
         id: "amber_weasel",
         name: "琥珀化イタチ",
         symbol: "◇",
-        maxHp: 50,
-        atk: 12,
+        maxHp: 85,
+        atk: 20,
         xp: 22,
         area: null,
         preemptive: 1.0,
         forcePreemptive: true,
-        armorMax: 30, // Provisional Chapter 1 balance value
+        armorMax: 40, // Provisional Chapter 1 balance value
         armorLabel: "硬化した皮膚",
         armorBreakText: "硬化した皮膚が砕け散った！",
         drop: { id: "unknownAmber", rate: 0.2 },
@@ -546,25 +554,25 @@ RPG.Assets.ENEMIES = [
         id: "skull_bee",
         name: "ドクロ蜂",
         symbol: "✦",
-        maxHp: 30,
-        atk: 7,
+        maxHp: 90,
+        atk: 34,
         xp: 30,
         area: null,
         poison: true,
-        poisonRate: 0.2,
+        poisonRate: 1,
         // beeAmber is capped to a single lifetime copy via flags.beeAmberObtained - see the
         // drop-consumption guard in battle.js's executeStandardVictory.
         drop: { id: "beeAmber", rate: RPG.Config.RARE_AMBER_TUNING.BEE_AMBER_DROP_RATE },
-        msg: "ドクロ蜂は刺してきた！",
-        ambientAttackChance: 0.25,
+        msg: "毒針で刺してきた！",
+        ambientAttackChance: 0.1,
         ambientAttackLog: "ドクロ蜂は耳障りな羽音を立てた。"
     },
     {
         id: "carnivorous_vine",
         name: "肉食カズラ",
         symbol: "⌇",
-        maxHp: 90,
-        atk: 11,
+        maxHp: 195,
+        atk: 40,
         xp: 30,
         area: null,
         isBoss: true,
@@ -575,7 +583,7 @@ RPG.Assets.ENEMIES = [
         ]
     },
     {
-        id: "sap", name: "琥珀の樹液", symbol: "◉", maxHp: 60, atk: 8,
+        id: "sap", name: "琥珀の樹液", symbol: "◉", maxHp: 85, atk: 16,
         xp: 18,
         area: [4, 9], weight: 5,
         msg: "樹液の触手で攻撃してきた！"
@@ -610,11 +618,12 @@ RPG.Assets.ENEMIES = [
         id: "hungry_amber_tree",
         name: "飢えた琥珀樹",
         symbol: "╫",
-        maxHp: 150,
-        atk: 13, // Adjusted for survival balance
+        maxHp: 170,
+        atk: 19,
         xp: 500,
         isBoss: true,
         armorMax: 50, // Provisional Chapter 1 balance value
+        armorChipDamageRatio: 1 / 3,
         armorLabel: "硬化した樹皮",
         armorBreakText: "硬化した樹皮はほとんど剥がれ落ちた！",
         onDeathEvent: "amber_tree_victory" // Post-battle aftermath only; generic victory text stays in executeStandardVictory()
@@ -626,8 +635,8 @@ RPG.Assets.ENEMIES = [
         id: "amber_burning_root",
         name: "燃える琥珀樹の根",
         symbol: "🔥",
-        maxHp: 200, // Provisional Chapter 1 balance value
-        atk: 22, // Provisional Chapter 1 balance value
+        maxHp: 320, // Provisional Chapter 1 balance value
+        atk: 28, // Provisional Chapter 1 balance value
         xp: 250, // Provisional Chapter 1 balance value
         area: null,
         isBoss: true,

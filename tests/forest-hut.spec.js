@@ -587,7 +587,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
         return { withoutBlue, withBlue, withoutBlueParry, withBlueParry, withoutBlueAttack, withBlueAttack };
       });
       expect(result.withoutBlue).toBeCloseTo(0.2);
-      expect(result.withBlue).toBeCloseTo(0.3);
+      expect(result.withBlue).toBeCloseTo(0.4);
       expect(result.withoutBlueParry).toEqual({ damage: 20, parried: false });
       expect(result.withBlueParry).toEqual({ damage: 0, parried: true });
       expect(result.withoutBlueAttack).toEqual({ technique: null, hits: [{ damage: 10, isCritical: false }] });

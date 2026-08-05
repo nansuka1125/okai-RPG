@@ -125,7 +125,9 @@ const uiControl = {
         const xpFill = document.getElementById('xpFill');
 
         const statusTags = [];
-        if (RPG.State.isPoisoned) statusTags.push("毒");
+        if (RPG.State.isPoisoned) statusTags.push("💀");
+        if ((RPG.State.battleState?.paralysisAttacksRemaining || 0) > 0) statusTags.push("⚡");
+        if ((RPG.State.battleState?.stunTurns || 0) > 0) statusTags.push("💫");
         if (RPG.State.flags.matamatabiActive === true) statusTags.push("マタマタビ");
         const smokeBombSteps = Math.max(0, Number(RPG.State.smokeBombStepsRemaining) || 0);
         if (smokeBombSteps > 0) statusTags.push(`煙玉 ${smokeBombSteps}歩`);
@@ -216,12 +218,6 @@ const uiControl = {
                 progressTrack.setAttribute('aria-valuemax', String(maxDistance));
                 progressTrack.setAttribute('aria-valuenow', String(RPG.State.currentDistance));
             }
-        }
-
-        // デバッグ用気分値表示
-        const debugMood = document.getElementById('debug-mood');
-        if (debugMood) {
-            debugMood.textContent = `Mood: ${RPG.State.mood}`;
         }
 
         // Outside the inn this becomes a one-slot suspend bookmark. During an
@@ -789,7 +785,7 @@ const uiControl = {
 
         list.innerHTML = '';
         const items = Object.entries(RPG.State.inventory).filter(([key, count]) => (
-            count > 0 && key !== 'debug_poison' && key !== 'debug_lvl10'
+            count > 0 && key !== 'debug_lvl10'
         ));
         if (items.length === 0) {
             list.innerHTML = `<div style="text-align:center; padding:20px;">${RPG.Assets.GAME_TEXT.exploration.noInventory}</div>`;
@@ -1113,7 +1109,6 @@ const uiControl = {
             key === 'herb' ||
             key === 'highHerb' ||
             key === 'antidoteHerb' ||
-            key === 'debug_poison' ||
             key === 'debug_lvl10' ||
             key === 'matamatabiBranch' ||
             key === 'lightBook' ||
@@ -1560,7 +1555,7 @@ const uiControl = {
             ].forEach(flag => {
                 delete mergedState.flags[flag];
             });
-            ["nightMedicine", "mikawashiFeather"].forEach(itemId => {
+            ["nightMedicine", "mikawashiFeather", "debug_poison"].forEach(itemId => {
                 delete mergedState.inventory[itemId];
             });
             delete mergedState.talkIndex;

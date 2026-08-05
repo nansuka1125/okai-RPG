@@ -6,21 +6,6 @@
 
 // 🚩ーー【Build 8.3: Debug System】ーー
 const debugSystem = {
-    toggleEncounters: function () {
-        RPG.State.flags.isDebugEncountersOff = !RPG.State.flags.isDebugEncountersOff;
-        const icon = document.getElementById('debugEncounterToggle');
-
-        if (icon) {
-            if (RPG.State.flags.isDebugEncountersOff) {
-                icon.style.opacity = '0.3';
-                uiControl.addLog("🚫エンカウント無効", "ambient");
-            } else {
-                icon.style.opacity = '1.0';
-                uiControl.addLog("👾エンカウント有効", "ambient");
-            }
-        }
-    },
-
     spawnGlowingCatRabbit: function () {
         if (RPG.State.isBattling) {
             uiControl.addLog("すでに戦闘中だ。", "ambient");
@@ -29,25 +14,6 @@ const debugSystem = {
 
         battleSystem.startBattle('glowing_cat_rabbit');
     },
-
-    // DEBUG ONLY: wipe every save slot and the suspend bookmark, then reload into a fresh game.
-    clearAllSaveData: function () {
-        if (debugBattlePresets?.isActive()) return;
-        if (!window.confirm("すべてのセーブデータ（第一頁〜第五頁・中断記録）を消去します。よろしいですか？")) {
-            return;
-        }
-
-        [
-            "okai_rpg_save_1",
-            "okai_rpg_save_2",
-            "okai_rpg_save_3",
-            "okai_rpg_save_4",
-            "okai_rpg_save_5",
-            "okai_rpg_suspend"
-        ].forEach(key => localStorage.removeItem(key));
-
-        window.location.reload();
-    }
 };
 
 // Development-only, URL-gated battle presets.  This stays outside RPG.State so a
@@ -88,7 +54,7 @@ const debugBattlePresets = {
     },
 
     hideNormalControls: function () {
-        ["exploreUI", "innUI", "choiceUI", "btnStartBattle", "debugParams"].forEach(id => {
+        ["exploreUI", "innUI", "choiceUI", "btnStartBattle"].forEach(id => {
             const element = document.getElementById(id);
             if (element) element.style.display = "none";
         });

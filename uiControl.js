@@ -274,6 +274,13 @@ const uiControl = {
         const allButtons = document.querySelectorAll('button');
         const isHerbGarden = RPG.State.explorationArea === "herbGarden";
 
+        if (exploreUI) {
+            exploreUI.classList.toggle(
+                'inn-front',
+                RPG.State.isAtInn !== true && RPG.State.isInDungeon !== true
+            );
+        }
+
         // Build 15.2.2: Strict Exclusivity Protocol (Battle menu visible)
         // Hide all control panels by default - only one shall be shown below
         if (exploreUI) exploreUI.style.display = 'none';

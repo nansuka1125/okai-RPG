@@ -1,5 +1,14 @@
 # Work Log
 
+## Latest UI and Guide Synchronization
+
+Status: implemented; smoke verification completed
+
+- Added the current guide FAQ entry and synchronized the smoke expectation to 11 FAQ disclosures.
+- Updated the inn-front exploration controls to show `宿屋《琥珀亭》` full-width, then `琥珀の森` / `薬草園`, then `調べる` / `アイテム`.
+- The forest and herb-garden exploration button ordering remains unchanged.
+- `npx playwright test tests/smoke.spec.js --workers=1`: 10 passed after the FAQ expectation synchronization.
+
 ## Chapter 1 Development Recovery Baseline
 
 Status: confirmed development recovery baseline

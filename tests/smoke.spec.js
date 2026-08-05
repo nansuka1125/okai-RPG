@@ -110,7 +110,7 @@ test.describe('okai-RPG smoke test', () => {
     await expect(page.getByRole('heading', { name: '攻略・FAQ' })).toBeVisible();
 
     const disclosures = page.locator('.guide-disclosures details');
-    await expect(disclosures).toHaveCount(10);
+    await expect(disclosures).toHaveCount(11);
     expect(await disclosures.evaluateAll(elements => elements.every(element => !element.open))).toBe(true);
 
     const firstQuestion = disclosures.first();

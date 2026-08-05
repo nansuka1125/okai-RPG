@@ -930,6 +930,24 @@ footer {
     order: 4;
 }
 
+/* At the inn front, keep the destination entry full-width and group the two
+   exploration destinations above the examine/item pair. Forest travel keeps
+   the existing forward/back layout above. */
+#exploreUI.inn-front #btnEnterInn {
+    order: 1;
+    grid-column: 1 / -1;
+}
+
+#exploreUI.inn-front #btnMoveForward,
+#exploreUI.inn-front #btnEnterHerbGarden {
+    order: 2;
+}
+
+#exploreUI.inn-front #btnTalk,
+#exploreUI.inn-front #btnItem {
+    order: 3;
+}
+
 body.travel-active button {
     pointer-events: none !important;
 }

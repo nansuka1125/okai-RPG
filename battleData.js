@@ -481,7 +481,7 @@ RPG.Assets.ENEMIES = [
         armorMax: 20, // Provisional Chapter 1 balance value
         armorLabel: "硬化した皮膚",
         armorBreakText: "硬化した皮膚が砕け散った！",
-        guaranteedDrop: "unknownAmber",
+        drop: { id: "unknownAmber", rate: 0.2 },
         msg: "硬い身体で体当たりしてきた！"
     },
     // --- Build 14.2.2: Former Highway Enemies ---
@@ -539,7 +539,7 @@ RPG.Assets.ENEMIES = [
         armorMax: 30, // Provisional Chapter 1 balance value
         armorLabel: "硬化した皮膚",
         armorBreakText: "硬化した皮膚が砕け散った！",
-        guaranteedDrop: "unknownAmber",
+        drop: { id: "unknownAmber", rate: 0.2 },
         msg: "硬いカマで切り裂いてきた！"
     },
     {

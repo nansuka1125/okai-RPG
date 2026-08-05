@@ -252,6 +252,23 @@ test.describe('giant_larva aftermath - 10m talk button label', () => {
     });
     expect(labels).toEqual(['調べる', '調べる', '調べる']);
   });
+
+  // Bug fix: once the hut is discovered, the button used to get stuck reading "森小屋" at 10m
+  // even while a corpse inspection was still unresolved, even though talk() itself already
+  // gave the corpse priority - see exploration.js's dist===10 dispatch order.
+  test('the label stays "調べる" at every pending corpse stage even after the hut is discovered, then switches to the hut once the corpse is fully resolved', async ({ page }) => {
+    const labels = await page.evaluate(() => {
+      RPG.State.forestHutDiscovered = true;
+      const results = [];
+      [0, 1, 2, 3].forEach(stage => {
+        RPG.State.larvaCorpseStage = stage;
+        uiControl.updateUI();
+        results.push(document.getElementById('btnTalk').textContent);
+      });
+      return results;
+    });
+    expect(labels).toEqual(['調べる', '調べる', '調べる', '森小屋']);
+  });
 });
 
 test.describe('giant_larva aftermath - corpse inspection stage 1 (third silver coin)', () => {

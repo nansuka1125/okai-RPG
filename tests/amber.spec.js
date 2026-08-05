@@ -912,7 +912,10 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.currentEnemy.hp = 0;
       RPG.State.inventory.unknownAmber = 0;
       RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
+      const originalRandom = Math.random;
+      Math.random = () => 0.1; // < 0.2, amber's 20% drop succeeds
       battleSystem.endBattle(false);
+      Math.random = originalRandom;
 
       return {
         afterNormal,
@@ -2439,9 +2442,11 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({ ratProgress: 2, ratDefeatCount: { cain: 0, owen: 0 } });
     });
 
-    test('a Cain kill on an amberized variant still grants the guaranteed unknown amber drop', async ({ page }) => {
+    test('a Cain kill on an amberized variant can still grant the unknown amber drop, at its 20% rate', async ({ page }) => {
       const result = await page.evaluate(() => {
         const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'amber_rat');
+        const originalRandom = Math.random;
+
         RPG.State.currentEnemy = { ...template, hp: 0, armorHp: 0 };
         RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
         RPG.State.inventory.unknownAmber = 0;
@@ -2449,13 +2454,26 @@ test.describe('Chapter 1 amber system', () => {
         RPG.State.mode = 'battle';
         RPG.State.lastBlowBy = 'Cain';
         RPG.State.battleState = {};
+        Math.random = () => 0.1; // < 0.2, drop succeeds
         battleSystem.executeStandardVictory('amber_rat');
+        const withDrop = RPG.State.inventory.unknownAmber;
+
+        RPG.State.currentEnemy = { ...template, hp: 0, armorHp: 0 };
+        RPG.State.inventory.unknownAmber = 0;
+        RPG.State.battleState = {};
+        Math.random = () => 0.5; // >= 0.2, drop fails
+        battleSystem.executeStandardVictory('amber_rat');
+        const withoutDrop = RPG.State.inventory.unknownAmber;
+
+        Math.random = originalRandom;
         return {
-          unknownAmber: RPG.State.inventory.unknownAmber,
+          withDrop,
+          withoutDrop,
           cainDefeats: RPG.State.defeatCounts.amber_rat.cain,
+          dropRate: template.drop && template.drop.rate,
         };
       });
-      expect(result).toEqual({ unknownAmber: 1, cainDefeats: 1 });
+      expect(result).toEqual({ withDrop: 1, withoutDrop: 0, cainDefeats: 2, dropRate: 0.2 });
     });
 
     test('old saves preserve or default the thief-boy completion flag that unlocks amber variants', async ({ page }) => {

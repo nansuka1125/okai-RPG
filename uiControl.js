@@ -733,7 +733,14 @@ const uiControl = {
                         RPG.State.currentDistance === 10 &&
                         RPG.State.forestHutDiscovered === true &&
                         RPG.State.location !== "森小屋前" &&
-                        RPG.State.location !== "森小屋内部"
+                        RPG.State.location !== "森小屋内部" &&
+                        // talk() gives the pending giant-larva corpse examination priority over
+                        // the hut at this same distance (see exploration.js), so the label must
+                        // not claim "森小屋" while that examination is still unresolved.
+                        !(
+                            RPG.State.flags.giantLarvaDefeated === true &&
+                            (RPG.State.larvaCorpseStage || 0) < 3
+                        )
                     ) {
                         btnTalk.textContent = "森小屋";
                     }

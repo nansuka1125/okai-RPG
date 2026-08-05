@@ -1457,6 +1457,25 @@ const explorationSystem = {
         const flags = RPG.State.flags;
         const distance = RPG.State.currentDistance;
 
+        // Vine nest side trip. Both branches sit ahead of the harvest spots below: inside the
+        // nest the examine command belongs to the nest, and at the entrance the nest button
+        // replaces 【調べる】 outright once discovered (it never comes back).
+        if (this.isInVineNest()) {
+            this.inspectVineNestDepths();
+            return;
+        }
+
+        if (distance === 0) {
+            if (flags.herbGardenVineNestState === "unknown") {
+                flags.herbGardenVineNestState = "discovered";
+                uiControl.addLog("カイン（……ここの草むら、かき分けたら入れそうだな）");
+                uiControl.updateUI();
+            } else {
+                this.enterVineNest();
+            }
+            return;
+        }
+
         if (distance === 1 && flags.herbGardenHerb1Available !== false) {
             flags.herbGardenHerb1Available = false;
             RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 1;
@@ -1553,6 +1572,166 @@ const explorationSystem = {
         }
 
         uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
+    },
+
+    // --- Carnivorous vine nest (herb garden entrance side trip) ---
+    //
+    // The nest is a location override at distance 0, exactly like the forest hut at 10m: the
+    // distance never changes, so the garden's own harvest/encounter logic is untouched and the
+    // backdrop swap rides on visualDirector's location check.
+
+    VINE_NEST_LOCATION: "肉食カズラの巣",
+
+    isInVineNest: function () {
+        return (
+            RPG.State.explorationArea === "herbGarden" &&
+            RPG.State.location === this.VINE_NEST_LOCATION
+        );
+    },
+
+    // Whether the nest currently holds vines. Deliberately keyed on the nest's own flag rather
+    // than carnivorousVineRegrown: the shared regrowth flag is cleared by every vine kill
+    // (executeStandardVictory), so reading it here would empty the nest as soon as the first of
+    // the three died and break the "defeated mid-chain retries from the first vine" rule.
+    isVineNestOccupied: function () {
+        return RPG.State.flags.herbGardenVineNestCleared !== true;
+    },
+
+    exitVineNest: function () {
+        RPG.State.location = uiControl.getLocData(0).name;
+        uiControl.updateUI();
+    },
+
+    // Shared blackout for both nest transitions. Mirrors playForestHutUnlockScene()'s recipe:
+    // fade in, swap the location under cover of the blackout, fade back out.
+    buildVineNestTransitionQueue: function (line, applyMove) {
+        let blackout = null;
+        return [
+            {
+                text: null,
+                action: () => {
+                    blackout = uiControl.fadeFullScreen('#000000', 250);
+                }
+            },
+            { text: null, delay: 250 },
+            { text: line },
+            {
+                text: null,
+                action: () => {
+                    applyMove();
+                    uiControl.updateUI();
+                    if (blackout) {
+                        blackout.style.transition = 'opacity 250ms ease-out';
+                        blackout.style.opacity = '0';
+                        setTimeout(() => blackout.remove(), 250);
+                    }
+                }
+            },
+            { text: null, delay: 250 }
+        ];
+    },
+
+    enterVineNest: function () {
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            ...this.buildVineNestTransitionQueue(
+                "カインは草むらを手探りで進んだ。",
+                () => {
+                    RPG.State.location = this.VINE_NEST_LOCATION;
+                }
+            ),
+            {
+                text: "肉食カズラの巣だ！",
+                action: () => {
+                    // Confirmed here, which is what makes the entrance button permanently
+                    // 【肉食カズラの巣】 - fleeing or being defeated never walks it back.
+                    RPG.State.flags.herbGardenVineNestState = "confirmed";
+                    uiControl.updateUI();
+                }
+            },
+            {
+                text: null,
+                action: () => {
+                    if (this.isVineNestOccupied()) {
+                        this.showVineNestChoices();
+                    } else {
+                        RPG.State.mode = "event";
+                        RPG.State.dialogueQueue = [{ text: "行き止まりだ……。" }];
+                        this.playDialogueLoop();
+                    }
+                }
+            }
+        ];
+        this.playDialogueLoop();
+    },
+
+    showVineNestChoices: function () {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        RPG.State.mode = 'choice';
+        container.innerHTML = '';
+        container.style.display = 'flex';
+        const addChoice = (text, action) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-full';
+            button.textContent = text;
+            button.onclick = action;
+            container.appendChild(button);
+        };
+
+        addChoice('【戦う】', () => {
+            container.style.display = 'none';
+            battleSystem.vineNestChainRemaining = 3;
+            battleSystem.startBattle("carnivorous_vine");
+        });
+        addChoice('【逃げる】', () => {
+            container.style.display = 'none';
+            // Pure retreat: HP, defeat counts and every vine defeat/regrowth flag are left alone.
+            battleSystem.clearVineNestChain();
+            uiControl.addSeparator();
+            RPG.State.mode = 'event';
+            RPG.State.dialogueQueue = this.buildVineNestTransitionQueue(
+                "カインは草むらを引き返した。",
+                () => this.exitVineNest()
+            );
+            this.playDialogueLoop();
+        });
+
+        // Use the shared choice-mode lock: only these two buttons remain visible and enabled.
+        uiControl.updateUI();
+    },
+
+    inspectVineNestDepths: function () {
+        if (RPG.State.flags.herbGardenVineNestAmberTaken === true) {
+            uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
+            uiControl.updateUI();
+            return;
+        }
+
+        uiControl.addSeparator();
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            {
+                text: "🔸？琥珀を手に入れた！",
+                type: "marker",
+                color: "#ffd166",
+                action: () => {
+                    // Same idiom as the larva-corpse amber: the ？琥珀 goes in unidentified and
+                    // only the queued appraisal result decides what it turns out to be, so the
+                    // name 《無視入り琥珀》 stays hidden until the merchant appraises it.
+                    RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                    RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                        ? RPG.State.unappraisedAmberResults
+                        : [];
+                    RPG.State.unappraisedAmberResults.push("ignoredAmber");
+                    RPG.State.flags.herbGardenVineNestAmberTaken = true;
+                    uiControl.updateUI();
+                }
+            }
+        ];
+        this.playDialogueLoop();
     },
 
     getForestObservation: function (distance) {

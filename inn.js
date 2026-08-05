@@ -292,6 +292,8 @@ innSystem = {
             RPG.State.flags.carnivorousVineStayCount = (RPG.State.flags.carnivorousVineStayCount || 0) + 1;
             if (RPG.State.flags.carnivorousVineStayCount >= 3) {
                 RPG.State.flags.carnivorousVineRegrown = true;
+                // The nest group rides on this same regrowth condition rather than owning one.
+                RPG.State.flags.herbGardenVineNestCleared = false;
             }
         }
 

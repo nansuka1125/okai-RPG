@@ -60,6 +60,10 @@ const visualDirector = {
         }
 
         if (RPG.State.explorationArea === "herbGarden") {
+            // Ahead of the distance checks: the nest is a location override that sits at
+            // distance 0, so the entrance backdrop would otherwise win.
+            if (RPG.State.location === "肉食カズラの巣") return "vine-nest";
+
             const distance = Number(RPG.State.currentDistance) || 0;
             if (distance <= 0) return "herb-garden-entrance";
             if (distance < 7) return "herb-garden-deep";
@@ -187,6 +191,7 @@ const visualDirector = {
             "herb-garden-entrance",
             "herb-garden",
             "herb-garden-deep",
+            "vine-nest",
             "wagon",
             "former-highway"
         ];

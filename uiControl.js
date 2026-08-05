@@ -528,6 +528,9 @@ const uiControl = {
                 RPG.State.explorationArea === 'forest' &&
                 RPG.State.currentDistance === 10 &&
                 (RPG.State.location === '森小屋前' || RPG.State.location === '森小屋内部');
+            const isInVineNest =
+                typeof explorationSystem !== "undefined" &&
+                explorationSystem.isInVineNest();
             const isPhase6WagonSpot =
                 RPG.State.explorationArea !== "herbGarden" &&
                 RPG.State.storyPhase === 6 &&
@@ -613,7 +616,7 @@ const uiControl = {
                 if (btnEnterInn) btnEnterInn.style.display = 'none';
                 if (btnEnterHerbGarden) btnEnterHerbGarden.style.display = 'none';
                 if (btnMoveForward) {
-                    btnMoveForward.style.display = isAtForestHut ? 'none' : 'flex';
+                    btnMoveForward.style.display = (isAtForestHut || isInVineNest) ? 'none' : 'flex';
                     btnMoveForward.textContent = RPG.Assets.GAME_TEXT.buttons.moveForward;
                     btnMoveForward.onclick = () => explorationSystem.move(1);
 
@@ -655,6 +658,15 @@ const uiControl = {
                         btnMoveBack.style.opacity = "0.25";
                         btnMoveBack.style.pointerEvents = "none";
                         btnMoveBack.onclick = null;
+                    } else if (isInVineNest) {
+                        // Inside the nest 【戻る】 leaves the nest, not the garden: the nest sits
+                        // at distance 0, where the normal move(-1) would walk all the way out to
+                        // the inn front.
+                        btnMoveBack.style.display = 'flex';
+                        btnMoveBack.onclick = () => {
+                            battleSystem.clearVineNestChain();
+                            explorationSystem.exitVineNest();
+                        };
                     } else {
                         btnMoveBack.style.display = 'flex';
                         btnMoveBack.onclick = () => explorationSystem.move(-1);
@@ -665,10 +677,23 @@ const uiControl = {
                     btnTalk.textContent = "調べる";
                     btnTalk.onclick = () => explorationSystem.talk();
 
+                    // Vine nest side trip. Inside the nest the examine command stays 【調べる】
+                    // (it works the back of the nest); at the garden entrance the nest replaces
+                    // 【調べる】 for good once discovered, so it never reverts even after a
+                    // retreat or a defeat. inspectHerbGarden() branches on the same state.
+                    if (isHerbGarden && isInVineNest) {
+                        btnTalk.textContent = "調べる";
+                    } else if (isHerbGarden && RPG.State.currentDistance === 0) {
+                        const nestState = RPG.State.flags.herbGardenVineNestState;
+                        if (nestState === "confirmed") {
+                            btnTalk.textContent = "肉食カズラの巣";
+                        } else if (nestState === "discovered") {
+                            btnTalk.textContent = "裏道？";
+                        }
                     // Highest priority: on a fresh burn site the examine command becomes the
                     // one-shot burn. explorationSystem.talk() branches on the same predicate,
                     // so the label and the action can never disagree.
-                    if (
+                    } else if (
                         typeof explorationSystem !== "undefined" &&
                         explorationSystem.canBurnKeyAmberHere()
                     ) {

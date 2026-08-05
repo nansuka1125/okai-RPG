@@ -672,6 +672,11 @@ body.scene-herb-garden-deep #sceneBackdrop {
     background-position: 58% center;
 }
 
+body.scene-vine-nest #sceneBackdrop {
+    background-image: url("images/amber-vine-nest.png");
+    background-position: center center;
+}
+
 body.scene-wagon #sceneBackdrop {
     background-image: url("images/amber-wagon.webp");
     background-position: 62% center;

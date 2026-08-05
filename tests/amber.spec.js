@@ -5878,4 +5878,243 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.pendingLevelUpTalk).toEqual([2, 4]);
     });
   });
+
+  test.describe('carnivorous vine nest', () => {
+    async function standAtHerbGardenEntrance(page, flags = {}) {
+      await page.evaluate((nestFlags) => {
+        RPG.State.isAtInn = false;
+        RPG.State.isInDungeon = true;
+        RPG.State.explorationArea = 'herbGarden';
+        RPG.State.currentDistance = 0;
+        RPG.State.location = uiControl.getLocData(0).name;
+        RPG.State.storyPhase = 6;
+        RPG.State.mode = 'base';
+        Object.assign(RPG.State.flags, nestFlags);
+        uiControl.updateUI();
+      }, flags);
+    }
+
+    // The battle loop runs itself once beginBattle fires, so the chain is exercised with
+    // startBattle stubbed out and a synthetic enemy - the same shape the existing victory
+    // tests use. Combat itself is already covered elsewhere; what matters here is that the
+    // chain hands off to the next vine at all.
+    async function stubStartBattle(page) {
+      await page.evaluate(() => {
+        window.__vineBattles = [];
+        window.__originalStartBattle = battleSystem.startBattle;
+        battleSystem.startBattle = function (enemyId) {
+          window.__vineBattles.push(enemyId);
+          return true;
+        };
+      });
+    }
+
+    async function winCurrentVine(page) {
+      await page.evaluate(() => {
+        RPG.State.isBattling = true;
+        RPG.State.mode = 'battle';
+        RPG.State.currentEnemy = {
+          id: 'carnivorous_vine', name: '肉食カズラ', hp: 0, maxHp: 90, xp: 30, gold: 0,
+        };
+        RPG.State.battleState = { skippedTurns: 0, playerTookDamage: false };
+        RPG.State.lastBlowBy = 'Cain';
+        if (!RPG.State.defeatCounts) RPG.State.defeatCounts = {};
+        RPG.State.defeatCounts.carnivorous_vine =
+          RPG.State.defeatCounts.carnivorous_vine || { cain: 0, owen: 0 };
+        battleSystem.executeStandardVictory('carnivorous_vine');
+      });
+      return drainDialogue(page);
+    }
+
+    test('the entrance examine becomes 裏道？ then 肉食カズラの巣, and fleeing changes nothing', async ({ page }) => {
+      await standAtHerbGardenEntrance(page);
+      await expect(page.locator('#btnTalk')).toHaveText('調べる');
+
+      await page.evaluate(() => explorationSystem.talk());
+      const discovered = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        state: RPG.State.flags.herbGardenVineNestState,
+        label: document.getElementById('btnTalk')?.textContent,
+      }));
+      expect(discovered.log).toContain('カイン（……ここの草むら、かき分けたら入れそうだな）');
+      expect(discovered.state).toBe('discovered');
+      expect(discovered.label).toBe('裏道？');
+
+      const before = await page.evaluate(() => ({
+        hp: RPG.State.currentHP,
+        deathCount: RPG.State.deathCount,
+        vineDefeated: RPG.State.flags.carnivorousVineDefeated,
+        vineRegrown: RPG.State.flags.carnivorousVineRegrown,
+        vineStayCount: RPG.State.flags.carnivorousVineStayCount,
+        nestCleared: RPG.State.flags.herbGardenVineNestCleared,
+      }));
+
+      await page.evaluate(() => explorationSystem.talk());
+      expect(await drainDialogue(page)).toBe('choice');
+
+      const inNest = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        location: RPG.State.location,
+        state: RPG.State.flags.herbGardenVineNestState,
+        scene: visualDirector.getActiveScene(),
+        forwardDisplay: document.getElementById('btnMoveForward')?.style.display,
+        choices: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+      }));
+      expect(inNest.log).toContain('カインは草むらを手探りで進んだ。');
+      expect(inNest.log).toContain('肉食カズラの巣だ！');
+      expect(inNest.location).toBe('肉食カズラの巣');
+      expect(inNest.state).toBe('confirmed');
+      expect(inNest.scene).toBe('vine-nest');
+      expect(inNest.forwardDisplay).toBe('none');
+      expect(inNest.choices).toEqual(['【戦う】', '【逃げる】']);
+
+      await page.getByRole('button', { name: '【逃げる】', exact: true }).click();
+      await drainDialogue(page);
+
+      const after = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        location: RPG.State.location,
+        label: document.getElementById('btnTalk')?.textContent,
+        state: {
+          hp: RPG.State.currentHP,
+          deathCount: RPG.State.deathCount,
+          vineDefeated: RPG.State.flags.carnivorousVineDefeated,
+          vineRegrown: RPG.State.flags.carnivorousVineRegrown,
+          vineStayCount: RPG.State.flags.carnivorousVineStayCount,
+          nestCleared: RPG.State.flags.herbGardenVineNestCleared,
+        },
+      }));
+      expect(after.log).toContain('カインは草むらを引き返した。');
+      expect(after.location).toBe('薬草園入口');
+      // The examine command never comes back; the nest keeps the slot for good.
+      expect(after.label).toBe('肉食カズラの巣');
+      expect(after.state).toEqual(before);
+    });
+
+    test('three vines run back to back without Owen and pay one ignored amber', async ({ page }) => {
+      await standAtHerbGardenEntrance(page, {
+        herbGardenVineNestState: 'confirmed',
+        herbGardenVineNestCleared: false,
+        herbGardenVineNestAmberTaken: false,
+      });
+
+      await stubStartBattle(page);
+
+      // An interrupted run is discarded: the vampire amber / matamatabi accident drops the
+      // chain without clearing the nest, so the next attempt starts at the first vine again.
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      await page.getByRole('button', { name: '【戦う】', exact: true }).click();
+      expect(await page.evaluate(() => ({
+        remaining: battleSystem.vineNestChainRemaining,
+        battles: window.__vineBattles,
+      }))).toEqual({ remaining: 3, battles: ['carnivorous_vine'] });
+
+      await page.evaluate(() => battleSystem.triggerVampireAmberMatamatabiAccident());
+      await drainDialogue(page);
+      expect(await page.evaluate(() => ({
+        remaining: battleSystem.vineNestChainRemaining,
+        cleared: RPG.State.flags.herbGardenVineNestCleared,
+      }))).toEqual({ remaining: 0, cleared: false });
+
+      await standAtHerbGardenEntrance(page);
+      await page.evaluate(() => { window.__vineBattles = []; });
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      await page.getByRole('button', { name: '【戦う】', exact: true }).click();
+      expect(await page.evaluate(() => ({
+        remaining: battleSystem.vineNestChainRemaining,
+        battles: window.__vineBattles,
+      }))).toEqual({ remaining: 3, battles: ['carnivorous_vine'] });
+
+      // Owen never steps in during the nest run, so all three go through Cain's victory path.
+      const owen = await page.evaluate(() => {
+        const behavior = RPG.Assets.OWEN_BEHAVIOR;
+        const originalShould = behavior.shouldIntervene;
+        const originalDecide = behavior.decideAction;
+        behavior.shouldIntervene = () => true;
+        behavior.decideAction = () => 'kill';
+        RPG.State.hasOwenIntervened = false;
+        let continued = false;
+        battleSystem.processOwenAction(() => { continued = true; });
+        behavior.shouldIntervene = originalShould;
+        behavior.decideAction = originalDecide;
+        return { continued, intervened: RPG.State.hasOwenIntervened };
+      });
+      expect(owen).toEqual({ continued: true, intervened: false });
+
+      await winCurrentVine(page);
+      let progress = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        remaining: battleSystem.vineNestChainRemaining,
+        battles: window.__vineBattles.length,
+      }));
+      expect(progress.log).toContain('カイン「まだか！？」');
+      expect(progress).toMatchObject({ remaining: 2, battles: 2 });
+
+      await winCurrentVine(page);
+      progress = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        remaining: battleSystem.vineNestChainRemaining,
+        battles: window.__vineBattles.length,
+      }));
+      expect(progress.log).toContain('カイン「嘘だろ！」');
+      expect(progress).toMatchObject({ remaining: 1, battles: 3 });
+
+      await winCurrentVine(page);
+      const cleared = await page.evaluate(() => {
+        battleSystem.startBattle = window.__originalStartBattle;
+        return {
+          log: document.getElementById('logContainer')?.textContent || '',
+          remaining: battleSystem.vineNestChainRemaining,
+          nestCleared: RPG.State.flags.herbGardenVineNestCleared,
+          battles: window.__vineBattles.length,
+        };
+      });
+      expect(cleared.log).toContain('オーエン「溶かされたいのかと思って」');
+      expect(cleared.log).toContain('行き止まりだ……。');
+      // No fourth vine: the run stops at three.
+      expect(cleared).toMatchObject({ remaining: 0, nestCleared: true, battles: 3 });
+
+      // The back of the nest pays exactly one ？琥珀, and its identity stays hidden.
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      const reward = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        queued: RPG.State.unappraisedAmberResults,
+        ignoredAmber: RPG.State.inventory.ignoredAmber,
+      }));
+      expect(reward.log).toContain('🔸？琥珀を手に入れた！');
+      expect(reward.log).not.toContain('無視入り琥珀');
+      expect(reward.unknownAmber).toBe(1);
+      expect(reward.queued).toEqual(['ignoredAmber']);
+      expect(reward.ignoredAmber).toBe(0);
+
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      const second = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        unknownAmber: RPG.State.inventory.unknownAmber,
+      }));
+      expect(second.log).toContain('カイン（特に気になるものはないな）');
+      expect(second.unknownAmber).toBe(1);
+
+      await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.flags.firstAmberAppraisalDone = true;
+        RPG.State.flags.miningKnifeAwarded = true;
+        innSystem.appraiseAmber();
+      });
+      await drainDialogue(page);
+      const appraised = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        unknownAmber: RPG.State.inventory.unknownAmber,
+        ignoredAmber: RPG.State.inventory.ignoredAmber,
+      }));
+      expect(appraised.log).toContain('《無視入り琥珀》と鑑定された。');
+      expect(appraised.unknownAmber).toBe(0);
+      expect(appraised.ignoredAmber).toBe(1);
+    });
+  });
 });

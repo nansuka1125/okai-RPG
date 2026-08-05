@@ -2,6 +2,15 @@
 // Refactored to separate Engine (battle.js) from Content (battleData.js)
 
 const battleSystem = {
+    // Vines left in the current nest run. Deliberately not part of RPG.State: the chain must
+    // never survive a save, a defeat, or an interruption - the nest always restarts at the
+    // first vine, and only a full three-win run sets herbGardenVineNestCleared.
+    vineNestChainRemaining: 0,
+
+    clearVineNestChain: function () {
+        this.vineNestChainRemaining = 0;
+    },
+
     getGlowingCatRabbitProfile: function () {
         // Rabbit levels are a hidden reward for actual victories, before or after the fur quest.
         const defeatCount = RPG.State.glowCatRabbitDefeatCount || 0;
@@ -218,6 +227,9 @@ const battleSystem = {
     // minus the parts that shouldn't apply here.
     triggerVampireAmberMatamatabiAccident: function () {
         uiControl.detachRareAmber({ log: false });
+        // Every accident call site funnels through here, so one clear covers them all. The nest
+        // stays un-cleared and the next 【戦う】 starts again from the first vine.
+        this.clearVineNestChain();
 
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
@@ -1212,6 +1224,14 @@ const battleSystem = {
             isInnRatEventBattle ||
             (RPG.State.currentEnemy && RPG.State.currentEnemy.id === 'giant_larva')
         ) {
+            callback();
+            return;
+        }
+
+        // Vine nest chain: Cain fights all three himself, so the chain continuation only ever
+        // has to hang off the normal victory path. Gated on the temporary chain counter alone -
+        // ordinary carnivorous_vine fights outside the nest keep their usual intervention rate.
+        if (this.vineNestChainRemaining > 0) {
             callback();
             return;
         }
@@ -2361,6 +2381,7 @@ const battleSystem = {
             }
 
             uiControl.addLog("戦闘から離脱した。");
+            this.clearVineNestChain();
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
@@ -2641,6 +2662,49 @@ const battleSystem = {
             RPG.Assets.BATTLE_EVENTS.inn_rat_event2 &&
             RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1];
 
+        // Vine nest chain, checked ahead of every other post-battle event so a generic one
+        // (post_tree_fatigue and friends) can never take the slot and strand the run between
+        // vines. Level-up and matamatabi queues still lead, so nothing already earned is lost;
+        // a count event that loses the slot simply keeps its flag unset and re-evaluates on the
+        // next battle, which is the existing behaviour whenever a higher-priority branch wins.
+        if (!hasPostBattleEvent && this.vineNestChainRemaining > 0 && enemyId === "carnivorous_vine") {
+            this.vineNestChainRemaining--;
+            const events = RPG.Assets.GAME_TEXT.events;
+            const toLines = lines => (lines || []).map(line => (
+                line.startsWith("オーエン「")
+                    ? { text: line, color: "#a020f0" }
+                    : { text: line }
+            ));
+
+            let nestQueue;
+            if (this.vineNestChainRemaining > 0) {
+                const waveLines = this.vineNestChainRemaining === 2
+                    ? events.vineNestSecondWave
+                    : events.vineNestThirdWave;
+                nestQueue = [
+                    ...toLines(waveLines),
+                    { text: null, action: () => this.startBattle("carnivorous_vine") }
+                ];
+            } else {
+                // Only a full three-win run clears the nest.
+                RPG.State.flags.herbGardenVineNestCleared = true;
+                nestQueue = [
+                    ...toLines(events.vineNestCleared),
+                    { text: "行き止まりだ……。" }
+                ];
+            }
+
+            uiControl.addLog("---");
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                ...levelUpTalkQueue,
+                ...matamatabiActivationQueue,
+                ...nestQueue
+            ];
+            explorationSystem.playDialogueLoop();
+            hasPostBattleEvent = true;
+        }
+
         if (!hasPostBattleEvent && hasInnRatEvent2Aftermath) {
             const eventDialogues = [
                 ...RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1],
@@ -2907,6 +2971,7 @@ const battleSystem = {
     finalizeStandardDefeat: function (defeatedEnemyId = null) {
         uiControl.addLog(RPG.Assets.GAME_TEXT.battle.cainDefeated);
         RPG.State.flags.innRatEvent2BattleActive = false;
+        this.clearVineNestChain();
 
         // Build 15.6.x: A defeat on what would have been the 6th vampire-amber chain battle
         // still forces the removal, just without the conscious "もぎ取った！" line (Cain is out cold).

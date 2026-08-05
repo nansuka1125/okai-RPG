@@ -247,6 +247,9 @@ RPG.State = {
         carnivorousVineDefeated: false, // Build 15.2.98: Initial 5m vine has been defeated at least once
         carnivorousVineRegrown: false, // Build 15.2.98: Another vine can reappear after three stays
         carnivorousVineStayCount: 0,
+        herbGardenVineNestState: "unknown", // Vine nest side trip: "unknown" -> "discovered" -> "confirmed"
+        herbGardenVineNestCleared: false, // All three nest vines beaten; reset by the existing three-stay regrowth
+        herbGardenVineNestAmberTaken: false, // One-time ？琥珀 at the back of the nest
         firstInnSleep: false, // Build 15.2.50: One-time special inn sleep scene during story phase 1
         innRatEvent: false, // Build 15.2.51: One-time inn rat event on first observe during story phase 1
         innRatEvent2: false, // Build 15.2.52: One-time second inn rat event

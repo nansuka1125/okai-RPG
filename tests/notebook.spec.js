@@ -619,7 +619,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.locked).toEqual({
       ratCount: '20/20',
       ratMarker: '－ALL',
-      weaselCount: '20/20',
+      weaselCount: '10/10',
       weaselMarker: '－ALL',
     });
     expect(result.unlocked).toEqual({
@@ -1381,8 +1381,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(rewards).toEqual({
       'rat:10': [['herb', 3]],
       'rat:20': [['fakeWoundMedicine', 3]],
-      'weasel:10': [['smokeBomb', 3]],
-      'weasel:20': [['highHerb', 3]],
+      'weasel:5': [['smokeBomb', 3]],
+      'weasel:10': [['highHerb', 3]],
       'sap:10': [['shinyOil', 3]],
       'sap:15': [['hardBottle', 1]],
       'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],

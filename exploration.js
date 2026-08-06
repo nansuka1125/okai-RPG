@@ -182,6 +182,13 @@ const explorationSystem = {
         );
     },
 
+    getNormalEncounterRate: function (baseRate) {
+        if (RPG.State.equippedRareAmberId === "hatedAmber") {
+            return RPG.Config.RARE_AMBER_TUNING.HATED_AMBER_ENCOUNTER_RATE;
+        }
+        return baseRate;
+    },
+
     // After the thief-boy encounter, the forest's 7m-9m depths are where the amber sap and its
     // spreading source are meant to be easy to find. This only ever gates the plain random-step
     // battle roll below - fixed/boss/event battles never pass through this check.
@@ -221,7 +228,7 @@ const explorationSystem = {
     tryHerbGardenEncounter: function (distance, options = {}) {
         if (this.isRandomEncounterSuppressed(options)) return false;
         if (distance === 3 || distance <= 0) return false;
-        if (Math.random() >= RPG.Assets.CONFIG.BATTLE_RATE) return false;
+        if (Math.random() >= this.getNormalEncounterRate(RPG.Assets.CONFIG.BATTLE_RATE)) return false;
 
         if (RPG.State.storyPhase >= 6 && distance <= 2) {
             return battleSystem.startBattle(
@@ -1395,9 +1402,10 @@ const explorationSystem = {
             RPG.State.currentDistance > 0 &&
             RPG.State.currentDistance < 10
         ) {
-            const effectiveBattleRate = this.isDeepForestPostThiefBoyZone()
+            const baseBattleRate = this.isDeepForestPostThiefBoyZone()
                 ? RPG.Config.DEEP_FOREST_POST_THIEF_BOY_BATTLE_RATE
                 : RPG.Assets.CONFIG.BATTLE_RATE;
+            const effectiveBattleRate = this.getNormalEncounterRate(baseBattleRate);
             if (Math.random() < effectiveBattleRate) {
                 const battleStarted = battleSystem.startBattle(null);
                 if (battleStarted) {
@@ -1760,6 +1768,74 @@ const explorationSystem = {
             return observations.treeDefeated?.[distance] || null;
         }
         return null;
+    },
+
+    getForestSparklingAmberFlag: function (distance) {
+        if (distance === 2) return "forest2mSparklingAmberTaken";
+        if (distance === 9) return "forest9mSparklingAmberTaken";
+        return null;
+    },
+
+    isForestSparklingAmberSite: function (distance) {
+        return (
+            RPG.State.isInDungeon === true &&
+            RPG.State.explorationArea === "forest" &&
+            RPG.State.location !== "かつての街道" &&
+            (distance === 2 || distance === 9)
+        );
+    },
+
+    hasMiningKnife: function () {
+        return (
+            (RPG.State.inventory.borrowedMiningKnife || 0) > 0 ||
+            (RPG.State.inventory.miningKnife || 0) > 0
+        );
+    },
+
+    canDigForestSparklingAmberHere: function () {
+        const distance = RPG.State.currentDistance;
+        const flag = this.getForestSparklingAmberFlag(distance);
+        return (
+            RPG.State.mode === "base" &&
+            this.isForestSparklingAmberSite(distance) &&
+            flag !== null &&
+            RPG.State.flags[flag] !== true &&
+            this.hasMiningKnife()
+        );
+    },
+
+    inspectForestSparklingAmber: function (distance) {
+        const flag = this.getForestSparklingAmberFlag(distance);
+        if (!flag || RPG.State.flags[flag] === true) return;
+
+        const description = distance === 2
+            ? [
+                "カイン（樹皮がところどころ琥珀化している）",
+                "手で触ってみたが全然取れない。"
+            ]
+            : [
+                "カイン（木の根元に琥珀が埋まっているな）",
+                "手で触ってみたが全然取れない。"
+            ];
+
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = this.hasMiningKnife()
+            ? [{
+                text: "🔸？琥珀を手に入れた！",
+                type: "marker",
+                color: "#ffd166",
+                action: () => {
+                    RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                    RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                        ? RPG.State.unappraisedAmberResults
+                        : [];
+                    RPG.State.unappraisedAmberResults.push("sparkling");
+                    RPG.State.flags[flag] = true;
+                    uiControl.updateUI();
+                }
+            }]
+            : description.map(text => ({ text }));
+        this.playDialogueLoop();
     },
 
     // --- Amber root discovery (6m/7m/8m), unlocked by sap_source_awareness ---
@@ -2563,6 +2639,14 @@ const explorationSystem = {
         // actually runs. No confirmation prompt - stepping away is how the player declines.
         if (this.canBurnKeyAmberHere()) {
             this.burnKeyAmber();
+            return;
+        }
+
+        if (
+            this.isForestSparklingAmberSite(dist) &&
+            flags[this.getForestSparklingAmberFlag(dist)] !== true
+        ) {
+            this.inspectForestSparklingAmber(dist);
             return;
         }
 

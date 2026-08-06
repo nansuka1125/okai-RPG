@@ -701,6 +701,11 @@ const uiControl = {
                         explorationSystem.canBurnKeyAmberHere()
                     ) {
                         btnTalk.textContent = "鍵入り琥珀を燃やす";
+                    } else if (
+                        typeof explorationSystem !== "undefined" &&
+                        explorationSystem.canDigForestSparklingAmberHere()
+                    ) {
+                        btnTalk.textContent = "琥珀を掘る";
                     } else if (needsDroppingsInspect) {
                         btnTalk.textContent = "ネズミの糞";
                     } else if (isAmberMerchantAtForestEntrance) {

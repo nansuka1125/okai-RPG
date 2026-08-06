@@ -358,7 +358,13 @@ const battleSystem = {
     },
 
     buildMatamatabiActivationQueue: function () {
-        if (!this.shouldActivateMatamatabiAfterBattle()) return [];
+        // Keep this one-time gate local to the normal activation queue. The
+        // vampire-amber accident intentionally reuses the underlying damage
+        // condition and remains repeatable.
+        if (
+            RPG.State.flags.matamatabiAutoActivationDone === true ||
+            !this.shouldActivateMatamatabiAfterBattle()
+        ) return [];
 
         const lines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiActivate || [];
         return lines.map(line => {
@@ -370,6 +376,7 @@ const battleSystem = {
                     text: line,
                     color: "#9acd32",
                     action: () => {
+                        RPG.State.flags.matamatabiAutoActivationDone = true;
                         RPG.State.flags.matamatabiActive = true;
                         RPG.State.flags.matamatabiNightPending = true;
                         RPG.State.matamatabiStepsRemaining = 10;

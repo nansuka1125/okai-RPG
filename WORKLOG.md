@@ -73,13 +73,12 @@ Status: confirmed development recovery baseline
 
 ### Partially implemented
 
-- Rare-amber equipment UI and the effects listed in the current rare-amber catalog are implemented except for Hated Amber's encounter-rate reduction, which still has only its catalog/equipment definition.
+- Rare-amber equipment UI and the effects listed in the current rare-amber catalog are implemented, including Hated Amber's 5% ordinary-encounter rate in the forest and Herb Garden.
 - The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
 
 ### Unimplemented
 
 - Burned-root-site investigation and the three Unknown Amber rewards, including the one rare amber.
-- Hated Amber's encounter-rate reduction effect.
 - The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
 - A boss-specific defeat/retry route for `amber_husk_giant_larva`, plus the proposed late-battle lethal-attack and blood-loss pressure.
 
@@ -163,13 +162,13 @@ Status: implemented; Director gameplay and pacing verification pending
 - Moved the amber-trader vignette to the first inn `様子を見る` after obtaining one silver coin. Knife borrowing and first appraisal remain forced `様子を見る` events; the one-time return action is labeled `ナイフを返す`. Appraisal/exchange/trade-in commands unlock only after the trader moves to forest 0m.
 - Added the borrowed knife route, 8m coin mining, first guaranteed sparkling appraisal with a non-interactive exchange preview, one-time knife return attempt, and the merchant's move to the forest entrance after one stay.
 - Added free single/bulk appraisal with the confirmed 70/15/15 result weights. Appraised sparkling, junk, and insect amber are stored by the merchant and their counts remain visible in the merchant menu.
-- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Rare-amber equipment UI and the current catalog's effects are implemented; Hated Amber's encounter-rate reduction remains the only open effect.
+- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Rare-amber equipment UI and the current catalog's effects, including Hated Amber's ordinary-encounter reduction, are implemented.
 - Added the cumulative three-junk reward that renames the borrowed knife to the mining knife without changing its performance.
 - Added amberized rat/weasel variants after the thief-boy encounter, using a tunable provisional 25% replacement roll and provisional hardened-part durability values of 20/30. The Hungry Amber Tree uses provisional durability 50.
 - Added shared hardened-part damage, overflow, break, and critical-bypass handling. Player-facing logs use `硬化した皮膚` or `硬化した樹皮`; the internal design term is not displayed.
 - Amberized beasts always award one unknown amber, including Owen instant-death victories; Owen victories retain the existing no-EXP rule.
 - Added progression-aware journey memos for borrowing the knife, returning to 8m, and showing the unknown amber to the merchant.
-- Bee Amber's skull-bee drop, Ignored Amber's vine-nest route, and the other current rare-amber acquisition/effect routes are implemented. The remaining rare-amber gap is Hated Amber's encounter-rate reduction; current compatibility limits are recorded in the recovery-baseline section.
+- Bee Amber's skull-bee drop, Ignored Amber's vine-nest route, and the other current rare-amber acquisition/effect routes are implemented; current compatibility limits are recorded in the recovery-baseline section.
 
 ### Verification completed
 

@@ -147,11 +147,14 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
         encounterFlag: "notebookWeaselEncountered",
         tiers: [
             {
-                id: "10", label: "10", target: 10, claimedFlag: "weaselBounty10Received",
+                // Tier id/label read "5" (matches the new target); claimedFlag is kept as
+                // weaselBounty10Received (unrenamed) so old-save receipt state stays valid.
+                id: "5", label: "5", target: 5, claimedFlag: "weaselBounty10Received",
                 items: [{ itemId: "smokeBomb", qty: 3 }]
             },
             {
-                id: "20", label: "20", target: 20, claimedFlag: "weaselBounty20Received",
+                // Same rename pattern: id/label read "10", claimedFlag stays weaselBounty20Received.
+                id: "10", label: "10", target: 10, claimedFlag: "weaselBounty20Received",
                 items: [{ itemId: "highHerb", qty: 3 }]
             },
             {

@@ -57,6 +57,7 @@ RPG.Config = {
         MILK_AMBER_MAX_HP_BONUS_RATE: 0.3, // Flat % of maxHP added on equip, subtracted back on unequip
         CRACKED_AMBER_CRIT_BONUS_PP: 20, // Flat percentage-point bonus to the crit roll while below the HP threshold
         CRACKED_AMBER_HP_THRESHOLD_RATE: 0.5, // currentHP/maxHP at or below this fraction activates the crit bonus
+        HATED_AMBER_ENCOUNTER_RATE: 0.05, // Ordinary random encounter rate while 嫌われ琥珀 is equipped
         MASOCHIST_AMBER_MID_HIT_HEAL_RATE: 0.2,
         MASOCHIST_AMBER_LATE_HIT_HEAL_RATE: 0.4
     }
@@ -312,6 +313,8 @@ RPG.State = {
         highway8mMasochistAmberAvailable: false, // One-time inspection reward after the 8m fixed highway battle
         highway8mMasochistAmberDiscoverySeen: false, // The 8m highway reward discovery text has been shown
         highway8mMasochistAmberTaken: false, // The 8m highway masochist amber has been collected
+        forest2mSparklingAmberTaken: false, // One-time fixed sparkling amber at forest 2m
+        forest9mSparklingAmberTaken: false, // One-time fixed sparkling amber at forest 9m
         someonesDiaryReadUnlocked: false, // 日記を持った状態で一泊を終えたら true
         someonesDiaryFirstReadDone: false, // 初回読了キューを最後まで再生したら true
         onWagon: false, // Build 14.2.1: Track if player boarded wagon
@@ -327,6 +330,7 @@ RPG.State = {
         heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
         matamatabiBranchFound: false, // Build 15.2.63: Track whether the branch has already been picked up at 4m
         matamatabiActive: false, // Build 15.2.64: Party-wide phase 4 state enabled after taking damage while carrying the branch
+        matamatabiAutoActivationDone: false, // Build 15.6.x: The automatic damage-triggered activation is one-time; manual use remains repeatable
         matamatabiNightPending: false, // Build 15.2.85: Schedule the first pre-delivery inn night after the branch activates
         matamatabiNightSeen: false, // Build 15.2.85: Prevent the matatabi special night from replaying
         phase6PostDeliverySleepDone: false, // Build 15.2.72: One-time sleep scene after silver delivery before wagon info unlocks

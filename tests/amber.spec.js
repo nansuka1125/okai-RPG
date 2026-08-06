@@ -277,6 +277,76 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
+  test('forest 2m and 9m each grant one fixed sparkling unknown amber after the knife is obtained', async ({ page }) => {
+    const inspectSite = async (distance, hasKnife) => {
+      await page.evaluate(({ site, knife }) => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '琥珀の森',
+          currentDistance: site,
+        });
+        Object.assign(RPG.State.flags, {
+          forest2mSparklingAmberTaken: false,
+          forest9mSparklingAmberTaken: false,
+        });
+        RPG.State.inventory.borrowedMiningKnife = knife ? 1 : 0;
+        RPG.State.inventory.miningKnife = 0;
+        RPG.State.inventory.unknownAmber = 0;
+        RPG.State.unappraisedAmberResults = [];
+        const log = document.getElementById('logContainer');
+        if (log) log.innerHTML = '';
+        uiControl.updateUI();
+      }, { site: distance, knife: hasKnife });
+
+      const label = await page.evaluate(() => document.getElementById('btnTalk')?.textContent);
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      return {
+        label,
+        state: await page.evaluate(() => ({
+          unknownAmber: RPG.State.inventory.unknownAmber,
+          queuedResults: RPG.State.unappraisedAmberResults,
+          forest2mTaken: RPG.State.flags.forest2mSparklingAmberTaken,
+          forest9mTaken: RPG.State.flags.forest9mSparklingAmberTaken,
+          log: document.getElementById('logContainer')?.textContent || '',
+        })),
+      };
+    };
+
+    const beforeKnife = await inspectSite(2, false);
+    expect(beforeKnife.label).toBe('調べる');
+    expect(beforeKnife.state).toMatchObject({ unknownAmber: 0, queuedResults: [] });
+    expect(beforeKnife.state.log).toContain('樹皮がところどころ琥珀化している');
+
+    const twoMeter = await inspectSite(2, true);
+    expect(twoMeter.label).toBe('琥珀を掘る');
+    expect(twoMeter.state).toMatchObject({
+      unknownAmber: 1,
+      queuedResults: ['sparkling'],
+      forest2mTaken: true,
+    });
+
+    const nineMeter = await inspectSite(9, true);
+    expect(nineMeter.label).toBe('琥珀を掘る');
+    expect(nineMeter.state).toMatchObject({
+      unknownAmber: 1,
+      queuedResults: ['sparkling'],
+      forest9mTaken: true,
+    });
+
+    const persisted = await page.evaluate(() => {
+      const snapshot = uiControl.createSaveSnapshot('journal');
+      localStorage.setItem('okai_rpg_forest_sparkling_amber_test', JSON.stringify(snapshot));
+      RPG.State.flags.forest9mSparklingAmberTaken = false;
+      uiControl.loadFromStorage('okai_rpg_forest_sparkling_amber_test', '森の琥珀テスト');
+      return RPG.State.flags.forest9mSparklingAmberTaken;
+    });
+    expect(persisted).toBe(true);
+  });
+
   test('the inn first recognizes the amber merchant on observe after the first coin', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
@@ -1979,6 +2049,7 @@ test.describe('Chapter 1 amber system', () => {
         RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
         Object.assign(RPG.State.flags, {
           matamatabiActive: false,
+          matamatabiAutoActivationDone: true,
           vampireAmberChainBattleCount: ov.chainCount ?? 2,
         });
         const log = document.getElementById('logContainer');
@@ -2181,6 +2252,42 @@ test.describe('Chapter 1 amber system', () => {
       await drainDialogue(page, 150);
       const activated = await page.evaluate(() => RPG.State.flags.matamatabiActive);
       expect(activated).toBe(true);
+    });
+
+    test('normal matamatabi auto-activation is one-time while manual use remains available', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.inventory.matamatabiBranch = 1;
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.flags.matamatabiAutoActivationDone = false;
+        RPG.State.battleState = { playerTookDamage: true };
+
+        const firstQueue = battleSystem.buildMatamatabiActivationQueue();
+        const firstHasOwenLine = firstQueue.some(entry => entry.text === 'オーエン｢かなりね」');
+        firstQueue[firstQueue.length - 1]?.action?.();
+        const savedFlag = uiControl.createSaveSnapshot('journal').flags.matamatabiAutoActivationDone;
+
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.battleState = { playerTookDamage: true };
+        const secondQueue = battleSystem.buildMatamatabiActivationQueue();
+
+        RPG.State.matamatabiUseCount = 0;
+        const manualQueue = explorationSystem.buildMatamatabiManualUseQueue();
+        return {
+          firstHasOwenLine,
+          secondQueueLength: secondQueue.length,
+          manualHasOwenLine: manualQueue.some(entry => entry.text === 'オーエン｢かなりね」'),
+          autoActivationDone: RPG.State.flags.matamatabiAutoActivationDone,
+          savedFlag,
+        };
+      });
+
+      expect(result).toEqual({
+        firstHasOwenLine: true,
+        secondQueueLength: 0,
+        manualHasOwenLine: false,
+        autoActivationDone: true,
+        savedFlag: true,
+      });
     });
 
     test('a fresh game: state after an accident survives a normal save/load round trip', async ({ page }) => {
@@ -3181,6 +3288,7 @@ test.describe('Chapter 1 amber system', () => {
           location: c.location ?? '琥珀の森',
           currentDistance: c.distance - 1,
           storyPhase: 2,
+          equippedRareAmberId: c.equippedRareAmberId ?? null,
         });
         Object.assign(RPG.State.flags, {
           metThiefBoy: c.metThiefBoy,
@@ -3240,6 +3348,48 @@ test.describe('Chapter 1 amber system', () => {
         distance: 5, metThiefBoy: true, randomValue: 0.65,
       });
       expect(result).toBe(0);
+    });
+
+    test('hatedAmber lowers ordinary forest encounters to the configured 5% rate', async ({ page }) => {
+      const belowHatedRate = await attemptMoveEncounter(page, {
+        distance: 8, metThiefBoy: true, equippedRareAmberId: 'hatedAmber', randomValue: 0.04,
+      });
+      const atHatedRate = await attemptMoveEncounter(page, {
+        distance: 8, metThiefBoy: true, equippedRareAmberId: 'hatedAmber', randomValue: 0.05,
+      });
+      expect({ belowHatedRate, atHatedRate }).toEqual({ belowHatedRate: 1, atHatedRate: 0 });
+    });
+
+    test('hatedAmber also lowers ordinary herb-garden encounters', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'herbGarden',
+          location: '薬草園',
+          currentDistance: 4,
+          storyPhase: 6,
+          equippedRareAmberId: 'hatedAmber',
+        });
+        RPG.State.flags.onWagon = false;
+
+        const originalRandom = Math.random;
+        const originalStartBattle = battleSystem.startBattle;
+        let battles = 0;
+        Math.random = () => 0.04;
+        battleSystem.startBattle = () => {
+          battles += 1;
+          return false;
+        };
+
+        explorationSystem.tryHerbGardenEncounter(4);
+
+        Math.random = originalRandom;
+        battleSystem.startBattle = originalStartBattle;
+        return battles;
+      });
+      expect(result).toBe(1);
     });
 
     test('the deep-forest zone never applies on the former highway', async ({ page }) => {

@@ -8,6 +8,7 @@ Status: implemented; smoke verification completed
 - Updated the inn-front exploration controls to show `宿屋《琥珀亭》` full-width, then `琥珀の森` / `薬草園`, then `調べる` / `アイテム`.
 - The forest and herb-garden exploration button ordering remains unchanged.
 - `npx playwright test tests/smoke.spec.js --workers=1`: 10 passed after the FAQ expectation synchronization.
+- Chapter 1 enemy values and behavior are implemented at the current tuned baseline; final design sign-off remains pending for the provisional hardened-part durability, replacement rate, and manual pacing review.
 
 ## Chapter 1 Development Recovery Baseline
 
@@ -30,9 +31,9 @@ Status: confirmed development recovery baseline
 - Chapter 1 record selection and non-destructive new-game startup through `chapter1.html?new=1`; starting over preserves all five journal pages and the suspend record.
 - The five-entry bounty notebook: rat, weasel, amber sap, amberized rat, and amberized weasel, including their currently defined normal reward tiers.
 - Rat and weasel ALL progression, including unlock conversations, independent post-unlock progress, claimable rewards, and final-normal-random-enemy suppression after completion.
-- Vampire Amber equipment, combat drain and Cain-only damage multiplier, battle-chain handling, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence.
+- Rare Amber equipment and the current combat/field effects: Vampire Amber's drain and Cain-only damage multiplier, Sweet Amber's Owen-intervention bonus, Herb Amber's movement/turn/item recovery, Monster Amber's EXP multiplier, Milk Amber's max-HP bonus, Blue Amber's sword-technique bonus, Cracked Amber's low-HP critical bonus, Bee Amber's first-hit and damage-taken modifiers, Ignored Amber's status/AI suppression, and Masochist Amber's repeated-hit recovery. The Vampire Amber chain, post-battle conversations, dynamic description, forced removal after the sixth chain battle, and save/load persistence are also implemented.
 - Cain's provisional battle kit: 15% criticals; 20% sword-technique rate with equal 《強撃》/《連撃》 selection; complete direct-attack 《受け流し》; and Fireproof Gloves' defense +2 plus counterattack. All tunable values are in `RPG.Config.CAIN_COMBAT`.
-- Blue Amber raises Cain's sword-technique rate by the provisional +10 percentage points for both attack techniques and parries.
+- Blue Amber raises Cain's sword-technique rate by the provisional +10 percentage points for both attack techniques and parries. Sweet, Herb, Monster, Milk, Cracked, Bee, Ignored, and Masochist Amber effects are wired through the existing battle, movement, item, and equipment paths.
 - The Vampire Amber / matatabi conflict: mutual use/equip blocking and the repeatable post-battle accident route.
 - The complete inn-repair thread: the two inn-rat battles, consultation, three inspections, report, forest-8m amber-tree timber retrieval, timber delivery without oils, post-rain repair start, the daughter's three-oil event, repair completion, and save/load persistence.
 - The amber-root thread: sap-source awareness, independent 6m/7m/8m root states, Shiny Oil scars, shared non-consuming Hard Oil ignition, fixed burning-root battles, rematches after defeat, per-site defeat persistence, defeat-order-based first/second/third victory scenes, and 30%-of-max-HP stress-relief recovery.
@@ -72,14 +73,13 @@ Status: confirmed development recovery baseline
 
 ### Partially implemented
 
-- Rare-amber equipment UI is implemented. Vampire Amber and Blue Amber have combat effects; the other rare-amber effects described in item data are not implemented.
+- Rare-amber equipment UI and the effects listed in the current rare-amber catalog are implemented except for Hated Amber's encounter-rate reduction, which still has only its catalog/equipment definition.
 - The current save merge supplies safe defaults for missing Vampire Amber fields and current-state round trips are tested. There is no dedicated automated case for a pre-effect save that already has Vampire Amber equipped, nor a targeted deletion test for every new chain/talk scalar.
 
 ### Unimplemented
 
 - Burned-root-site investigation and the three Unknown Amber rewards, including the one rare amber.
-- Gameplay effects for Hated, Sweet, Herb, Monster, Milk, Bee, and Ignored Amber.
-- Acquisition events for Bee Amber and Ignored Amber.
+- Hated Amber's encounter-rate reduction effect.
 - The new morning wagon-departure cutover that will replace or gate the legacy phase-7 entry.
 - A boss-specific defeat/retry route for `amber_husk_giant_larva`, plus the proposed late-battle lethal-attack and blood-loss pressure.
 
@@ -163,13 +163,13 @@ Status: implemented; Director gameplay and pacing verification pending
 - Moved the amber-trader vignette to the first inn `様子を見る` after obtaining one silver coin. Knife borrowing and first appraisal remain forced `様子を見る` events; the one-time return action is labeled `ナイフを返す`. Appraisal/exchange/trade-in commands unlock only after the trader moves to forest 0m.
 - Added the borrowed knife route, 8m coin mining, first guaranteed sparkling appraisal with a non-interactive exchange preview, one-time knife return attempt, and the merchant's move to the forest entrance after one stay.
 - Added free single/bulk appraisal with the confirmed 70/15/15 result weights. Appraised sparkling, junk, and insect amber are stored by the merchant and their counts remain visible in the merchant menu.
-- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Rare-amber equipment UI is implemented. Vampire Amber now has its dedicated combat effect; effects for the other rare amber remain unimplemented.
+- Added the six confirmed rare-amber exchanges and price-derived trade-in values. Rare-amber equipment UI and the current catalog's effects are implemented; Hated Amber's encounter-rate reduction remains the only open effect.
 - Added the cumulative three-junk reward that renames the borrowed knife to the mining knife without changing its performance.
 - Added amberized rat/weasel variants after the thief-boy encounter, using a tunable provisional 25% replacement roll and provisional hardened-part durability values of 20/30. The Hungry Amber Tree uses provisional durability 50.
 - Added shared hardened-part damage, overflow, break, and critical-bypass handling. Player-facing logs use `硬化した皮膚` or `硬化した樹皮`; the internal design term is not displayed.
 - Amberized beasts always award one unknown amber, including Owen instant-death victories; Owen victories retain the existing no-EXP rule.
 - Added progression-aware journey memos for borrowing the knife, returning to 8m, and showing the unknown amber to the merchant.
-- Bee/Ignored Amber acquisition events and non-Vampire rare-amber effects remain unimplemented. Rare-amber equipment and the shared old-save default merge are now implemented; current compatibility limits are recorded in the recovery-baseline section.
+- Bee Amber's skull-bee drop, Ignored Amber's vine-nest route, and the other current rare-amber acquisition/effect routes are implemented. The remaining rare-amber gap is Hated Amber's encounter-rate reduction; current compatibility limits are recorded in the recovery-baseline section.
 
 ### Verification completed
 

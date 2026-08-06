@@ -1895,13 +1895,13 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
-  test('the matatabi branch remains after the fur scene deactivates it', async ({ page }) => {
+  test('the matatabi branch is consumed after the fur scene deactivates it', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.inventory.matamatabiBranch = 1;
       RPG.State.flags.matamatabiActive = true;
       RPG.State.matamatabiStepsRemaining = 4;
       const deactivation = battleSystem.buildGlowingCatRabbitFurQueue().find(
-        line => line.text === 'オーエンが散々舐めたため、枝は不活性化した。'
+        line => line.text === 'オーエンが全て舐めとったため、枝は不活性化した。'
       );
       deactivation.action();
       return {
@@ -1911,7 +1911,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       };
     });
 
-    expect(result).toEqual({ branchCount: 1, active: false, steps: 0 });
+    expect(result).toEqual({ branchCount: 0, active: false, steps: 0 });
   });
 
   test('the notebook modal fits a 390x844 phone viewport without horizontal overflow', async ({ page }) => {

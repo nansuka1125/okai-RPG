@@ -2024,11 +2024,12 @@ const battleSystem = {
                 };
             }
 
-            if (line === "オーエンが散々舐めたため、枝は不活性化した。") {
+            if (line === "オーエンが全て舐めとったため、枝は不活性化した。") {
                 return {
                     text: line,
                     color: "#9acd32",
                     action: () => {
+                        RPG.State.inventory.matamatabiBranch = 0;
                         RPG.State.flags.matamatabiActive = false;
                         RPG.State.matamatabiStepsRemaining = 0;
                         uiControl.updateUI();

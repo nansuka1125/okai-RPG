@@ -309,7 +309,7 @@ RPG.State = {
         metThiefBoy: false, // Flag for meeting the thief boy
         thiefDiscoveryStatus: 0, // 0=not discovered, 1=discovered
         thiefTrackActive: false, // Tracking quest active
-        hasSleptAfterThief: false, // Track if player slept after meeting thief
+        hasSleptAfterThief: false, // True once the player has slept one night after learning the thief boy's whereabouts from the fortune teller; unlocks the rain and thief rescue route, reset when the rescue completes
         heardScream: false, // Build 14.1.4: Track if 9m scream event is finished
         giantLarvaDefeated: false, // Build 14.1.3: Robust Boss Flag
         highway8mMasochistAmberAvailable: false, // One-time inspection reward after the 8m fixed highway battle

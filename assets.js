@@ -797,8 +797,10 @@ RPG.Assets.GAME_TEXT = {
             "カイン｢内密に頼む！それで、泥棒の居場所頼めるか？」",
             "占い師｢まかせて」",
             "占い師は鏡のようなものを取り出してぶつぶつと何か呟いた。",
-            "占い師｢……今夜、琥珀の森の奥に来るみたいよ」",
-            "カイン｢本当か！？ありがとう」",
+            "占い師「……雨の日に、琥珀の森の奥に来るみたいよ」",
+            "カイン「雨の日？」",
+            "占い師「明日くらいには降りそうだけどね」",
+            "カイン「本当か！？ありがとう」",
             "占い師｢あとこれはおまけだけど…」",
             "占い師はカインの顔をじっと見た。",
             "占い師｢カイン、あなた、大きな勘違いをしているかもしれない」",
@@ -806,7 +808,7 @@ RPG.Assets.GAME_TEXT = {
             "占い師｢あたしにはそこまでは見えないかな。」",
             "オーエン「…っあははは」",
             "カイン｢…？覚えておくよ」",
-            "カイン（よし、準備して琥珀の森に行こう）",
+            "カイン（よし、今日は宿で休んで、雨を待とう）",
             "オーエンはまだニヤニヤしている。"
         ],
         phase4OwenConsult1: [
@@ -2010,7 +2012,7 @@ RPG.Assets.EVENT_DATA = [
     // 9m Scream Event (Thief Boy Rescue - Part 1)
     {
         id: "thief_rescue_9m_scream",
-        condition: (state) => state.currentDistance === 9 && state.flags.thiefDiscoveryStatus === 1 && !state.completedEvents.includes("thief_rescue_9m_scream"),
+        condition: (state) => state.currentDistance === 9 && explorationSystem.isThiefRescueUnlocked() && !state.completedEvents.includes("thief_rescue_9m_scream"),
         action: (state) => {
             state.dialogueQueue = [
                 { text: "腐った泥の臭いが漂ってくる。", delay: 1200 },
@@ -2040,7 +2042,7 @@ RPG.Assets.EVENT_DATA = [
     {
         id: "thief_rescue_10m_battle",
         repeatable: true, // Build 14.1.6: Allow retry until victory
-        condition: (state) => state.currentDistance === 10 && state.flags.thiefDiscoveryStatus === 1 && !state.flags.giantLarvaDefeated,
+        condition: (state) => state.currentDistance === 10 && explorationSystem.isThiefRescueUnlocked() && !state.flags.giantLarvaDefeated,
         action: (state) => {
             state.dialogueQueue = [
                 { text: "カイン「なんだあれ…！？」", delay: 1200 },

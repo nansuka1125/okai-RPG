@@ -270,6 +270,12 @@ innSystem = {
 
         RPG.State.flags.herbGardenHerb1Available = true;
 
+        // 占い師から居場所を聞いた当日はまだ雨・救出を解禁せず、この一泊(通常宿泊/マタマタビの夜
+        // どちらでも可)が明けて初めて解禁する。isThiefRescueUnlocked() が唯一の参照元。
+        if (RPG.State.flags.thiefDiscoveryStatus === 1) {
+            RPG.State.flags.hasSleptAfterThief = true;
+        }
+
         if (
             RPG.State.flags.innRatEvent === true &&
             RPG.State.flags.innRatEvent2 !== true

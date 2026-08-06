@@ -72,6 +72,7 @@ test.describe('forest rain - 7m onset', () => {
   test('49. first arrival at 7m after the fortune lead shows the rain-start line once', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = true;
       RPG.State.flags.giantLarvaDefeated = false;
       RPG.State.flags.phase6PostDeliverySleepDone = false;
       RPG.State.currentDistance = 6;
@@ -87,6 +88,7 @@ test.describe('forest rain - 7m onset', () => {
   test('50. revisiting 7m does not repeat the rain-start line', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = true;
       RPG.State.currentDistance = 6;
     });
     await page.evaluate(() => explorationSystem.move(1, { skipTravelCue: true })); // -> 7m, first time
@@ -153,6 +155,7 @@ test.describe('forest rain - isRainActive() semantics', () => {
   test('60. silver delivery alone does not stop the rain', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = true;
       RPG.State.flags.silverDelivered = true;
       RPG.State.flags.phase6PostDeliverySleepDone = false;
       return explorationSystem.isRainActive();
@@ -169,6 +172,64 @@ test.describe('forest rain - isRainActive() semantics', () => {
     });
     expect(result).toBe(false);
   });
+
+  test('on the fur-delivery day itself, rain and the 9m/10m rescue events stay locked', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = false; // delivered today, has not slept since
+      RPG.State.flags.giantLarvaDefeated = false;
+      const nineM = RPG.Assets.EVENT_DATA.find(e => e.id === 'thief_rescue_9m_scream');
+      const tenM = RPG.Assets.EVENT_DATA.find(e => e.id === 'thief_rescue_10m_battle');
+      return {
+        rainActive: explorationSystem.isRainActive(),
+        nineMUnlocked: nineM.condition({ ...RPG.State, currentDistance: 9 }),
+        tenMUnlocked: tenM.condition({ ...RPG.State, currentDistance: 10 }),
+      };
+    });
+    expect(result).toEqual({ rainActive: false, nineMUnlocked: false, tenMUnlocked: false });
+  });
+
+  test('a night completed after the fur delivery unlocks rain and the 9m/10m rescue the next morning', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = false;
+      RPG.State.flags.giantLarvaDefeated = false;
+
+      // Matamatabi's night takes priority over an ordinary stay while pending; confirm it is
+      // actually the one that starts (not silently skipped) before checking the shared morning
+      // completion point both paths funnel into.
+      RPG.State.flags.matamatabiNightPending = true;
+      RPG.State.flags.matamatabiNightSeen = false;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.mode = 'base';
+      innSystem.stay();
+      // matamatabiNightSeen and mode='event' are both set synchronously at the top of
+      // playMatamatabiNight(), before its dialogue queue starts playing.
+      const matamatabiNightStarted =
+        RPG.State.flags.matamatabiNightSeen === true && RPG.State.mode === 'event';
+
+      // refreshHerbGardenHarvestsAfterStay() is the single morning-completion point both the
+      // matamatabi night and an ordinary stay call once their scene finishes.
+      innSystem.refreshHerbGardenHarvestsAfterStay();
+
+      const nineM = RPG.Assets.EVENT_DATA.find(e => e.id === 'thief_rescue_9m_scream');
+      const tenM = RPG.Assets.EVENT_DATA.find(e => e.id === 'thief_rescue_10m_battle');
+      return {
+        matamatabiNightStarted,
+        hasSleptAfterThief: RPG.State.flags.hasSleptAfterThief,
+        rainActive: explorationSystem.isRainActive(),
+        nineMUnlocked: nineM.condition({ ...RPG.State, currentDistance: 9 }),
+        tenMUnlocked: tenM.condition({ ...RPG.State, currentDistance: 10 }),
+      };
+    });
+    expect(result).toEqual({
+      matamatabiNightStarted: true,
+      hasSleptAfterThief: true,
+      rainActive: true,
+      nineMUnlocked: true,
+      tenMUnlocked: true,
+    });
+  });
 });
 
 test.describe('forest rain - 8m mud flavor', () => {
@@ -181,6 +242,7 @@ test.describe('forest rain - 8m mud flavor', () => {
       window.__originalRandom = Math.random;
       Math.random = () => 0.99;
       RPG.State.flags.thiefDiscoveryStatus = 1;
+      RPG.State.flags.hasSleptAfterThief = true;
       RPG.State.flags.giantLarvaDefeated = false;
     });
   });

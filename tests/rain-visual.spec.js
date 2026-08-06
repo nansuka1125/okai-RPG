@@ -28,10 +28,11 @@ async function openGame(page) {
   });
 }
 
-// Puts the party in the rain window (fortune lead heard, morning-after sleep not done).
+// Puts the party in the rain window (fortune lead heard and slept on once, morning-after sleep not done).
 async function enableRainWindow(page) {
   await page.evaluate(() => {
     RPG.State.flags.thiefDiscoveryStatus = 1;
+    RPG.State.flags.hasSleptAfterThief = true;
     RPG.State.flags.phase6PostDeliverySleepDone = false;
   });
 }

@@ -201,16 +201,30 @@ const explorationSystem = {
         );
     },
 
-    // 雨そのものの継続を表す。占い師から少年の居場所を聞いた直後(thiefDiscoveryStatus>=1)に始まり、
+    // 占い師から居場所を聞いた(thiefDiscoveryStatus===1)当日はまだ解禁せず、その後の一泊
+    // (通常宿泊・マタマタビの夜のどちらでも可)が明けて hasSleptAfterThief が立って初めて、
+    // 9m/10mの少年救出イベントを解禁する。ボス撃破後(thiefDiscoveryStatus===2)はこの一度きりの
+    // 発見ウィンドウを過ぎているので、ここではあえて対象外のままにする(9m絶叫イベントには
+    // giantLarvaDefeated による除外がなく、===1限定でなければ撃破後の再訪でも成立してしまう)。
+    // 雨の継続だけは撃破後も止めない別要件のため isRainActive() 側で個別に扱う。
+    isThiefRescueUnlocked: function () {
+        return (
+            RPG.State.flags.thiefDiscoveryStatus === 1 &&
+            RPG.State.flags.hasSleptAfterThief === true
+        );
+    },
+
+    // 雨そのものの継続を表す。占い師から少年の居場所を聞いた翌朝(isThiefRescueUnlocked())に始まり、
     // 銀貨納品後の一泊(phase6PostDeliverySleepDone)が明けるまで続く。大幼蟲を倒しても銀貨を納品
-    // しても雨は止まらないため、このヘルパーは giantLarvaDefeated / silverDelivered を一切参照
-    // しない。7mの開始演出「雨が降り始めた……」だけはボス撃破前の一度きりの体験にしたいので、
-    // その呼び出し側だけが `isRainActive() && flags.giantLarvaDefeated !== true` を重ねる
-    // （EVENT_DATA の forest_7m_rain_start を参照）。8mの継続フレーバーは isRainActive() のみで
-    // 判定し、ボス撃破後・銀貨納品後の再訪でも雨が続いている限り表示される。
+    // しても雨は止まらないため、ボス撃破後(thiefDiscoveryStatus===2)もここだけは引き続き真として
+    // 扱い、giantLarvaDefeated / silverDelivered を一切参照しない。7mの開始演出
+    // 「雨が降り始めた……」だけはボス撃破前の一度きりの体験にしたいので、その呼び出し側だけが
+    // `isRainActive() && flags.giantLarvaDefeated !== true` を重ねる（EVENT_DATA の
+    // forest_7m_rain_start を参照）。8mの継続フレーバーは isRainActive() のみで判定し、
+    // ボス撃破後・銀貨納品後の再訪でも雨が続いている限り表示される。
     isRainActive: function () {
         return (
-            (RPG.State.flags.thiefDiscoveryStatus || 0) >= 1 &&
+            (RPG.State.flags.thiefDiscoveryStatus === 2 || this.isThiefRescueUnlocked()) &&
             RPG.State.flags.phase6PostDeliverySleepDone !== true
         );
     },

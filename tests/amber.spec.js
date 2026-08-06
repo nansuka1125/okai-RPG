@@ -767,6 +767,48 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
+  test('Owen intimidating the rat off in the チューチュー battle completes inn rat event 2, and a later ordinary rat win does not replay its dialogue', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State.flags, {
+        innRatEvent: true,
+        innRatEvent2: true,
+        innRatEvent2BattleActive: true,
+      });
+      RPG.State.mode = 'battle';
+      RPG.State.isBattling = true;
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'rat') };
+      RPG.State.hasOwenSavedLife = false;
+      RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+      battleSystem.endBattle(false, true); // Owen's intimidation (Death Save), not a Cain kill
+    });
+    await drainDialogue(page);
+
+    const afterDeathSave = await page.evaluate(() => ({
+      active: RPG.State.flags.innRatEvent2BattleActive,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+
+    await page.evaluate(() => {
+      const logEl = document.getElementById('logContainer');
+      if (logEl) logEl.innerHTML = '';
+      RPG.State.mode = 'battle';
+      RPG.State.isBattling = true;
+      RPG.State.currentEnemy = { ...RPG.Assets.ENEMIES.find(e => e.id === 'rat') };
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+      battleSystem.endBattle(true); // A genuinely separate, ordinary rat victory afterward
+    });
+    await drainDialogue(page);
+
+    const afterOrdinaryWin = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+
+    expect(afterDeathSave.active).toBe(false);
+    expect(afterDeathSave.log).toContain('あんたらがいてくれて助かったよ');
+    expect(afterOrdinaryWin.log).not.toContain('あんたらがいてくれて助かったよ');
+  });
+
   test('junk appraisals do not create stored amber or alter the borrowed knife', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';

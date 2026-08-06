@@ -2514,6 +2514,7 @@ const battleSystem = {
         let postBattleStarted = false;
         let highwayPostBattleQueue = [];
         let amberRootVictoryAftermathQueue = [];
+        let innRatEvent2DeathSaveAftermathQueue = [];
 
         if (isDeathSave) {
             if (this.shouldTriggerVampireAmberMatamatabiAccident()) {
@@ -2523,6 +2524,30 @@ const battleSystem = {
 
             uiControl.addLog("戦闘から離脱した。");
             this.clearVineNestChain();
+
+            // Owen's intimidation drives the rat off before Cain can land a kill, so the
+            // inn's チューチュー！ battle (inn rat event 2) would otherwise never resolve:
+            // its aftermath dialogue and innRatEvent2BattleActive only ever cleared inside
+            // executeStandardVictory. Scoped to this one battle instance only, so ordinary
+            // random-rat Death Saves elsewhere are unaffected.
+            if (
+                enemyId === 'rat' &&
+                RPG.State.flags.innRatEvent2BattleActive === true &&
+                RPG.Assets.BATTLE_EVENTS.inn_rat_event2 &&
+                RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1]
+            ) {
+                innRatEvent2DeathSaveAftermathQueue = [
+                    ...RPG.Assets.BATTLE_EVENTS.inn_rat_event2[1],
+                    {
+                        text: null,
+                        action: () => {
+                            RPG.State.flags.innRatEvent2BattleActive = false;
+                        }
+                    }
+                ];
+                hasPostBattleEvent = true;
+            }
+
             if (matamatabiActivationQueue.length > 0) {
                 hasPostBattleEvent = true;
             }
@@ -2588,6 +2613,7 @@ const battleSystem = {
         if (hasPostBattleEvent) {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
+                ...innRatEvent2DeathSaveAftermathQueue,
                 ...amberRootVictoryAftermathQueue,
                 ...highwayPostBattleQueue,
                 ...(highwayPostBattleQueue.length === 0 ? vampireAmberTalkQueue : []),

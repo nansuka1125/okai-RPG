@@ -742,7 +742,7 @@ RPG.Assets.GAME_TEXT = {
         thiefDiscoveryHookB: [
             { text: "カイン「……あれ？」", delay: 1000 },
             { text: "カイン「銀貨が……ない」", delay: 1500 },
-            { text: "カイン「さっきの少年……まさか」", delay: 1500 },
+            { text: "カイン「あの少年……まさか」", delay: 1500 },
             { text: "オーエン「気づいたんだ」", delay: 1000, color: "#a020f0" },
             { text: "カイン「おまえ、知ってたのか！？」", delay: 1000 },
             { text: "オーエン「うん。でも教えてあげなかった」", delay: 1500, color: "#a020f0" },

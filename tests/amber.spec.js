@@ -942,7 +942,7 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('hardened parts absorb normal damage, criticals bypass them, and Owen drops amber', async ({ page }) => {
+  test('hardened parts absorb normal damage, criticals bypass them, and Owen kills grant no probabilistic drop', async ({ page }) => {
     const result = await page.evaluate(() => {
       const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'amber_rat');
       RPG.State.currentEnemy = { ...template, hp: template.maxHp, armorHp: template.armorMax };
@@ -965,7 +965,9 @@ test.describe('Chapter 1 amber system', () => {
       RPG.State.inventory.unknownAmber = 0;
       RPG.State.defeatCounts.amber_rat = { cain: 0, owen: 0 };
       const originalRandom = Math.random;
-      Math.random = () => 0.1; // < 0.2, amber's 20% drop succeeds
+      // < 0.2 (amber_rat's drop.rate), but the Owen-kill path only grants guaranteedDrop
+      // items, so this never reaches the probabilistic drop.rate check either way.
+      Math.random = () => 0.1;
       battleSystem.endBattle(false);
       Math.random = originalRandom;
 
@@ -977,9 +979,9 @@ test.describe('Chapter 1 amber system', () => {
       };
     });
 
-    expect(result.afterNormal).toEqual({ hp: 40, armorHp: 10 });
-    expect(result.afterCritical).toEqual({ hp: 25, armorHp: 10 });
-    expect(result.unknownAmber).toBe(1);
+    expect(result.afterNormal).toEqual({ hp: 80, armorHp: 30 });
+    expect(result.afterCritical).toEqual({ hp: 65, armorHp: 30 });
+    expect(result.unknownAmber).toBe(0);
     expect(result.owenDefeats).toBe(1);
   });
 
@@ -3718,7 +3720,7 @@ test.describe('Chapter 1 amber system', () => {
 
     test('attack power stays at the normal value before the thief encounter', async ({ page }) => {
       const result = await beginSapBattle(page, false);
-      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 8 });
+      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 16 });
     });
 
     test('no drain occurs before the thief encounter, even on a landed hit', async ({ page }) => {
@@ -3739,14 +3741,14 @@ test.describe('Chapter 1 amber system', () => {
 
     test('attack power rises to the configured empowered value after the thief encounter', async ({ page }) => {
       const result = await beginSapBattle(page, true);
-      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 12 });
+      expect(result).toMatchObject({ id: 'sap', name: '琥珀の樹液', atk: 24 });
     });
 
     test('attack power does not accumulate across repeated battles', async ({ page }) => {
       const first = await beginSapBattle(page, true);
       const second = await beginSapBattle(page, true);
-      expect(first.atk).toBe(12);
-      expect(second.atk).toBe(12);
+      expect(first.atk).toBe(24);
+      expect(second.atk).toBe(24);
     });
 
     test('attack power does not duplicate across a save/load round trip', async ({ page }) => {
@@ -3767,7 +3769,7 @@ test.describe('Chapter 1 amber system', () => {
 
         return { metThiefBoyAfterLoad, atkAfterLoadThenBegin: RPG.State.currentEnemy.atk };
       });
-      expect(result).toEqual({ metThiefBoyAfterLoad: true, atkAfterLoadThenBegin: 12 });
+      expect(result).toEqual({ metThiefBoyAfterLoad: true, atkAfterLoadThenBegin: 24 });
     });
 
     // --- drain ---
@@ -3792,17 +3794,17 @@ test.describe('Chapter 1 amber system', () => {
 
     test('the drain heal never exceeds the enemy max HP', async ({ page }) => {
       const result = await runSapAttack(page, {
-        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 55, atk: 12, randomValue: 0.9,
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 80, atk: 12, randomValue: 0.9,
       });
-      expect(result.enemyHp).toBe(60);
+      expect(result.enemyHp).toBe(85);
       expect(result.log).toContain('HPが5回復した');
     });
 
     test('no drain and no log line when the enemy is already at max HP', async ({ page }) => {
       const result = await runSapAttack(page, {
-        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 60, atk: 12, randomValue: 0.9,
+        metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 85, atk: 12, randomValue: 0.9,
       });
-      expect(result.enemyHp).toBe(60);
+      expect(result.enemyHp).toBe(85);
       expect(result.log).not.toContain('HPを吸収');
     });
 
@@ -3840,7 +3842,7 @@ test.describe('Chapter 1 amber system', () => {
         metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
       });
       expect(result.enemyHp).toBe(42);
-      expect(result.hpFillWidth).toBe('70%'); // 42/60 max HP
+      expect(result.hpFillWidth).toBe('49.4118%'); // 42/85 max HP
     });
 
     // --- identity, kill counting, and Owen path ---
@@ -4582,8 +4584,8 @@ test.describe('Chapter 1 amber system', () => {
       });
       // The standard attack damages Cain, not the enemy; only the self-burn reduces enemy HP.
       expect(result.enemyHp).toBe(200 - 10);
-      expect(result.currentHP).toBe(999 - 22);
-      expect(result.log).toContain('カインは22のダメージを受けた');
+      expect(result.currentHP).toBe(999 - 28);
+      expect(result.log).toContain('カインは28のダメージを受けた');
       expect(result.log).toContain('燃える琥珀樹の根は自らの炎に焼かれている！（HP -10）');
     });
 

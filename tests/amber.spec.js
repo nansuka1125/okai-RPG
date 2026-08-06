@@ -415,6 +415,37 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.exchangePreviewShown).toBe(true);
   });
 
+  test('the first appraisal handles a fixed sparkling result without creating an item entry', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.unknownAmber = 1;
+      RPG.State.unappraisedAmberResults = ['sparkling'];
+      RPG.State.amberStorage.sparkling = 0;
+      RPG.State.flags.treeDefeated = true;
+      RPG.State.flags.amberMerchantRecognized = true;
+      RPG.State.flags.borrowedMiningKnifeReceived = true;
+      RPG.State.flags.firstAmberAppraisalDone = false;
+      innSystem.interactWithAmberMerchant();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      sparkling: RPG.State.amberStorage.sparkling,
+      itemEntry: RPG.State.inventory.sparkling,
+      firstDone: RPG.State.flags.firstAmberAppraisalDone,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result).toMatchObject({
+      unknownAmber: 0,
+      sparkling: 1,
+      firstDone: true,
+    });
+    expect(result.itemEntry).toBeUndefined();
+    expect(result.log).toContain('《キラキラ琥珀》');
+    expect(result.log).not.toContain('undefined');
+  });
+
   test('a confirmed amber is displayed with and appraised before the normal first amber', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
@@ -442,14 +473,19 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.unknownAmber).toBe(1);
     expect(result.vampireAmber).toBe(1);
     expect(result.sparkling).toBe(0);
-    expect(result.firstDone).toBe(false);
+    expect(result.firstDone).toBe(true);
     expect(result.vampireSeen).toBe(true);
     expect(result.log).toContain('《吸血琥珀》と鑑定された。');
     expect(result.log).toContain(
       '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
     );
 
-    await page.evaluate(() => innSystem.interactWithAmberMerchant());
+    await page.evaluate(() => {
+      const originalRandom = Math.random;
+      Math.random = () => 0;
+      innSystem.appraiseAmber();
+      Math.random = originalRandom;
+    });
     await drainDialogue(page);
     result = await page.evaluate(() => ({
       unknownAmber: RPG.State.inventory.unknownAmber,
@@ -545,6 +581,70 @@ test.describe('Chapter 1 amber system', () => {
     expect(after.log).toContain('魔物入り琥珀');
     expect(after.log).toContain('吸血琥珀');
     expect(after.log).toContain('クズ琥珀');
+  });
+
+  test('fixed regular appraisal results stay in amber storage and three junk ambers award the mining knife once', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.flags.firstAmberAppraisalDone = true;
+      RPG.State.flags.miningKnifeAwarded = false;
+      RPG.State.inventory.unknownAmber = 3;
+      RPG.State.inventory.vampireAmber = 0;
+      RPG.State.inventory.borrowedMiningKnife = 1;
+      RPG.State.inventory.miningKnife = 0;
+      RPG.State.unappraisedAmberResults = ['sparkling', 'vampireAmber', 'junk'];
+      RPG.State.amberStorage.sparkling = 0;
+      RPG.State.junkAmberDelivered = 2;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.appraiseAmber();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      sparkling: RPG.State.amberStorage.sparkling,
+      vampireAmber: RPG.State.inventory.vampireAmber,
+      junkDelivered: RPG.State.junkAmberDelivered,
+      borrowedMiningKnife: RPG.State.inventory.borrowedMiningKnife,
+      miningKnife: RPG.State.inventory.miningKnife,
+      awarded: RPG.State.flags.miningKnifeAwarded,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result).toMatchObject({
+      unknownAmber: 0,
+      sparkling: 1,
+      vampireAmber: 1,
+      junkDelivered: 3,
+      borrowedMiningKnife: 0,
+      miningKnife: 1,
+      awarded: true,
+    });
+    expect(result.log).toContain('《キラキラ琥珀》');
+    expect(result.log).toContain('《吸血琥珀》');
+    expect(result.log).toContain('クズ琥珀でも一生懸命取ってきた努力賞');
+
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.unknownAmber = 1;
+      RPG.State.unappraisedAmberResults = ['junk'];
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.appraiseAmber();
+    });
+    await drainDialogue(page);
+    const afterRepeat = await page.evaluate(() => ({
+      junkDelivered: RPG.State.junkAmberDelivered,
+      borrowedMiningKnife: RPG.State.inventory.borrowedMiningKnife,
+      miningKnife: RPG.State.inventory.miningKnife,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(afterRepeat).toMatchObject({
+      junkDelivered: 4,
+      borrowedMiningKnife: 0,
+      miningKnife: 1,
+    });
+    expect(afterRepeat.log).not.toContain('努力賞');
   });
 
   test('merchant recognition, knife loan, return attempt, and overnight move stay ordered', async ({ page }) => {
@@ -809,10 +909,10 @@ test.describe('Chapter 1 amber system', () => {
     expect(afterOrdinaryWin.log).not.toContain('あんたらがいてくれて助かったよ');
   });
 
-  test('junk appraisals do not create stored amber or alter the borrowed knife', async ({ page }) => {
+  test('junk appraisals under three cumulative do not create stored amber or convert the borrowed knife', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
-      RPG.State.inventory.unknownAmber = 3;
+      RPG.State.inventory.unknownAmber = 2;
       RPG.State.inventory.borrowedMiningKnife = 1;
       RPG.State.flags.firstAmberAppraisalDone = true;
       Math.random = () => 0.75;
@@ -822,12 +922,14 @@ test.describe('Chapter 1 amber system', () => {
     await drainDialogue(page);
     const result = await page.evaluate(() => ({
       amberStorage: RPG.State.amberStorage,
+      junkDelivered: RPG.State.junkAmberDelivered,
       borrowedKnife: RPG.State.inventory.borrowedMiningKnife,
       miningKnife: RPG.State.inventory.miningKnife,
     }));
 
     expect(result).toEqual({
       amberStorage: { sparkling: 0 },
+      junkDelivered: 2,
       borrowedKnife: 1,
       miningKnife: 0,
     });

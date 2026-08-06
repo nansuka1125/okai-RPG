@@ -767,6 +767,9 @@ innSystem = {
             junk: false,
             insect: false
         };
+        if (!Number.isFinite(Number(RPG.State.junkAmberDelivered))) {
+            RPG.State.junkAmberDelivered = 0;
+        }
         const legacySpecialUnknown = Math.max(0, Number(RPG.State.inventory.specialUnknownAmber) || 0);
         RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
             ? RPG.State.unappraisedAmberResults.filter(itemId => typeof itemId === "string")
@@ -934,18 +937,51 @@ innSystem = {
         const fixedResult = RPG.State.unappraisedAmberResults.shift() || null;
         RPG.State.mode = "event";
         if (fixedResult) {
+            const fixedAppraisal = RPG.Assets.AMBER_APPRAISAL[fixedResult] || null;
+            const isRegularResult = fixedAppraisal !== null;
+            const shouldAwardMiningKnife =
+                isRegularResult &&
+                fixedResult === "junk" &&
+                RPG.State.junkAmberDelivered < 3 &&
+                RPG.State.junkAmberDelivered + 1 >= 3 &&
+                RPG.State.flags.miningKnifeAwarded !== true;
             RPG.State.dialogueQueue = [
                 {
-                    text: this.getRareAmberAppraisalText(fixedResult, 1, true),
+                    text: isRegularResult
+                        ? `${fixedAppraisal.name}\n${fixedAppraisal.firstText}`
+                        : this.getRareAmberAppraisalText(fixedResult, 1, true),
                     type: "marker",
                     color: "#ffd166",
                     action: () => {
                         RPG.State.inventory.unknownAmber = Math.max(0, (RPG.State.inventory.unknownAmber || 0) - 1);
-                        RPG.State.inventory[fixedResult] = (RPG.State.inventory[fixedResult] || 0) + 1;
-                        if (fixedResult === "vampireAmber") flags.vampireAmberAppraisalSeen = true;
+                        if (isRegularResult) {
+                            if (fixedResult === "sparkling") RPG.State.amberStorage.sparkling++;
+                            if (fixedResult === "junk") RPG.State.junkAmberDelivered++;
+                            RPG.State.amberAppraisalSeen[fixedResult] = true;
+                        } else {
+                            RPG.State.inventory[fixedResult] = (RPG.State.inventory[fixedResult] || 0) + 1;
+                            if (fixedResult === "vampireAmber") flags.vampireAmberAppraisalSeen = true;
+                        }
+                        flags.firstAmberAppraisalDone = true;
                         uiControl.updateUI();
                     }
                 },
+                ...(shouldAwardMiningKnife
+                    ? [
+                        { text: "琥珀商「クズ琥珀でも一生懸命取ってきた努力賞だ。そのナイフ、もうあんたにやるよ」" },
+                        {
+                            text: "《借りたナイフ》が《採掘ナイフ》になった！",
+                            type: "marker",
+                            color: "#ffd166",
+                            action: () => {
+                                RPG.State.inventory.borrowedMiningKnife = 0;
+                                RPG.State.inventory.miningKnife = 1;
+                                flags.miningKnifeAwarded = true;
+                            }
+                        },
+                        { text: "性能は特に変わっていない。" }
+                    ]
+                    : []),
                 { text: null, action: () => { RPG.State.mode = "base"; uiControl.updateUI(); } }
             ];
             explorationSystem.playDialogueLoop();
@@ -1073,12 +1109,23 @@ innSystem = {
 
         RPG.State.inventory.unknownAmber = 0;
         fixedResults.forEach(itemId => {
+            if (Object.prototype.hasOwnProperty.call(RPG.Assets.AMBER_APPRAISAL, itemId)) {
+                resultCounts[itemId]++;
+                return;
+            }
             RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
             rareResultCounts[itemId] = (rareResultCounts[itemId] || 0) + 1;
         });
         RPG.State.amberStorage.sparkling += resultCounts.sparkling;
 
         const lines = [];
+        const previousJunkAmberDelivered = RPG.State.junkAmberDelivered;
+        RPG.State.junkAmberDelivered += resultCounts.junk;
+        const shouldAwardMiningKnife =
+            previousJunkAmberDelivered < 3 &&
+            RPG.State.junkAmberDelivered >= 3 &&
+            RPG.State.flags.miningKnifeAwarded !== true;
+
         Object.entries(rareResultCounts).forEach(([itemId, amount]) => {
             const firstSeen = itemId === "vampireAmber" && RPG.State.flags.vampireAmberAppraisalSeen !== true;
             lines.push({
@@ -1099,6 +1146,23 @@ innSystem = {
             });
             RPG.State.amberAppraisalSeen[type] = true;
         });
+
+        if (shouldAwardMiningKnife) {
+            lines.push(
+                { text: "琥珀商「クズ琥珀でも一生懸命取ってきた努力賞だ。そのナイフ、もうあんたにやるよ」" },
+                {
+                    text: "《借りたナイフ》が《採掘ナイフ》になった！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.borrowedMiningKnife = 0;
+                        RPG.State.inventory.miningKnife = 1;
+                        RPG.State.flags.miningKnifeAwarded = true;
+                    }
+                },
+                { text: "性能は特に変わっていない。" }
+            );
+        }
 
         lines.push({ text: null, action: () => this.showAmberMerchantMenu() });
         RPG.State.mode = "event";

@@ -198,6 +198,7 @@ RPG.State = {
         junk: false,
         insect: false
     },
+    junkAmberDelivered: 0,
     silverCoins: 0, // Currency tracking
     postTreeBattles: null, // Count battles after tree defeat
     searchCounter: 0, // Battle counter for finding the tree
@@ -287,6 +288,7 @@ RPG.State = {
         amberMerchantMovePending: false,
         amberMerchantMovedToForest: false,
         amberMerchantCrackedAmberReceived: false,
+        miningKnifeAwarded: false,
         fakeWoundMedicinePrepared: false,
         shinyOilPrepared: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories

@@ -143,6 +143,83 @@ test.describe('field utility items', () => {
     expect(result.afterTrigger.log).toContain('🩹傷薬もどきが効き、HPが40回復した。');
   });
 
+  test('shiny oil prepares one battle of increased criticals and clears after the battle', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const logContainer = document.getElementById('logContainer');
+      if (logContainer) logContainer.innerHTML = '';
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: false,
+        currentHP: 100,
+        maxHP: 100,
+        attack: 20,
+        equippedRareAmberId: null,
+      });
+      RPG.State.inventory.shinyOil = 2;
+      RPG.State.flags.shinyOilPrepared = false;
+
+      uiControl.selectItem('shinyOil', RPG.State.inventory.shinyOil);
+      const useButtonVisible = Boolean(document.querySelector('#itemDetailArea button'));
+      explorationSystem.useItem('shinyOil');
+      const afterPrepare = {
+        count: RPG.State.inventory.shinyOil,
+        prepared: RPG.State.flags.shinyOilPrepared,
+      };
+
+      explorationSystem.useItem('shinyOil');
+      const afterRepeatUse = {
+        count: RPG.State.inventory.shinyOil,
+        prepared: RPG.State.flags.shinyOilPrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      const originalContinueBattleStart = battleSystem.continueBattleStart;
+      const originalRandom = Math.random;
+      battleSystem.continueBattleStart = () => {};
+      Math.random = () => 0.25;
+      const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'rat');
+      battleSystem.beginBattle(template);
+      const activeAtStart = RPG.State.battleState?.shinyOilCriticalActive === true;
+      const preparationClearedAtStart = RPG.State.flags.shinyOilPrepared === false;
+      const attackResult = battleSystem.performCainAttack({ allowSwordTechniques: false });
+      const criticalDuringBattle = attackResult.hits.some(hit => hit.isCritical === true);
+
+      RPG.State.currentEnemy.hp = 0;
+      RPG.State.lastBlowBy = 'Cain';
+      RPG.State.defeatCounts.rat = { cain: 0, owen: 0 };
+      battleSystem.executeStandardVictory('rat');
+      const clearedAfterBattle = RPG.State.battleState === null;
+
+      battleSystem.beginBattle(template);
+      const inactiveNextBattle = RPG.State.battleState?.shinyOilCriticalActive === false;
+
+      Math.random = originalRandom;
+      battleSystem.continueBattleStart = originalContinueBattleStart;
+      return {
+        useButtonVisible,
+        afterPrepare,
+        afterRepeatUse,
+        activeAtStart,
+        preparationClearedAtStart,
+        criticalDuringBattle,
+        clearedAfterBattle,
+        inactiveNextBattle,
+      };
+    });
+
+    expect(result).toMatchObject({
+      useButtonVisible: true,
+      afterPrepare: { count: 1, prepared: true },
+      afterRepeatUse: { count: 1, prepared: true },
+      activeAtStart: true,
+      preparationClearedAtStart: true,
+      criticalDuringBattle: true,
+      clearedAfterBattle: true,
+      inactiveNextBattle: true,
+    });
+    expect(result.afterRepeatUse.log).toContain('✨ピカピカ油は、もう準備してある。');
+  });
+
   test('smoke bomb covers ten real moves, skips random encounters, and coexists with matatabi', async ({ page }) => {
     const result = await page.evaluate(() => {
       Object.assign(RPG.State, {

@@ -29,7 +29,8 @@ RPG.Config = {
     // Provisional Chapter 1 battle-kit values. Keeping the entire set here lets balance work
     // tune Cain's sword techniques without changing battle flow.
     CAIN_COMBAT: {
-        CRITICAL_RATE: 0.15,
+        CRITICAL_RATE: 0.10,
+        SHINY_OIL_CRITICAL_RATE_BONUS: 0.20,
         CRITICAL_DAMAGE_MULTIPLIER: 1.5,
         SWORD_TECHNIQUE_RATE: 0.20,
         BLUE_AMBER_SWORD_TECHNIQUE_RATE_BONUS: 0.20,
@@ -286,6 +287,7 @@ RPG.State = {
         amberMerchantMovedToForest: false,
         amberMerchantCrackedAmberReceived: false,
         fakeWoundMedicinePrepared: false,
+        shinyOilPrepared: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end
         glowCatRabbitPhase4EncounterSeen: false, // Build 15.2.59: Track the first rabbit encounter after phase 4 unlock

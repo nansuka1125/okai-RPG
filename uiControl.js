@@ -1122,6 +1122,10 @@ const uiControl = {
             key === 'fakeWoundMedicine' &&
             typeof explorationSystem !== 'undefined' &&
             explorationSystem.canUseFakeWoundMedicine();
+        const canUseShinyOil =
+            key === 'shinyOil' &&
+            typeof explorationSystem !== 'undefined' &&
+            explorationSystem.canUseShinyOil();
         const canUseSmokeBomb =
             key === 'smokeBomb' &&
             typeof explorationSystem !== 'undefined' &&
@@ -1142,6 +1146,7 @@ const uiControl = {
             canUseEmptyBottle ||
             canUseScentPouch ||
             canUseFakeWoundMedicine ||
+            canUseShinyOil ||
             canUseSmokeBomb
         ) {
             html += `<br><button class="btn" style="height:35px;margin:10px auto 0;width:120px;" onclick="explorationSystem.useItem('${key}')">${RPG.Assets.GAME_TEXT.buttons.useItem}</button>`;

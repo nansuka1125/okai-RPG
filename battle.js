@@ -931,6 +931,8 @@ const battleSystem = {
     beginBattle: function (template, options = {}) {
         this.unlockNotebookEntryForEncounter(template && template.id);
         RPG.State.mode = "battle";
+        const shinyOilPrepared = RPG.State.flags.shinyOilPrepared === true;
+        RPG.State.flags.shinyOilPrepared = false;
         const isPhase4FirstRabbitEncounter =
             template.id === "glowing_cat_rabbit" &&
             RPG.State.storyPhase >= 4 &&
@@ -976,6 +978,7 @@ const battleSystem = {
             highwayFixedVictoryRecorded: false,
             paralysisAttacksRemaining: 0,
             masochistAmberHitCount: 0,
+            shinyOilCriticalActive: shinyOilPrepared,
             // beeAmber: only the very first hit Cain lands this battle gets the multiplier,
             // even across a multi-hit 《連撃》 combo.
             cainFirstHitBonusUsed: false
@@ -1526,7 +1529,13 @@ const battleSystem = {
         }
 
         const hits = hitMultipliers.map(hitMultiplier => {
-            const critRate = combat.CRITICAL_RATE + this.getCrackedAmberCritBonus();
+            const shinyOilBonus = RPG.State.battleState?.shinyOilCriticalActive
+                ? combat.SHINY_OIL_CRITICAL_RATE_BONUS
+                : 0;
+            const critRate = Math.min(
+                1,
+                combat.CRITICAL_RATE + this.getCrackedAmberCritBonus() + shinyOilBonus
+            );
             const isCritical = technique === null && allowCritical && Math.random() < critRate;
             let damage = Math.floor(RPG.State.attack * damageMultiplier * hitMultiplier);
             if (

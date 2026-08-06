@@ -13,6 +13,10 @@ const explorationSystem = {
         return RPG.State.mode === "base";
     },
 
+    canUseShinyOil: function () {
+        return RPG.State.mode === "base";
+    },
+
     canUseSmokeBomb: function () {
         const isFreeExplorationArea =
             RPG.State.explorationArea === "forest" ||
@@ -3339,6 +3343,21 @@ const explorationSystem = {
                 }
                 RPG.State.flags.fakeWoundMedicinePrepared = true;
                 uiControl.addLog("🩹傷薬もどきを準備した。");
+                success = true;
+                break;
+            case 'shinyOil':
+                if (!this.canUseShinyOil()) {
+                    uiControl.addLog(RPG.Assets.GAME_TEXT.items.cannotUse);
+                    uiControl.closeModal();
+                    return;
+                }
+                if (RPG.State.flags.shinyOilPrepared === true) {
+                    uiControl.addLog("✨ピカピカ油は、もう準備してある。", "", "#ffd166");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.flags.shinyOilPrepared = true;
+                uiControl.addLog("✨ピカピカ油を準備した。次の戦闘で刃がきらめく。", "", "#ffd166");
                 success = true;
                 break;
             case 'smokeBomb':

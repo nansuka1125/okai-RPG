@@ -133,8 +133,8 @@ const PACIFIED_NIGHT_LINES = [
 ];
 
 const LOTTERY_LEAD_INS = [
-  '宿屋の主人「銀貨を払ってくれるまでは物置くらいしか空いてないぞ」',
-  '宿屋の主人「…馬小屋にでも泊まるかい？」',
+  '宿屋の店主「銀貨を払ってくれるまでは物置くらいしか空いてないぞ」',
+  '宿屋の店主「…馬小屋にでも泊まるかい？」',
   '娘「あの…私の部屋でよかったら」',
 ];
 
@@ -299,7 +299,7 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
       log: document.getElementById('logContainer')?.textContent || '',
       mode: RPG.State.mode,
     }));
-    expect(result.log).toContain('宿屋の主人「悪いが、そう何度も部屋は貸せねえよ。」');
+    expect(result.log).toContain('宿屋の店主「悪いが、そう何度も部屋は貸せねえよ。」');
     expect(result.mode).toBe('base');
   });
 

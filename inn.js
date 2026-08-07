@@ -1783,15 +1783,19 @@ innSystem = {
 
         if (!selectedLines) {
             if (currentPhase <= 5) {
-                // Inn talk uses its own shared loop pool and currentInnTalkLoop memory.
-                // Inn observe uses RPG.Assets.GAME_TEXT.innObserve plus observeIndex/observePhaseReached separately.
-                const pool = talkData.sharedLoop05 || [];
-                if (pool.length === 0) return;
-                if (!RPG.State.currentInnTalkLoop) {
-                    const index = Math.floor(Math.random() * pool.length);
-                    RPG.State.currentInnTalkLoop = pool[index];
+                if (RPG.State.flags.heardMatamatabiRumor === true) {
+                    selectedLines = [talkData.matamatabiInfoLine];
+                } else {
+                    // Inn talk uses its own shared loop pool and currentInnTalkLoop memory.
+                    // Inn observe uses RPG.Assets.GAME_TEXT.innObserve plus observeIndex/observePhaseReached separately.
+                    const pool = talkData.sharedLoop05 || [];
+                    if (pool.length === 0) return;
+                    if (!RPG.State.currentInnTalkLoop) {
+                        const index = Math.floor(Math.random() * pool.length);
+                        RPG.State.currentInnTalkLoop = pool[index];
+                    }
+                    selectedLines = [RPG.State.currentInnTalkLoop];
                 }
-                selectedLines = [RPG.State.currentInnTalkLoop];
             } else {
                 const phaseData = talkData.phases[currentPhase];
                 const loopLines = phaseData && phaseData.loop ? phaseData.loop : [];
@@ -1980,7 +1984,7 @@ innSystem = {
                 { text: "傷の痛みは残っていたが、昨日よりはずっと軽い。" },
                 { text: "（久しぶりによく眠れたな）" },
                 {
-                    text: "（さて、これからどうするか。まずは宿屋の主人に挨拶しよう）",
+                    text: "（さて、これからどうするか。まずは宿屋の店主に挨拶しよう）",
                     action: () => {
                         if (recoveryAmount > 0) {
                             uiControl.addLog(`HPが ${recoveryAmount} 回復した。`);
@@ -2032,7 +2036,7 @@ innSystem = {
             return;
         }
         if (!RPG.State.canStay) {
-            uiControl.addLog("宿屋の主人「悪いが、そう何度も部屋は貸せねえよ。」");
+            uiControl.addLog("宿屋の店主「悪いが、そう何度も部屋は貸せねえよ。」");
             return;
         }
 
@@ -3085,7 +3089,7 @@ innSystem = {
         let postAction = null;
         if (selectedPhase === 6 && selectedEntry === 2) {
             postAction = () => {
-                RPG.State.inventory.herb = (RPG.State.inventory.herb || 0) + 3;
+                RPG.State.inventory.highHerb = (RPG.State.inventory.highHerb || 0) + 3;
                 uiControl.updateUI();
             };
         }

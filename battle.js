@@ -1399,7 +1399,7 @@ const battleSystem = {
                     uiControl.addLog(
                         RPG.Assets.BATTLE_TEXT.owen.kill[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.kill.length)],
                         "",
-                        "#a333c8"
+                        "#cc73ff"
                     );
                 }
                 if (RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit") {
@@ -1418,7 +1418,7 @@ const battleSystem = {
                 uiControl.addLog(
                     RPG.Assets.BATTLE_TEXT.owen.freeze[Math.floor(Math.random() * RPG.Assets.BATTLE_TEXT.owen.freeze.length)],
                     "",
-                    "#a333c8"
+                    "#cc73ff"
                 );
                 uiControl.addLog(`氷の鎖が${RPG.State.currentEnemy.name}を縛りつけた！`, "");
                 uiControl.addLog(`${RPG.State.currentEnemy.name}は動けない！`, "");
@@ -1701,7 +1701,7 @@ const battleSystem = {
 
         if (damageResult.lethal && !RPG.State.hasOwenSavedLife) {
             RPG.State.hasOwenSavedLife = true;
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#cc73ff");
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
             RPG.State.currentHP = 1;
             uiControl.updateUI();
@@ -2401,7 +2401,7 @@ const battleSystem = {
         // Death Save
         if (damageResult.lethal && !RPG.State.hasOwenSavedLife) {
             RPG.State.hasOwenSavedLife = true;
-            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#a333c8");
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidation, "", "#cc73ff");
             uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.intimidationEffect, "", "#ffff00");
             RPG.State.currentHP = 1;
             uiControl.updateUI();

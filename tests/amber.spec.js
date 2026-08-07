@@ -337,6 +337,80 @@ test.describe('Chapter 1 amber system', () => {
     expect(persisted).toBe(true);
   });
 
+  test('the fortune teller\'s farewell gift on observe grants high herb, not herb', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        storyPhase: 6,
+        silverCoins: 0,
+      });
+      RPG.State.inventory.herb = 0;
+      RPG.State.inventory.highHerb = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.inventory.unknownAmber = 0;
+      Object.assign(RPG.State.flags, {
+        hasFoundFirstCoin: false,
+        amberMerchantRecognized: false,
+        treeDefeated: false,
+        firstAmberAppraisalDone: false,
+        herbGardenFortuneConsultUnlocked: false,
+        scentPouchQuestStarted: false,
+      });
+      RPG.State.observeIndex = 6;
+      RPG.State.observePhaseReached = { 6: 1 };
+      innSystem.observe();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      herb: RPG.State.inventory.herb,
+      highHerb: RPG.State.inventory.highHerb,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.log).toContain('上薬草を三つ受け取った！');
+    expect(result.highHerb).toBe(3);
+    expect(result.herb).toBe(0);
+  });
+
+  test('inn talk shows the matamatabi-tree tip only once the rumor has been fully heard, leaving the earlier shared loop alone', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        storyPhase: 4,
+      });
+      RPG.State.currentInnTalkLoop = null;
+      // Exhaust every phase's one-time entries first, so talk() falls straight through to the
+      // currentPhase<=5 shared-loop branch this fix touches, instead of the phase 0-3 backlog.
+      RPG.State.talkPhaseReached = { 0: 99, 1: 99, 2: 99, 3: 99, 4: 99 };
+      Object.assign(RPG.State.flags, {
+        introDebtTalkPending: false,
+        innRepairHelpStarted: false,
+        needsGlowingRabbitFur: false,
+        heardMatamatabiRumor: false,
+      });
+      innSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const before = await page.evaluate(() => (
+      document.getElementById('logContainer')?.textContent || ''
+    ));
+    expect(before).not.toContain('森の中にある白っぽい低木が、猫っぽい魔物を惹きつけるかもしれません');
+
+    await page.evaluate(() => {
+      RPG.State.flags.heardMatamatabiRumor = true;
+      innSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const after = await page.evaluate(() => (
+      document.getElementById('logContainer')?.textContent || ''
+    ));
+    expect(after).toContain('娘「森の中にある白っぽい低木が、猫っぽい魔物を惹きつけるかもしれません」');
+  });
+
   test('the inn first recognizes the amber merchant on observe after the first coin', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {

@@ -391,10 +391,10 @@ RPG.Assets.GAME_TEXT = {
     // Inn System Messages
     inn: {
         welcome: "―― 宿屋《琥珀亭》 ――",
-        ownerGreeting: "宿屋の主人『いらっしゃい、カイン。ゆっくりしていきな。』",
+        ownerGreeting: "宿屋の店主『いらっしゃい、カイン。ゆっくりしていきな。』",
         locationFront: "―― 宿屋前 ――",
         noNeedRest: "カイン「今はまだ休む必要はないな。」",
-        cannotStayAgain: "宿屋の主人『悪いが、そう何度も部屋は貸せねえよ。』",
+        cannotStayAgain: "宿屋の店主『悪いが、そう何度も部屋は貸せねえよ。』",
         // Sequential Defeat Events
         defeatEvents: [
             {
@@ -435,7 +435,7 @@ RPG.Assets.GAME_TEXT = {
             "至るところで黒紫の炎がうねり、雪のように灰が降っている。空が暗い。",
             "遠く、目を凝らした。",
             "宿屋も、跡形もなくなっていた。",
-            "カイン「そんな……宿屋の主人は、娘は……！？」",
+            "カイン「そんな……宿屋の店主は、娘は……！？」",
             "オーエン「銀貨なら、もう払う必要はないよ」",
             "カインは荷馬車を降りようと身を乗り出す。",
             "カイン「どこかで怪我をしているかもしれない。探しに行かないと……！」",
@@ -614,7 +614,7 @@ RPG.Assets.GAME_TEXT = {
                 "占い師「もう行くの？」",
                 "カイン「ああ。またどこかで会えたらその時は酒でも飲もう！」",
                 "占い師「ふふ、うれしい。これあげる。」",
-                "薬草を三つ受け取った！",
+                "上薬草を三つ受け取った！",
                 "オーエン「そうやって貢がせてるんだ」",
                 "カイン「そんなつもりでは…？」"
             ],
@@ -1368,7 +1368,7 @@ RPG.Assets.GAME_TEXT = {
             "オーエン「人間の骨は？たくさんあるんじゃない？」",
             "占い師「人間のもよくないかな。小動物がいいよ」",
             "カイン「スースーする草と、骨の粉だな」",
-            "カイン（粉を入れる空き瓶が欲しい。宿の主人に聞いてみよう）"
+            "カイン（粉を入れる空き瓶が欲しい。宿の店主に聞いてみよう）"
         ],
         phase6HerbGardenMaterialHintNone: [
             "占い師「香草袋の材料は、薄荷草と骨粉だよ」",
@@ -1501,7 +1501,7 @@ RPG.Assets.GAME_TEXT = {
             "昨晩の雨が、ここから中まで吹き込んでいた。",
             "カイン（早く塞いだ方がよさそうだな）",
             "店主「やっと雨が上がったな」",
-            "宿屋の主人が、工具箱と板材を抱えてやってきた。",
+            "宿屋の店主が、工具箱と板材を抱えてやってきた。",
             "店主「ほら。あんたの取ってきた木材も、ちゃんと板になったぞ」",
             "カイン「お！」",
             "店主「ここからは俺一人でもなんとかなる」",
@@ -2592,26 +2592,26 @@ RPG.Assets.BATTLE_EVENTS = {
     rat: {
         1: [
             { text: "カイン「デカいネズミだったな…犬くらいあるぞ」", delay: 2000 },
-            { text: "オーエン「魔界のネズミだよ。すっごく凶暴でなんでも食べる」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「魔界のネズミだよ。すっごく凶暴でなんでも食べる」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「魔界の生き物はみんな目が赤いのか？」", delay: 2000 },
-            { text: "オーエン「…なんか腹立つな」", delay: 2000, color: "#a333c8" }
+            { text: "オーエン「…なんか腹立つな」", delay: 2000, color: "#cc73ff" }
         ]
     },
     weasel: {
         3: [
             { text: "カイン「悔しいな…次こそは見切ってみせる！」", delay: 2000 },
-            { text: "オーエン「ケモノ相手にムキになるなよ」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「ケモノ相手にムキになるなよ」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「速くて全然見えないんだ」", delay: 2000 },
-            { text: "オーエン「…魔界のイタチが見えないのは速いからじゃないよ。最初現れる時は透明なんだ」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「…魔界のイタチが見えないのは速いからじゃないよ。最初現れる時は透明なんだ」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「そうだったのか！？」", delay: 2000 }
         ]
     },
     hell_rat_swarm: {
         1: [
             { text: "カイン「あの黒い影、全部ネズミか…！？」", delay: 2000 },
-            { text: "オーエン「夜は群れるんだよ。馬でも虎でも食い尽くす」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「夜は群れるんだよ。馬でも虎でも食い尽くす」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「嘘だろ…範囲攻撃が欲しいな」", delay: 2000 },
-            { text: "オーエン「ほら、ここにも、チューチュー。ご立派な剣でちまちま切り刻んでね？」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「ほら、ここにも、チューチュー。ご立派な剣でちまちま切り刻んでね？」", delay: 2000, color: "#cc73ff" },
             {
                 text: null,
                 action: () => {
@@ -2625,7 +2625,7 @@ RPG.Assets.BATTLE_EVENTS = {
     eye_eating_crow: {
         1: [
             { text: "カイン「くそ、ネズミは下から、カラスは上から！」", delay: 2000 },
-            { text: "オーエン「前からと後ろからが物足りない？」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「前からと後ろからが物足りない？」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「ああもう…っまた！」", delay: 2000 },
             {
                 text: null,
@@ -2638,26 +2638,26 @@ RPG.Assets.BATTLE_EVENTS = {
         ],
         2: [
             { text: "カイン「こいつら…っ、目玉ばっかり狙ってくる」", delay: 2000 },
-            { text: "オーエン「おまえと同じ趣味だね」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「おまえと同じ趣味だね」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「……趣味だったわけでは」", delay: 2000 },
-            { text: "オーエン「おまえの目玉、美味しそうなんじゃない？蜂蜜色で」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「おまえの目玉、美味しそうなんじゃない？蜂蜜色で」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「おまえだって片目は同じなのに狙われないんだな…」", delay: 2000 }
         ]
     },
     inn_rat_event2: {
         1: [
             { text: "店主「あれが森に出るって噂の化け物か…。あんたらがいてくれて助かったよ…」", delay: 2000 },
-            { text: "オーエン「夜だったら面白かったのに」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「夜だったら面白かったのに」", delay: 2000, color: "#cc73ff" },
             { text: "娘「え？」", delay: 2000 },
-            { text: "オーエン「今頃おまえたちみんな骨になってる。」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「今頃おまえたちみんな骨になってる。」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「無事でよかった！…建物まで入ってくるのか。本当に、なんとかしないとな」", delay: 2000 },
             { text: "店主「お礼と言ってはなんだが、ハーブソーセージでも食べてくれ」", delay: 2000 },
             { text: "カイン「やった！あれうまそうだと思ってたんだ」", delay: 2000 },
             { text: "カインはソーセージを食べてビールを飲んだ。", delay: 2000 },
-            { text: "オーエン「…本当においしいの？それ」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「…本当においしいの？それ」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「食うか？」", delay: 2000 },
             { text: "カインはオーエンに一口ソーセージを齧らせた！", delay: 2000 },
-            { text: "オーエン「…まずい。血の味がしない」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「…まずい。血の味がしない」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「そういうソーセージなんだ。」", delay: 2000 }
         ]
     },
@@ -2666,13 +2666,13 @@ RPG.Assets.BATTLE_EVENTS = {
             { text: "カイン「思わず倒しちまったが…普通のネズミだな」", delay: 2000 },
             { text: "娘「ありがとうございます！」", delay: 2000 },
             { text: "カイン「そんなお礼を言われるほどのものじゃないさ」", delay: 2000 },
-            { text: "オーエン「ただのネズミ相手に、聖剣を抜く騎士様かっこよかったよ」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「ただのネズミ相手に、聖剣を抜く騎士様かっこよかったよ」", delay: 2000, color: "#cc73ff" },
             { text: "カイン（馬鹿にされてるのはわかる）", delay: 2000 },
             { text: "店主はネズミの死体を拾った。", delay: 2000 },
             { text: "店主「食えなくはないが…」", delay: 2000 },
             { text: "娘「やめましょうよ」", delay: 2000 },
             { text: "カイン「オーエン、食えるか？」", delay: 2000 },
-            { text: "オーエン「おまえが殺したんだからおまえの獲物だよ。食べていいよ。」", delay: 2000, color: "#a333c8" },
+            { text: "オーエン「おまえが殺したんだからおまえの獲物だよ。食べていいよ。」", delay: 2000, color: "#cc73ff" },
             { text: "カイン「………」", delay: 2000 },
             { text: "カインはネズミを食べなかった！", delay: 2000 }
         ]
@@ -2688,6 +2688,9 @@ RPG.Assets.TALK_DATA = {
             "店主「飯が食いたいならなんか取ってきてくれ」",
             "店主「ほら、どいたどいた」"
         ],
+        // Replaces the sharedLoop05 draw once the matamatabi-branch rumor has been fully
+        // heard (heardMatamatabiRumor), until storyPhase moves past this shared-loop window.
+        matamatabiInfoLine: "娘「森の中にある白っぽい低木が、猫っぽい魔物を惹きつけるかもしれません」",
         availability: {
             0: {
                 1: state => state.storyPhase === 0
@@ -2890,7 +2893,7 @@ RPG.Assets.INN_EVENTS = [
         id: "storage_room",
         weight: 50,
         dialogue: [
-            { text: "宿屋の主人「銀貨を払ってくれるまでは物置くらいしか空いてないぞ」", delay: 1000 },
+            { text: "宿屋の店主「銀貨を払ってくれるまでは物置くらいしか空いてないぞ」", delay: 1000 },
             { text: "オーエン「…ねえ、僕が払ってあげようか？もちろん対価はもらうけど」", delay: 1000, color: "#a020f0" },
             { text: "カイン「よせオーエン」", delay: 1000 }
         ],
@@ -2905,7 +2908,7 @@ RPG.Assets.INN_EVENTS = [
         id: "stable",
         weight: 30,
         dialogue: [
-            { text: "宿屋の主人「…馬小屋にでも泊まるかい？」", delay: 1000 },
+            { text: "宿屋の店主「…馬小屋にでも泊まるかい？」", delay: 1000 },
             { text: "カイン「ありがとう。馬は好きだ。」", delay: 1000 },
             { text: "オーエン「……馬鹿だもんね」", delay: 1000, color: "#a020f0" }
         ],
@@ -2989,7 +2992,7 @@ RPG.Assets.getJourneyMemo = function (state) {
 
     if (flags.scentPouchQuestStarted === true) {
         if (flags.scentPouchInfoHeard !== true) {
-            return "香草袋の材料について、宿屋の主人に聞く。";
+            return "香草袋の材料について、宿屋の店主に聞く。";
         }
 
         if (
@@ -3025,11 +3028,11 @@ RPG.Assets.getJourneyMemo = function (state) {
         if (flags.phase6PostDeliverySleepDone !== true) {
             return "銀貨を納品した。今夜は琥珀亭でゆっくり休む。";
         }
-        return "次の道を決めるため、宿屋の主人に話を聞く。";
+        return "次の道を決めるため、宿屋の店主に話を聞く。";
     }
 
     if (flags.giantLarvaDefeated === true || phase >= 5) {
-        return "銀貨3枚を取り戻した。宿屋の主人へ納品する。";
+        return "銀貨3枚を取り戻した。宿屋の店主へ納品する。";
     }
 
     if (flags.phase4TheftDiscovered === true || phase >= 4) {
@@ -3075,7 +3078,7 @@ RPG.Assets.getJourneyMemo = function (state) {
         return `宿代のため、琥珀の森で銀貨をあと${remainingCoins}枚探す。`;
     }
 
-    return "集めた銀貨を、宿屋の主人へ納品する。";
+    return "集めた銀貨を、宿屋の店主へ納品する。";
 };
 
 

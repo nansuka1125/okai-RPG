@@ -105,7 +105,7 @@ test.describe('Chapter 1 amber system', () => {
 
     expect(result).toEqual({
       values: {
-        hungry_amber_tree: 500,
+        hungry_amber_tree: 250,
         giant_larva: 180,
         skull_bee: 30,
         carnivorous_vine: 30,

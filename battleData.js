@@ -667,7 +667,7 @@ RPG.Assets.ENEMIES = [
         symbol: "╫",
         maxHp: 170,
         atk: 19,
-        xp: 500,
+        xp: 250,
         isBoss: true,
         armorMax: 50, // Provisional Chapter 1 balance value
         armorChipDamageRatio: 1 / 3,

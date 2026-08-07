@@ -239,6 +239,16 @@ const explorationSystem = {
         );
     },
 
+    // 泥這う大幼蟲を倒し、納品後の一泊(phase6PostDeliverySleepDone、雨が止む条件と同一)を終えた
+    // 翌日以降、森4mでマタマタビの枝を一度だけ再入手できる。一泊前(雨が続いている間)は解禁しない。
+    canReacquireMatamatabiBranch: function () {
+        return (
+            RPG.State.flags.giantLarvaDefeated === true &&
+            RPG.State.flags.phase6PostDeliverySleepDone === true &&
+            RPG.State.flags.matamatabiBranchFoundAgain !== true
+        );
+    },
+
     tryHerbGardenEncounter: function (distance, options = {}) {
         if (this.isRandomEncounterSuppressed(options)) return false;
         if (distance === 3 || distance <= 0) return false;
@@ -1314,6 +1324,14 @@ const explorationSystem = {
             RPG.State.flags.matamatabiBranchFound !== true;
 
         if (shouldShowMatamatabiHint) {
+            const hintLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiHint4m || [];
+            hintLines.forEach(line => uiControl.addLog(line, "ambient"));
+            uiControl.updateUI();
+            this.finishTemporaryFieldStep(temporaryEffects);
+            return;
+        }
+
+        if (dist === 4 && this.canReacquireMatamatabiBranch()) {
             const hintLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiHint4m || [];
             hintLines.forEach(line => uiControl.addLog(line, "ambient"));
             uiControl.updateUI();
@@ -2974,6 +2992,32 @@ const explorationSystem = {
             flags.matamatabiBranchFound !== true
         ) {
             flags.matamatabiBranchFound = true;
+            const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = pickupLines.map(line => {
+                if (line === "🌿マタマタビの枝 を手に入れた！") {
+                    return {
+                        text: line,
+                        delay: 1500,
+                        color: "#FFD700",
+                        action: () => {
+                            RPG.State.inventory.matamatabiBranch = (RPG.State.inventory.matamatabiBranch || 0) + 1;
+                            RPG.State.matamatabiUseCount = 0;
+                            uiControl.updateUI();
+                        }
+                    };
+                }
+                if (line.startsWith("オーエン")) {
+                    return { text: line, delay: 1500, color: "#a020f0" };
+                }
+                return { text: line, delay: 1500 };
+            });
+            this.playDialogueLoop();
+            return;
+        }
+
+        if (dist === 4 && this.canReacquireMatamatabiBranch()) {
+            flags.matamatabiBranchFoundAgain = true;
             const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = pickupLines.map(line => {

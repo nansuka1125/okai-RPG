@@ -50,6 +50,20 @@ function logTexts(page) {
   ));
 }
 
+async function drainDialogue(page, maxTaps = 30) {
+  await page.evaluate(() => { RPG.State.debug.isSkipping = true; });
+  for (let i = 0; i < maxTaps; i++) {
+    const mode = await page.evaluate(() => RPG.State.mode);
+    if (mode !== 'event') {
+      await page.evaluate(() => { RPG.State.debug.isSkipping = false; });
+      return mode;
+    }
+    await page.evaluate(() => uiControl.handlePlayerInput());
+    await page.waitForTimeout(30);
+  }
+  throw new Error('dialogue did not finish');
+}
+
 test.describe('forest rain - 7m onset', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
@@ -229,6 +243,77 @@ test.describe('forest rain - isRainActive() semantics', () => {
       nineMUnlocked: true,
       tenMUnlocked: true,
     });
+  });
+});
+
+test.describe('matamatabi branch re-acquisition at 4m', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+    await page.evaluate(() => {
+      RPG.State.currentDistance = 4;
+      RPG.State.inventory.matamatabiBranch = 0;
+      RPG.State.flags.matamatabiActive = false;
+      RPG.State.flags.giantLarvaDefeated = false;
+      RPG.State.flags.phase6PostDeliverySleepDone = false;
+      RPG.State.flags.matamatabiBranchFoundAgain = false;
+    });
+  });
+
+  test('stays locked before the boss is defeated, and again before the post-delivery sleep, then unlocks once and re-locks after use', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const beforeBoss = explorationSystem.canReacquireMatamatabiBranch();
+
+      RPG.State.flags.giantLarvaDefeated = true;
+      const bossOnlyPreSleep = explorationSystem.canReacquireMatamatabiBranch();
+
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      const unlockedAfterSleep = explorationSystem.canReacquireMatamatabiBranch();
+
+      RPG.State.flags.matamatabiBranchFoundAgain = true;
+      const lockedAfterFirstReacquisition = explorationSystem.canReacquireMatamatabiBranch();
+
+      return { beforeBoss, bossOnlyPreSleep, unlockedAfterSleep, lockedAfterFirstReacquisition };
+    });
+    expect(result).toEqual({
+      beforeBoss: false,
+      bossOnlyPreSleep: false,
+      unlockedAfterSleep: true,
+      lockedAfterFirstReacquisition: false,
+    });
+  });
+
+  test('picking up the branch again at 4m does not activate matamatabi; using it from inventory does', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.flags.giantLarvaDefeated = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      RPG.State.mode = 'base';
+    });
+
+    await page.evaluate(() => explorationSystem.talk());
+    await drainDialogue(page);
+
+    const afterPickup = await page.evaluate(() => ({
+      branchCount: RPG.State.inventory.matamatabiBranch,
+      foundAgain: RPG.State.flags.matamatabiBranchFoundAgain,
+      matamatabiActive: RPG.State.flags.matamatabiActive,
+    }));
+
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      explorationSystem.useItem('matamatabiBranch');
+    });
+    await drainDialogue(page);
+
+    const afterUse = await page.evaluate(() => ({
+      branchCount: RPG.State.inventory.matamatabiBranch,
+      matamatabiActive: RPG.State.flags.matamatabiActive,
+    }));
+
+    expect(afterPickup).toEqual({ branchCount: 1, foundAgain: true, matamatabiActive: false });
+    expect(afterUse).toEqual({ branchCount: 1, matamatabiActive: true });
   });
 });
 

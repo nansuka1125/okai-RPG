@@ -331,6 +331,7 @@ RPG.State = {
         phase4MatamatabiTalkCount: 0, // Build 15.2.63: Track the two rumor talks about the matamatabi branch
         heardMatamatabiRumor: false, // Build 15.2.63: Unlock the 4m branch clue after hearing the daughter's rumor
         matamatabiBranchFound: false, // Build 15.2.63: Track whether the branch has already been picked up at 4m
+        matamatabiBranchFoundAgain: false, // One-time re-acquisition of the branch at 4m, available once giantLarvaDefeated and phase6PostDeliverySleepDone are both true (post-boss, rain stopped)
         matamatabiActive: false, // Build 15.2.64: Party-wide phase 4 state enabled after taking damage while carrying the branch
         matamatabiAutoActivationDone: false, // Build 15.6.x: The automatic damage-triggered activation is one-time; manual use remains repeatable
         matamatabiNightPending: false, // Build 15.2.85: Schedule the first pre-delivery inn night after the branch activates

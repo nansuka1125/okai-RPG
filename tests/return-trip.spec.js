@@ -337,6 +337,41 @@ test.describe('return trip - full sequence', () => {
     expect(result.hpAfter).toBeLessThan(result.hpBefore);
   });
 
+  test('during the rainy peaceful return, 調べる/アイテム grey out while 進む/戻る stay usable; delivering the silver re-enables them', async ({ page }) => {
+    const duringReturn = await page.evaluate(() => {
+      RPG.State.currentDistance = 9; // off the 10m ceiling, so 進む isn't disabled for an unrelated reason
+      uiControl.updateUI();
+      return {
+        peaceful: explorationSystem.isPeacefulReturnActive(),
+        rain: explorationSystem.isRainActive(),
+        talk: { text: document.getElementById('btnTalk')?.textContent, disabled: document.getElementById('btnTalk')?.disabled },
+        item: { text: document.getElementById('btnItem')?.textContent, disabled: document.getElementById('btnItem')?.disabled },
+        forwardDisabled: document.getElementById('btnMoveForward')?.disabled,
+        backDisabled: document.getElementById('btnMoveBack')?.disabled,
+      };
+    });
+    expect(duringReturn.peaceful).toBe(true);
+    expect(duringReturn.rain).toBe(true);
+    expect(duringReturn.talk).toEqual({ text: '調べる', disabled: true });
+    expect(duringReturn.item).toEqual({ text: 'アイテム', disabled: true });
+    expect(duringReturn.forwardDisabled).toBe(false);
+    expect(duringReturn.backDisabled).toBe(false);
+
+    const afterDelivery = await page.evaluate(() => {
+      RPG.State.flags.silverDelivered = true;
+      uiControl.updateUI();
+      return {
+        rain: explorationSystem.isRainActive(),
+        talk: { text: document.getElementById('btnTalk')?.textContent, disabled: document.getElementById('btnTalk')?.disabled },
+        item: { text: document.getElementById('btnItem')?.textContent, disabled: document.getElementById('btnItem')?.disabled },
+      };
+    });
+    // Rain alone (without the still-active peaceful return) no longer greys out these buttons.
+    expect(afterDelivery.rain).toBe(true);
+    expect(afterDelivery.talk).toEqual({ text: '調べる', disabled: false });
+    expect(afterDelivery.item).toEqual({ text: 'アイテム', disabled: false });
+  });
+
   test('75. debug.isSkipping does not jam the walk', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.debug.isSkipping = true;

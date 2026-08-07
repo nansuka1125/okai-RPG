@@ -527,6 +527,7 @@ const uiControl = {
             const btnEnterHerbGarden = document.getElementById('btnEnterHerbGarden');
             const btnMoveBack = document.getElementById('btnMoveBack');
             const btnTalk = document.getElementById('btnTalk');
+            const btnItem = document.getElementById('btnItem');
             const isAtForestHut =
                 RPG.State.explorationArea === 'forest' &&
                 RPG.State.currentDistance === 10 &&
@@ -587,6 +588,30 @@ const uiControl = {
                     (RPG.State.inventory.borrowedMiningKnife || 0) > 0 ||
                     (RPG.State.inventory.miningKnife || 0) > 0
                 );
+            // Mirrors exploration.js's talk() condition for the inn-repair timber pickup at 8m
+            // exactly, so the label and the action can never disagree.
+            const canGatherAmberTreeTimber =
+                RPG.State.currentDistance === 8 &&
+                RPG.State.location !== "かつての街道" &&
+                RPG.State.flags.treeDefeated === true &&
+                RPG.State.flags.innRepairInspectionReported === true &&
+                RPG.State.flags.innRepairTimberSearchUnlocked === true &&
+                RPG.State.flags.innRepairTimberObtained !== true;
+            // Wagon journey through the forest, before the highway transition: movement stays
+            // usable, but examining/items have nothing to do while riding along.
+            const isOnWagonInForest =
+                RPG.State.explorationArea !== "herbGarden" &&
+                RPG.State.flags.onWagon === true &&
+                RPG.State.location !== "かつての街道";
+            // The peaceful, rain-soaked walk back to the inn after the giant larva: movement and
+            // its existing return-trip events stay usable, but examining/items are unavailable
+            // until the rain lets up.
+            const isRainyPeacefulReturn =
+                RPG.State.explorationArea !== "herbGarden" &&
+                typeof explorationSystem !== "undefined" &&
+                explorationSystem.isPeacefulReturnActive() &&
+                explorationSystem.isRainActive();
+            const shouldGreyOutTalkAndItem = isOnWagonInForest || isRainyPeacefulReturn;
 
             if (!RPG.State.isInDungeon) {
                 if (btnEnterInn) btnEnterInn.style.display = 'flex';
@@ -712,6 +737,8 @@ const uiControl = {
                         btnTalk.textContent = "琥珀商";
                     } else if (canMineAmberTreeCoin) {
                         btnTalk.textContent = "埋まった銀貨を掘る";
+                    } else if (canGatherAmberTreeTimber) {
+                        btnTalk.textContent = "倒れた琥珀樹";
                     } else if (hasUnfoundForestBrooch && isPhase6WagonDriverSpot) {
                         btnTalk.textContent = "光るものを調べる";
                     } else if (isPhase6WagonSpot) {
@@ -752,6 +779,17 @@ const uiControl = {
                     ) {
                         btnTalk.textContent = "森小屋";
                     }
+
+                    if (shouldGreyOutTalkAndItem) {
+                        btnTalk.disabled = true;
+                        btnTalk.style.opacity = "0.25";
+                        btnTalk.style.pointerEvents = "none";
+                    }
+                }
+                if (btnItem) {
+                    btnItem.disabled = shouldGreyOutTalkAndItem;
+                    btnItem.style.opacity = shouldGreyOutTalkAndItem ? "0.25" : "1";
+                    btnItem.style.pointerEvents = shouldGreyOutTalkAndItem ? "none" : "auto";
                 }
             }
         }

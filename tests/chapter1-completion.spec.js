@@ -1086,4 +1086,45 @@ test.describe('Chapter 1 completion route', () => {
       battling: false,
     });
   });
+
+  test('riding the wagon through the forest greys out 調べる/戻る/アイテム while 進む stays usable, and disembarking re-enables them', async ({ page }) => {
+    const onWagon = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        location: '琥珀の森',
+        currentDistance: 4,
+        storyPhase: 8,
+      });
+      RPG.State.flags.onWagon = true;
+      uiControl.updateUI();
+      return {
+        talk: { text: document.getElementById('btnTalk')?.textContent, disabled: document.getElementById('btnTalk')?.disabled },
+        back: { text: document.getElementById('btnMoveBack')?.textContent, disabled: document.getElementById('btnMoveBack')?.disabled },
+        item: { text: document.getElementById('btnItem')?.textContent, disabled: document.getElementById('btnItem')?.disabled },
+        forwardDisabled: document.getElementById('btnMoveForward')?.disabled,
+      };
+    });
+
+    expect(onWagon).toEqual({
+      talk: { text: '調べる', disabled: true },
+      back: { text: '戻る', disabled: true },
+      item: { text: 'アイテム', disabled: true },
+      forwardDisabled: false,
+    });
+
+    const afterDisembark = await page.evaluate(() => {
+      RPG.State.flags.onWagon = false;
+      uiControl.updateUI();
+      return {
+        talk: { text: document.getElementById('btnTalk')?.textContent, disabled: document.getElementById('btnTalk')?.disabled },
+        item: { text: document.getElementById('btnItem')?.textContent, disabled: document.getElementById('btnItem')?.disabled },
+      };
+    });
+
+    expect(afterDisembark.talk).toEqual({ text: '調べる', disabled: false });
+    expect(afterDisembark.item).toEqual({ text: 'アイテム', disabled: false });
+  });
 });

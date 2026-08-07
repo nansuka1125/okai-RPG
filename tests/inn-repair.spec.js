@@ -1161,7 +1161,7 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
 
   // --- 木材取得 (amber tree timber retrieval) ---
 
-  test('34. after the report, forest 8m examine triggers the timber-retrieval event (label stays 調べる)', async ({ page }) => {
+  test('34. after the report, forest 8m examine triggers the timber-retrieval event (label shows 倒れた琥珀樹, then reverts to 調べる)', async ({ page }) => {
     const before = await page.evaluate(() => {
       Object.assign(RPG.State, {
         mode: 'base', isAtInn: false, isInDungeon: true, explorationArea: 'forest', currentDistance: 8,
@@ -1174,9 +1174,10 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
       });
       RPG.State.inventory.amberTreeTimber = 0;
       uiControl.updateUI();
-      return document.getElementById('btnTalk')?.textContent;
+      const btnTalk = document.getElementById('btnTalk');
+      return { text: btnTalk?.textContent, disabled: btnTalk?.disabled };
     });
-    expect(before).toBe('調べる');
+    expect(before).toEqual({ text: '倒れた琥珀樹', disabled: false });
 
     await page.evaluate(() => explorationSystem.talk());
     await drainDialogue(page);

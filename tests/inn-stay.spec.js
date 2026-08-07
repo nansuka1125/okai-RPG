@@ -470,16 +470,14 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
       state: { travelStepsSinceStay: 12 },
       flags: { herbGardenHerb1Available: false },
     });
-    await page.evaluate(() => { RPG.State.inventory.someonesDiary = 1; });
     await callStay(page);
     await drainStay(page);
 
     const result = await page.evaluate(() => ({
       travelStepsSinceStay: RPG.State.travelStepsSinceStay,
       herb1: RPG.State.flags.herbGardenHerb1Available,
-      diaryUnlocked: RPG.State.flags.someonesDiaryReadUnlocked,
     }));
-    expect(result).toEqual({ travelStepsSinceStay: 0, herb1: true, diaryUnlocked: true });
+    expect(result).toEqual({ travelStepsSinceStay: 0, herb1: true });
   });
 
   test('17. a pending morning training still plays instead of the plain morning', async ({ page }) => {

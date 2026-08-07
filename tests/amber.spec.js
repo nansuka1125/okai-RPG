@@ -116,7 +116,7 @@ test.describe('Chapter 1 amber system', () => {
     });
   });
 
-  test('only the fixed initial herb-garden vine grants someone\'s diary', async ({ page }) => {
+  test('defeating a carnivorous vine never grants someone\'s diary by itself, fixed encounter or regrown', async ({ page }) => {
     await page.evaluate(() => {
       window.__originalVineContinueBattleStart = battleSystem.continueBattleStart;
       battleSystem.continueBattleStart = () => {};
@@ -138,36 +138,26 @@ test.describe('Chapter 1 amber system', () => {
     });
     await drainDialogue(page);
 
-    const fixedResult = await page.evaluate(() => {
-      const markedAsInitial = RPG.State.battleState?.isInitialHerbGardenVine === true;
+    const fixedDiary = await page.evaluate(() => {
       RPG.State.lastBlowBy = 'Cain';
       battleSystem.executeStandardVictory('carnivorous_vine');
-      return { markedAsInitial, diary: RPG.State.inventory.someonesDiary };
+      return RPG.State.inventory.someonesDiary;
     });
-    expect(fixedResult).toEqual({ markedAsInitial: true, diary: 1 });
+    expect(fixedDiary).toBe(0);
 
-    const otherVineResults = await page.evaluate(() => {
+    const regrownDiary = await page.evaluate(() => {
       const vine = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'carnivorous_vine');
-      RPG.State.inventory.someonesDiary = 0;
       RPG.State.flags.carnivorousVineDefeated = true;
       RPG.State.defeatCounts.carnivorous_vine = { cain: 0, owen: 0 };
       battleSystem.beginBattle(vine);
       RPG.State.lastBlowBy = 'Cain';
       battleSystem.executeStandardVictory('carnivorous_vine');
-      const regrownDiary = RPG.State.inventory.someonesDiary;
-
-      RPG.State.inventory.someonesDiary = 1;
-      RPG.State.defeatCounts.carnivorous_vine = { cain: 0, owen: 0 };
-      battleSystem.beginBattle(vine);
-      RPG.State.battleState.isInitialHerbGardenVine = true;
-      RPG.State.lastBlowBy = 'Cain';
-      battleSystem.executeStandardVictory('carnivorous_vine');
-      const existingDiary = RPG.State.inventory.someonesDiary;
+      const diary = RPG.State.inventory.someonesDiary;
       battleSystem.continueBattleStart = window.__originalVineContinueBattleStart;
       delete window.__originalVineContinueBattleStart;
-      return { regrownDiary, existingDiary };
+      return diary;
     });
-    expect(otherVineResults).toEqual({ regrownDiary: 0, existingDiary: 1 });
+    expect(regrownDiary).toBe(0);
   });
 
   test('amber-tree inspect restores both choices and preserves the leave dialogue', async ({ page }) => {
@@ -6604,14 +6594,27 @@ test.describe('Chapter 1 amber system', () => {
       expect(reward.queued).toEqual(['ignoredAmber']);
       expect(reward.ignoredAmber).toBe(0);
 
+      // Once the ？琥珀 is taken, the next examine of the cleared nest finds the diary instead.
+      await page.evaluate(() => explorationSystem.talk());
+      await drainDialogue(page);
+      const diaryReward = await page.evaluate(() => ({
+        log: document.getElementById('logContainer')?.textContent || '',
+        diary: RPG.State.inventory.someonesDiary,
+      }));
+      expect(diaryReward.log).toContain('📓誰かの日記を手に入れた！');
+      expect(diaryReward.diary).toBe(1);
+
+      // Only after both one-time finds are taken does the nest go quiet.
       await page.evaluate(() => explorationSystem.talk());
       await drainDialogue(page);
       const second = await page.evaluate(() => ({
         log: document.getElementById('logContainer')?.textContent || '',
         unknownAmber: RPG.State.inventory.unknownAmber,
+        diary: RPG.State.inventory.someonesDiary,
       }));
       expect(second.log).toContain('カイン（特に気になるものはないな）');
       expect(second.unknownAmber).toBe(1);
+      expect(second.diary).toBe(1);
 
       await page.evaluate(() => {
         RPG.State.mode = 'base';

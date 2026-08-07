@@ -263,11 +263,6 @@ innSystem = {
             visualDirector.syncScene();
         }
 
-        // 日記を持った状態で一泊を終えたときだけ読書を解禁する。取得前の宿泊履歴では絶対に立たない。
-        if ((RPG.State.inventory.someonesDiary || 0) > 0) {
-            RPG.State.flags.someonesDiaryReadUnlocked = true;
-        }
-
         RPG.State.flags.herbGardenHerb1Available = true;
 
         // 占い師から居場所を聞いた当日はまだ雨・救出を解禁せず、この一泊(通常宿泊/マタマタビの夜

@@ -84,98 +84,18 @@ async function tap(page, times = 1) {
   }
 }
 
-test.describe('someone\'s diary - locked before unlock', () => {
+test.describe('someone\'s diary - reading is available as soon as it is obtained', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
       throw new Error(`Uncaught page error: ${error.message}`);
     });
     await openGame(page);
     await page.evaluate(() => {
-      RPG.State.flags.someonesDiaryReadUnlocked = false;
-    });
-  });
-
-  test('34. using the diary before unlock shows the refusal line', async ({ page }) => {
-    await page.evaluate(() => explorationSystem.useItem('someonesDiary'));
-    const result = await page.evaluate(() => ({
-      lastLine: document.querySelector('#logContainer .log-entry:last-child')?.textContent,
-      queueLength: RPG.State.dialogueQueue.length,
-    }));
-    expect(result.lastLine).toBe('カイン（今は読む気力がない）');
-    expect(result.queueLength).toBe(0);
-  });
-
-  test('35. body text never appears across repeated attempts before unlock', async ({ page }) => {
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => explorationSystem.useItem('someonesDiary'));
-    }
-    const hasBody = await page.evaluate(() => (
-      Array.from(document.querySelectorAll('#logContainer .log-entry'))
-        .some(el => (el.textContent || '').includes('ボスはかっこいい'))
-    ));
-    expect(hasBody).toBe(false);
-  });
-
-  test('36. using the diary before unlock does not consume it', async ({ page }) => {
-    await page.evaluate(() => explorationSystem.useItem('someonesDiary'));
-    const count = await page.evaluate(() => RPG.State.inventory.someonesDiary);
-    expect(count).toBe(1);
-  });
-
-  test('37. a past inn stay flag alone does not unlock reading', async ({ page }) => {
-    await page.evaluate(() => {
-      RPG.State.flags.phase6PostDeliverySleepDone = true;
-    });
-    await page.evaluate(() => explorationSystem.useItem('someonesDiary'));
-    const lastLine = await page.evaluate(() => (
-      document.querySelector('#logContainer .log-entry:last-child')?.textContent
-    ));
-    expect(lastLine).toBe('カイン（今は読む気力がない）');
-  });
-});
-
-test.describe('someone\'s diary - unlock hook', () => {
-  test.beforeEach(async ({ page }) => {
-    page.on('pageerror', error => {
-      throw new Error(`Uncaught page error: ${error.message}`);
-    });
-    await openGame(page);
-  });
-
-  test('38. staying without the diary does not unlock reading', async ({ page }) => {
-    const unlocked = await page.evaluate(() => {
-      RPG.State.inventory.someonesDiary = 0;
-      RPG.State.flags.someonesDiaryReadUnlocked = false;
-      innSystem.refreshHerbGardenHarvestsAfterStay();
-      return RPG.State.flags.someonesDiaryReadUnlocked;
-    });
-    expect(unlocked).toBe(false);
-  });
-
-  test('39. staying with the diary in inventory unlocks reading', async ({ page }) => {
-    const unlocked = await page.evaluate(() => {
-      RPG.State.inventory.someonesDiary = 1;
-      RPG.State.flags.someonesDiaryReadUnlocked = false;
-      innSystem.refreshHerbGardenHarvestsAfterStay();
-      return RPG.State.flags.someonesDiaryReadUnlocked;
-    });
-    expect(unlocked).toBe(true);
-  });
-});
-
-test.describe('someone\'s diary - unlocked reading', () => {
-  test.beforeEach(async ({ page }) => {
-    page.on('pageerror', error => {
-      throw new Error(`Uncaught page error: ${error.message}`);
-    });
-    await openGame(page);
-    await page.evaluate(() => {
-      RPG.State.flags.someonesDiaryReadUnlocked = true;
       RPG.State.flags.someonesDiaryFirstReadDone = false;
     });
   });
 
-  test('40. first read shows the body followed by the confirmed conversation, in order', async ({ page }) => {
+  test('40. first read (with no inn stay or unlock of any kind) shows the body followed by the confirmed conversation, in order', async ({ page }) => {
     await page.evaluate(() => explorationSystem.useItem('someonesDiary'));
     await drainDialogue(page);
 
@@ -301,25 +221,8 @@ test.describe('someone\'s diary - save/load round trip (new-format saves only)',
     await openGame(page);
   });
 
-  test('47. unlocked-but-not-yet-read state survives save and load', async ({ page }) => {
-    const result = await page.evaluate(() => {
-      RPG.State.flags.someonesDiaryReadUnlocked = true;
-      RPG.State.flags.someonesDiaryFirstReadDone = false;
-      const snapshot = uiControl.createSaveSnapshot('journal');
-      localStorage.setItem('diary_unlocked_save', JSON.stringify(snapshot));
-      RPG.State.flags.someonesDiaryReadUnlocked = false;
-      uiControl.loadFromStorage('diary_unlocked_save', 'テスト記録');
-      return {
-        readUnlocked: RPG.State.flags.someonesDiaryReadUnlocked,
-        firstReadDone: RPG.State.flags.someonesDiaryFirstReadDone,
-      };
-    });
-    expect(result).toEqual({ readUnlocked: true, firstReadDone: false });
-  });
-
   test('48. firstReadDone survives save/load and reading afterward shows the repeat (body-only) version', async ({ page }) => {
     await page.evaluate(() => {
-      RPG.State.flags.someonesDiaryReadUnlocked = true;
       RPG.State.flags.someonesDiaryFirstReadDone = true;
       const snapshot = uiControl.createSaveSnapshot('journal');
       localStorage.setItem('diary_firstread_save', JSON.stringify(snapshot));

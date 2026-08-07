@@ -320,7 +320,6 @@ RPG.State = {
         highway8mMasochistAmberTaken: false, // The 8m highway masochist amber has been collected
         forest2mSparklingAmberTaken: false, // One-time fixed sparkling amber at forest 2m
         forest9mSparklingAmberTaken: false, // One-time fixed sparkling amber at forest 9m
-        someonesDiaryReadUnlocked: false, // 日記を持った状態で一泊を終えたら true
         someonesDiaryFirstReadDone: false, // 初回読了キューを最後まで再生したら true
         onWagon: false, // Build 14.2.1: Track if player boarded wagon
         phase4TheftDiscovered: false, // Build 15.2.62: Theft has been noticed and the phase 4 inn route should begin

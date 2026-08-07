@@ -287,11 +287,7 @@ const explorationSystem = {
                 ...this.buildDialogueQueue(RPG.Assets.GAME_TEXT.events.phase6CarnivorousVineIntro),
                 {
                     text: null,
-                    action: () => {
-                        if (battleSystem.startBattle("carnivorous_vine") && RPG.State.battleState) {
-                            RPG.State.battleState.isInitialHerbGardenVine = true;
-                        }
-                    }
+                    action: () => battleSystem.startBattle("carnivorous_vine")
                 }
             ];
             this.playDialogueLoop();
@@ -1776,34 +1772,57 @@ const explorationSystem = {
     },
 
     inspectVineNestDepths: function () {
-        if (RPG.State.flags.herbGardenVineNestAmberTaken === true) {
-            uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
-            uiControl.updateUI();
+        if (RPG.State.flags.herbGardenVineNestAmberTaken !== true) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                {
+                    text: "🔸？琥珀を手に入れた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        // Same idiom as the larva-corpse amber: the ？琥珀 goes in unidentified and
+                        // only the queued appraisal result decides what it turns out to be, so the
+                        // name 《無視入り琥珀》 stays hidden until the merchant appraises it.
+                        RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                        RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                            ? RPG.State.unappraisedAmberResults
+                            : [];
+                        RPG.State.unappraisedAmberResults.push("ignoredAmber");
+                        RPG.State.flags.herbGardenVineNestAmberTaken = true;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+            this.playDialogueLoop();
             return;
         }
 
-        uiControl.addSeparator();
-        RPG.State.mode = "event";
-        RPG.State.dialogueQueue = [
-            {
-                text: "🔸？琥珀を手に入れた！",
-                type: "marker",
-                color: "#ffd166",
-                action: () => {
-                    // Same idiom as the larva-corpse amber: the ？琥珀 goes in unidentified and
-                    // only the queued appraisal result decides what it turns out to be, so the
-                    // name 《無視入り琥珀》 stays hidden until the merchant appraises it.
-                    RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
-                    RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
-                        ? RPG.State.unappraisedAmberResults
-                        : [];
-                    RPG.State.unappraisedAmberResults.push("ignoredAmber");
-                    RPG.State.flags.herbGardenVineNestAmberTaken = true;
-                    uiControl.updateUI();
+        // The nest only gives up the diary once it's actually been cleared - a defeated
+        // mid-chain retreat (or the vampire-amber accident) never counts as clearing it.
+        if (
+            RPG.State.flags.herbGardenVineNestCleared === true &&
+            (RPG.State.inventory.someonesDiary || 0) <= 0
+        ) {
+            uiControl.addSeparator();
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                {
+                    text: `${RPG.Assets.CONFIG.ITEM_NAME.someonesDiary}を手に入れた！`,
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.someonesDiary = 1;
+                        uiControl.updateUI();
+                    }
                 }
-            }
-        ];
-        this.playDialogueLoop();
+            ];
+            this.playDialogueLoop();
+            return;
+        }
+
+        uiControl.addLog(RPG.Assets.GAME_TEXT.exploration.talkInDungeon);
+        uiControl.updateUI();
     },
 
     getForestObservation: function (distance) {
@@ -3664,11 +3683,6 @@ const explorationSystem = {
                 consumeItem = false;
                 break;
             case 'someonesDiary':
-                if (RPG.State.flags.someonesDiaryReadUnlocked !== true) {
-                    uiControl.addLog("カイン（今は読む気力がない）");
-                    uiControl.closeModal();
-                    return;
-                }
                 success = true;
                 consumeItem = false;
                 break;

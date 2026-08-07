@@ -225,9 +225,9 @@ const battleSystem = {
         if (
             nextHP <= 0 &&
             RPG.State.flags.highHerbJamPrepared !== true &&
-            (RPG.State.inventory.gratefulTalisman || 0) > 0
+            RPG.State.flags.gratefulTalismanPrepared === true
         ) {
-            RPG.State.inventory.gratefulTalisman -= 1;
+            RPG.State.flags.gratefulTalismanPrepared = false;
             RPG.State.currentHP = 1;
             if (!RPG.State.battleState) RPG.State.battleState = {};
             RPG.State.battleState.gratefulTalismanSurvivalActive = true;

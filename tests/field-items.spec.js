@@ -72,13 +72,13 @@ test.describe('field utility items', () => {
       fakeWoundMedicine: '使うと準備状態になり、次以降の戦闘で体力が半分以下になった時、一度だけ回復する。',
       smokeBomb: '割ると自分の気配が薄くなる煙が立つ。10歩ほど魔物に見つからずに済む。',
       hardBottle: '対魔硬質ゴリラガラス製。ゴリラの渾身の力で締められている。',
-      gratefulTalisman: '『死ぬこと以外かすり傷』と書いてある。致命の一撃だけはHP1で踏みとどまれる。',
+      gratefulTalisman: '『死ぬこと以外かすり傷』と書いてある。使うと準備状態になり、次以降の戦闘で致命の一撃を受けた時、一度だけHP1で踏みとどまれる。',
     });
     expect(result.useButtons).toEqual({
       fakeWoundMedicine: true,
       smokeBomb: true,
       hardBottle: true,
-      gratefulTalisman: false,
+      gratefulTalisman: true,
     });
   });
 
@@ -356,7 +356,7 @@ test.describe('field utility items', () => {
     });
   });
 
-  test('grateful talisman precedes Owen and the charm, supports multiple copies, and ignores poison/bad end', async ({ page }) => {
+  test('prepared grateful talisman precedes Owen and the charm, is consumed on trigger, and ignores poison/bad end', async ({ page }) => {
     const result = await page.evaluate(() => {
       const makeBattleState = () => ({
         skippedTurns: 0,
@@ -372,10 +372,8 @@ test.describe('field utility items', () => {
         battleState: makeBattleState(),
         hasOwenSavedLife: false,
       });
-      Object.assign(RPG.State.inventory, {
-        gratefulTalisman: 2,
-        charm: 1,
-      });
+      RPG.State.flags.gratefulTalismanPrepared = true;
+      RPG.State.inventory.charm = 1;
 
       const first = battleSystem.applyEnemyDirectDamage(10);
       const firstCheck = battleSystem.checkBattleEnd();
@@ -383,34 +381,27 @@ test.describe('field utility items', () => {
         result: first,
         checkEnded: firstCheck,
         hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
         charm: RPG.State.inventory.charm,
         owenSaved: RPG.State.hasOwenSavedLife,
       };
 
+      // The talisman was already consumed by the first save, so this second lethal hit in
+      // the same battle falls straight to the charm - re-preparing only happens outside battle.
       const second = battleSystem.applyEnemyDirectDamage(10);
       const secondCheck = battleSystem.checkBattleEnd();
-      const secondState = {
+      const charmFallback = {
         result: second,
         checkEnded: secondCheck,
         hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
-        charm: RPG.State.inventory.charm,
-      };
-
-      battleSystem.applyEnemyDirectDamage(10);
-      const thirdCheck = battleSystem.checkBattleEnd();
-      const charmFallback = {
-        checkEnded: thirdCheck,
-        hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
         charm: RPG.State.inventory.charm,
       };
 
       RPG.State.currentEnemy = { id: 'test_enemy', name: '試験魔物', hp: 10, atk: 10, msg: '攻撃してきた！' };
       RPG.State.battleState = makeBattleState();
       RPG.State.currentHP = 5;
-      RPG.State.inventory.gratefulTalisman = 1;
+      RPG.State.flags.gratefulTalismanPrepared = true;
       RPG.State.inventory.charm = 1;
       RPG.State.hasOwenSavedLife = false;
       RPG.State.isBattling = true;
@@ -420,7 +411,7 @@ test.describe('field utility items', () => {
       battleSystem.enemyTurn();
       const beforeOwen = {
         hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
         charm: RPG.State.inventory.charm,
         owenSaved: RPG.State.hasOwenSavedLife,
       };
@@ -428,7 +419,7 @@ test.describe('field utility items', () => {
       RPG.State.currentEnemy = { id: 'test_enemy', name: '試験魔物', hp: 10, atk: 10, msg: '攻撃してきた！' };
       RPG.State.battleState = makeBattleState();
       RPG.State.currentHP = 5;
-      RPG.State.inventory.gratefulTalisman = 0;
+      RPG.State.flags.gratefulTalismanPrepared = false;
       RPG.State.hasOwenSavedLife = false;
       RPG.State.isBattling = true;
       battleSystem.enemyTurn();
@@ -441,31 +432,30 @@ test.describe('field utility items', () => {
       RPG.State.currentEnemy = { id: 'test_enemy', hp: 10 };
       RPG.State.battleState = makeBattleState();
       RPG.State.currentHP = 2;
-      RPG.State.inventory.gratefulTalisman = 1;
+      RPG.State.flags.gratefulTalismanPrepared = true;
       RPG.State.isPoisoned = true;
       RPG.State.poisonDamageRemaining = 20;
       const poisonReachedBoundary = battleSystem.applyPoisonTick();
       const poisonState = {
         reachedBoundary: poisonReachedBoundary,
         hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
       };
 
       RPG.State.currentHP = 140;
-      RPG.State.inventory.gratefulTalisman = 1;
+      RPG.State.flags.gratefulTalismanPrepared = true;
       RPG.State.currentEnemy = { id: 'glowing_cat_rabbit', hp: 9999 };
       RPG.State.battleState = makeBattleState();
       battleSystem.resolveGlowingCatRabbitLv88BadEnd();
       const badEndState = {
         hp: RPG.State.currentHP,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
       };
 
       Math.random = originalRandom;
       RPG.State.debug.isSkipping = false;
       return {
         firstState,
-        secondState,
         charmFallback,
         beforeOwen,
         owenFallback,
@@ -477,25 +467,19 @@ test.describe('field utility items', () => {
     expect(result.firstState).toMatchObject({
       checkEnded: false,
       hp: 1,
-      talismans: 1,
+      prepared: false,
       charm: 1,
       owenSaved: false,
-    });
-    expect(result.secondState).toMatchObject({
-      checkEnded: false,
-      hp: 1,
-      talismans: 0,
-      charm: 1,
     });
     expect(result.charmFallback).toMatchObject({
       checkEnded: false,
       hp: 70,
-      talismans: 0,
+      prepared: false,
       charm: 0,
     });
     expect(result.beforeOwen).toEqual({
       hp: 1,
-      talismans: 0,
+      prepared: false,
       charm: 1,
       owenSaved: false,
     });
@@ -507,12 +491,44 @@ test.describe('field utility items', () => {
     expect(result.poisonState).toEqual({
       reachedBoundary: true,
       hp: 1,
-      talismans: 1,
+      prepared: true,
     });
     expect(result.badEndState).toEqual({
       hp: 0,
-      talismans: 1,
+      prepared: true,
     });
+  });
+
+  test('using the grateful talisman from inventory prepares it once and consumes one charge', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const logContainer = document.getElementById('logContainer');
+      if (logContainer) logContainer.innerHTML = '';
+      RPG.State.inventory.gratefulTalisman = 2;
+      RPG.State.mode = 'base';
+      RPG.State.flags.gratefulTalismanPrepared = false;
+
+      explorationSystem.useItem('gratefulTalisman');
+      const afterPrepare = {
+        count: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      RPG.State.mode = 'base';
+      explorationSystem.useItem('gratefulTalisman');
+      const afterRepeatUse = {
+        count: RPG.State.inventory.gratefulTalisman,
+        prepared: RPG.State.flags.gratefulTalismanPrepared,
+        log: logContainer?.textContent || '',
+      };
+
+      return { afterPrepare, afterRepeatUse };
+    });
+
+    expect(result.afterPrepare).toMatchObject({ count: 1, prepared: true });
+    expect(result.afterPrepare.log).toContain('🧧ありがた〜い札を準備した。');
+    expect(result.afterRepeatUse).toMatchObject({ count: 1, prepared: true });
+    expect(result.afterRepeatUse.log).toContain('🧧ありがた〜い札は、もう準備してある。');
   });
 
   test('opening the hard bottle once yields three jam uses and shows the remaining count', async ({ page }) => {
@@ -652,10 +668,10 @@ test.describe('field utility items', () => {
       });
       Object.assign(RPG.State.inventory, {
         highHerbJam: 2,
-        gratefulTalisman: 1,
         charm: 1,
       });
       RPG.State.flags.highHerbJamPrepared = true;
+      RPG.State.flags.gratefulTalismanPrepared = true;
 
       const damageResult = battleSystem.applyEnemyDirectDamage(500);
       const ended = battleSystem.checkBattleEnd();
@@ -666,7 +682,7 @@ test.describe('field utility items', () => {
         hp: RPG.State.currentHP,
         prepared: RPG.State.flags.highHerbJamPrepared,
         jam: RPG.State.inventory.highHerbJam,
-        talismans: RPG.State.inventory.gratefulTalisman,
+        talismanPrepared: RPG.State.flags.gratefulTalismanPrepared,
         charm: RPG.State.inventory.charm,
         owenSaved: RPG.State.hasOwenSavedLife,
       };
@@ -678,7 +694,7 @@ test.describe('field utility items', () => {
       hp: 100,
       prepared: false,
       jam: 2,
-      talismans: 1,
+      talismanPrepared: true,
       charm: 1,
       owenSaved: false,
     });
@@ -737,5 +753,81 @@ test.describe('field utility items', () => {
 
     expect(result.atThird).toBeNull();
     expect(result.atTenthFirstLine).toBe('カイン「この味、だんだん癖になってきた」');
+  });
+
+  test('with the brooch already returned, herb garden 3m shows only the "no need to push it" line, without the tactical choice scene', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'herbGarden',
+        currentDistance: 2,
+        storyPhase: 6,
+        equippedRareAmberId: null,
+      });
+      Object.assign(RPG.State.flags, {
+        scentPouchQuestStarted: true,
+        herbGardenBroochReturned: true,
+        herbGardenBlockedExperienced: false,
+      });
+      RPG.State.inventory.lightRabbitBrooch = 0;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+
+      explorationSystem.move(1, { skipTravelCue: true });
+      const modeDuring = RPG.State.mode;
+      uiControl.handlePlayerInput();
+
+      return {
+        modeDuring,
+        modeAfter: RPG.State.mode,
+        distanceAfter: RPG.State.currentDistance,
+        log: log?.textContent || '',
+      };
+    });
+
+    expect(result.modeDuring).toBe('event');
+    expect(result.log).toContain('カイン（今は無理に進む必要はない）');
+    expect(result.log).not.toContain('どうする');
+    expect(result.modeAfter).toBe('base');
+    expect(result.distanceAfter).toBe(2);
+  });
+
+  test('ignoredAmber still lets Cain pass herb garden 3m normally without the brooch', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'herbGarden',
+        currentDistance: 2,
+        storyPhase: 6,
+        equippedRareAmberId: 'ignoredAmber',
+      });
+      Object.assign(RPG.State.flags, {
+        scentPouchQuestStarted: true,
+        herbGardenBroochReturned: true,
+        herbGardenBlockedExperienced: false,
+      });
+      RPG.State.inventory.lightRabbitBrooch = 0;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+
+      const maxDistance = explorationSystem.getHerbGardenMaxDistance();
+      explorationSystem.move(1, { skipTravelCue: true });
+
+      return {
+        maxDistance,
+        mode: RPG.State.mode,
+        distance: RPG.State.currentDistance,
+        log: log?.textContent || '',
+      };
+    });
+
+    expect(result.maxDistance).toBeGreaterThan(3);
+    expect(result.mode).toBe('base');
+    expect(result.distance).toBe(3);
+    expect(result.log).not.toContain('今は無理に進む必要はない');
   });
 });

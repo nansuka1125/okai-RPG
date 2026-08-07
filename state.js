@@ -292,6 +292,7 @@ RPG.State = {
         amberMerchantCrackedAmberReceived: false,
         miningKnifeAwarded: false,
         fakeWoundMedicinePrepared: false,
+        gratefulTalismanPrepared: false,
         shinyOilPrepared: false,
         pendingLevelUpTalk: [], // Build 15.2.48: Store unplayed level-up talk milestones from boss victories
         glowCatRabbitBadEndSeen: false, // Build 15.2.57: Stop future glowing cat rabbit encounters after the Lv88 bad end

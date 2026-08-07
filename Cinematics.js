@@ -309,13 +309,14 @@ const Cinematics = {
                     if (logContainer) logContainer.classList.remove('night-mode');
                 }
             },
-            { text: "朝になった！" },
+            { text: "朝になった！", action: () => visualDirector.setInnScene("room") },
             { text: "カインは綺麗な水で顔を洗い、身支度をした。" },
             { text: "カイン（……次の目的地がないと、いまいち気が引き締まらないな）" },
             { text: "さあ出発だ！", type: "marker", color: "#f1e6c8" },
             {
                 text: null,
                 action: () => {
+                    visualDirector.setInnScene("lobby");
                     RPG.State.flags.phase7DepartureNightSeen = true;
                     RPG.State.flags.phase7DepartureMorningTalkPending = true;
                     RPG.State.storyPhase = 7;

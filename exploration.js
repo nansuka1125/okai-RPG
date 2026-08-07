@@ -78,7 +78,10 @@ const explorationSystem = {
     },
 
     getHerbGardenMaxDistance: function () {
-        return (RPG.State.inventory.lightRabbitBrooch || 0) > 0
+        const canSeeThroughHaze =
+            (RPG.State.inventory.lightRabbitBrooch || 0) > 0 ||
+            RPG.State.equippedRareAmberId === "ignoredAmber";
+        return canSeeThroughHaze
             ? RPG.Assets.CONFIG.HERB_GARDEN_MAX_DISTANCE
             : 3;
     },
@@ -495,7 +498,11 @@ const explorationSystem = {
                 return;
             }
 
-            if (nextDistance === 3 && (RPG.State.inventory.lightRabbitBrooch || 0) === 0) {
+            if (
+                nextDistance === 3 &&
+                (RPG.State.inventory.lightRabbitBrooch || 0) === 0 &&
+                RPG.State.equippedRareAmberId !== "ignoredAmber"
+            ) {
                 if (RPG.State.storyPhase >= 6 && RPG.State.flags.scentPouchQuestStarted === true) {
                     this.playPhase6HerbGardenBlock();
                 } else {
@@ -747,6 +754,17 @@ const explorationSystem = {
     playPhase6HerbGardenBlock: function () {
         const flags = RPG.State.flags;
         RPG.State.mode = "event";
+
+        // Once the brooch has been returned, the scent-pouch thread no longer needs Cain
+        // pushing past 3m, so the tactical breath/handhold scene no longer applies here.
+        if (flags.herbGardenBroochReturned === true) {
+            RPG.State.dialogueQueue = [
+                { text: "カイン（今は無理に進む必要はない）" },
+                { text: null, action: () => this.returnFromHerbGardenBlock() }
+            ];
+            this.playDialogueLoop();
+            return;
+        }
 
         const lines = flags.herbGardenBlockedExperienced
             ? RPG.Assets.GAME_TEXT.events.phase6HerbGardenRepeatBlock
@@ -3485,6 +3503,16 @@ const explorationSystem = {
                 }
                 RPG.State.flags.fakeWoundMedicinePrepared = true;
                 uiControl.addLog("🩹傷薬もどきを準備した。");
+                success = true;
+                break;
+            case 'gratefulTalisman':
+                if (RPG.State.flags.gratefulTalismanPrepared === true) {
+                    uiControl.addLog("🧧ありがた〜い札は、もう準備してある。");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.flags.gratefulTalismanPrepared = true;
+                uiControl.addLog("🧧ありがた〜い札を準備した。");
                 success = true;
                 break;
             case 'shinyOil':

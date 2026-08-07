@@ -406,6 +406,48 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
     expect(seenAfter).toBe(true);
   });
 
+  test('the wagon-departure finale sets the room scene at 朝になった！ and the lobby scene after さあ出発だ！', async ({ page }) => {
+    // The finale night's own real 3s blackout delay and long typewriter dialogue aren't
+    // relevant here; only the scene-setting calls wired to each queue entry are, so the
+    // queue is inspected directly instead of playing the whole scene out.
+    const result = await page.evaluate(() => {
+      const originalLoop = explorationSystem.playDialogueLoop;
+      const originalSetInnScene = visualDirector.setInnScene;
+      const sceneChanges = [];
+      visualDirector.setInnScene = (name) => {
+        sceneChanges.push(name);
+        originalSetInnScene.call(visualDirector, name);
+      };
+      explorationSystem.playDialogueLoop = () => {};
+
+      Cinematics.playChapter1FinaleNight();
+      const queue = RPG.State.dialogueQueue;
+
+      sceneChanges.length = 0;
+      queue.find(line => line.text === '朝になった！').action();
+      const afterMorning = [...sceneChanges];
+
+      sceneChanges.length = 0;
+      queue[queue.length - 1].action();
+      const afterFinal = [...sceneChanges];
+
+      explorationSystem.playDialogueLoop = originalLoop;
+      visualDirector.setInnScene = originalSetInnScene;
+
+      return {
+        afterMorning,
+        afterFinal,
+        storyPhase: RPG.State.storyPhase,
+        mode: RPG.State.mode,
+      };
+    });
+
+    expect(result.afterMorning).toEqual(['room']);
+    expect(result.afterFinal).toContain('lobby');
+    expect(result.storyPhase).toBe(7);
+    expect(result.mode).toBe('base');
+  });
+
   test('15. the night also plays on a Phase 7 stay', async ({ page }) => {
     await setStayState(page, {
       state: { storyPhase: 7 },

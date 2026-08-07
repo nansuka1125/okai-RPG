@@ -1186,6 +1186,7 @@ const uiControl = {
             key === 'hardBottle' ||
             key === 'highHerbJam' ||
             key === 'someonesDiary' ||
+            key === 'gratefulTalisman' ||
             canUseEmptyBottle ||
             canUseScentPouch ||
             canUseFakeWoundMedicine ||

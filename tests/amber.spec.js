@@ -479,6 +479,23 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.exchangePreviewShown).toBe(true);
   });
 
+  test('the first appraisal (non-fixed path) tells the player rare amber can be equipped from the brooch', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.unknownAmber = 1;
+      RPG.State.flags.treeDefeated = true;
+      RPG.State.flags.amberMerchantRecognized = true;
+      RPG.State.flags.borrowedMiningKnifeReceived = true;
+      RPG.State.flags.firstAmberAppraisalDone = false;
+      innSystem.interactWithAmberMerchant();
+    });
+    await drainDialogue(page);
+
+    const log = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(log).toContain('琥珀商「珍しい琥珀には、装備できるやつもある。アイテム欄から試してみな」');
+    expect(log).toContain('（琥珀はブローチから装備できます）');
+  });
+
   test('the first appraisal handles a fixed sparkling result without creating an item entry', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';

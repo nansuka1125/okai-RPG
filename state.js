@@ -249,6 +249,7 @@ RPG.State = {
         herbGardenReturnHandholdDone: false, // Build 15.2.102: One-time return scene after collecting both pouch materials
         herbGardenReturnHandholdActive: false, // Build 15.2.109: Prevent encounters while Owen leads Cain back to the entrance
         herbGardenBroochReturned: false, // Build 15.2.103: The borrowed light rabbit fur has been returned to the fortune teller
+        herbGarden7mIgnoredAmberRestSeen: false, // One-time rest scene on first reaching 7m via the ignoredAmber bypass, post brooch return
         carnivorousVineDefeated: false, // Build 15.2.98: Initial 5m vine has been defeated at least once
         carnivorousVineRegrown: false, // Build 15.2.98: Another vine can reappear after three stays
         carnivorousVineStayCount: 0,

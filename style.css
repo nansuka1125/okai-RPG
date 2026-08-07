@@ -696,6 +696,10 @@ body.scene-former-highway #sceneBackdrop {
     gap: 12px;
     background: transparent;
     scroll-behavior: smooth;
+    /* Explicit (redundant with the global "*" rule) so iOS Safari reliably drops
+       double-tap-to-zoom on this text-heavy scroll area specifically. Still allows
+       panning/scrolling and pinch-zoom - only the double-tap gesture is suppressed. */
+    touch-action: manipulation;
 }
 
 .log-entry {

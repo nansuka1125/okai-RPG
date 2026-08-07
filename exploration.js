@@ -164,6 +164,31 @@ const explorationSystem = {
         return false;
     },
 
+    // One-time flavor beat for the ignoredAmber bypass route: the brooch is already returned
+    // (so the normal 2m/3m brooch-passage lines above never fire) and the haze is only cleared
+    // by the equipped amber, so this is the sole acknowledgement of that state reaching 7m.
+    playHerbGarden7mIgnoredAmberRest: function () {
+        const flags = RPG.State.flags;
+        if (
+            flags.herbGardenBroochReturned !== true ||
+            RPG.State.equippedRareAmberId !== "ignoredAmber" ||
+            flags.herbGarden7mIgnoredAmberRestSeen === true
+        ) {
+            return false;
+        }
+
+        flags.herbGarden7mIgnoredAmberRestSeen = true;
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = [
+            { text: "カイン（ここで…あんまり休む気になれないな）" },
+            { text: "オーエン「どうしたの？」", color: "#cc73ff" },
+            { text: "オーエンがすぐ耳元で囁いた。" },
+            { text: "カイン「うわ！近い！」" }
+        ];
+        this.playDialogueLoop();
+        return true;
+    },
+
     canCollectHerbGardenBoneMeal: function () {
         return (
             this.isInHerbGarden() &&
@@ -490,6 +515,11 @@ const explorationSystem = {
             }
 
             if (this.playHerbGardenBroochPassage(nextDistance)) {
+                this.finishTemporaryFieldStep(temporaryEffects);
+                return;
+            }
+
+            if (nextDistance === 7 && this.playHerbGarden7mIgnoredAmberRest()) {
                 this.finishTemporaryFieldStep(temporaryEffects);
                 return;
             }

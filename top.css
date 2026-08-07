@@ -502,6 +502,15 @@ h1 {
     color: #d8c8aa;
 }
 
+.creator-note {
+    margin: 0;
+    color: #7d7364;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+}
+
 .guide-screen {
     width: min(100%, 680px);
     min-height: 100vh;

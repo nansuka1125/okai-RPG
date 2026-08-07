@@ -830,4 +830,104 @@ test.describe('field utility items', () => {
     expect(result.distance).toBe(3);
     expect(result.log).not.toContain('今は無理に進む必要はない');
   });
+
+  test('reaching herb garden 7m via the ignoredAmber bypass plays the one-time rest scene, once only', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      // 7m is not exempt from the normal random-encounter roll (only 3m is), so pin it off -
+      // otherwise this test would be flaky.
+      const originalRandom = Math.random;
+      Math.random = () => 1;
+
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'herbGarden',
+        currentDistance: 6,
+        storyPhase: 6,
+        equippedRareAmberId: 'ignoredAmber',
+      });
+      Object.assign(RPG.State.flags, {
+        herbGardenBroochReturned: true,
+        herbGarden7mIgnoredAmberRestSeen: false,
+      });
+      RPG.State.inventory.lightRabbitBrooch = 0;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+
+      explorationSystem.move(1, { skipTravelCue: true });
+      const modeDuring = RPG.State.mode;
+      for (let i = 0; i < 4; i++) uiControl.handlePlayerInput();
+      const firstVisit = {
+        modeDuring,
+        modeAfter: RPG.State.mode,
+        distance: RPG.State.currentDistance,
+        log: log?.textContent || '',
+        seenFlag: RPG.State.flags.herbGarden7mIgnoredAmberRestSeen,
+      };
+
+      // Leave and come back: the one-time flag must block a replay.
+      RPG.State.mode = 'base';
+      explorationSystem.move(-1, { skipTravelCue: true });
+      if (log) log.innerHTML = '';
+      explorationSystem.move(1, { skipTravelCue: true });
+      const secondVisit = {
+        mode: RPG.State.mode,
+        log: log?.textContent || '',
+      };
+
+      Math.random = originalRandom;
+      return { firstVisit, secondVisit };
+    });
+
+    expect(result.firstVisit.modeDuring).toBe('event');
+    expect(result.firstVisit.log).toContain('カイン（ここで…あんまり休む気になれないな）');
+    expect(result.firstVisit.log).toContain('オーエン「どうしたの？」');
+    expect(result.firstVisit.log).toContain('オーエンがすぐ耳元で囁いた。');
+    expect(result.firstVisit.log).toContain('カイン「うわ！近い！」');
+    expect(result.firstVisit.modeAfter).toBe('base');
+    expect(result.firstVisit.distance).toBe(7);
+    expect(result.firstVisit.seenFlag).toBe(true);
+
+    expect(result.secondVisit.mode).toBe('base');
+    expect(result.secondVisit.log).not.toContain('あんまり休む気になれないな');
+  });
+
+  test('herb garden 7m stays plain on the normal brooch route (no ignoredAmber equipped)', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const originalRandom = Math.random;
+      Math.random = () => 1;
+
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'herbGarden',
+        currentDistance: 6,
+        storyPhase: 6,
+        equippedRareAmberId: null,
+      });
+      Object.assign(RPG.State.flags, {
+        herbGardenBroochReturned: false,
+        herbGarden7mIgnoredAmberRestSeen: false,
+      });
+      RPG.State.inventory.lightRabbitBrooch = 1;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+
+      explorationSystem.move(1, { skipTravelCue: true });
+
+      const outcome = {
+        mode: RPG.State.mode,
+        distance: RPG.State.currentDistance,
+        log: log?.textContent || '',
+      };
+      Math.random = originalRandom;
+      return outcome;
+    });
+
+    expect(result.mode).toBe('base');
+    expect(result.distance).toBe(7);
+    expect(result.log).not.toContain('あんまり休む気になれないな');
+  });
 });

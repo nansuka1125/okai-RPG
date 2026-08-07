@@ -26,6 +26,8 @@ RPG.Config = {
     // applied fresh to the per-battle enemy copy in beginBattle() - never written back onto the
     // shared ENEMIES template, so it can't stack across battles or duplicate on save/load.
     EMPOWERED_SAP_ATK_MULTIPLIER: 1.5,
+    // Fraction of the HP actually drained from Cain that the empowered sap heals itself for.
+    EMPOWERED_SAP_DRAIN_HEAL_RATE: 0.5,
     // Provisional Chapter 1 battle-kit values. Keeping the entire set here lets balance work
     // tune Cain's sword techniques without changing battle flow.
     CAIN_COMBAT: {

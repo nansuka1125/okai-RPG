@@ -1725,15 +1725,17 @@ const battleSystem = {
     },
 
     // Only the empowered (post-thief-boy) amber sap drains HP from a landed hit. Heals by
-    // exactly the HP Cain actually lost this hit (never the nominal attack value, and never
-    // beyond the enemy's own max HP), and stays silent when nothing was actually healed.
+    // EMPOWERED_SAP_DRAIN_HEAL_RATE of the HP Cain actually lost this hit (never the nominal
+    // attack value, and never beyond the enemy's own max HP), and stays silent when nothing
+    // was actually healed.
     applyEmpoweredSapDrain: function (actualDamage) {
         const enemy = RPG.State.currentEnemy;
         if (!RPG.State.isBattling || !this.isEmpoweredSap(enemy)) return;
         if (!Number.isFinite(actualDamage) || actualDamage <= 0) return;
         if (!Number.isFinite(enemy.hp) || !Number.isFinite(enemy.maxHp)) return;
 
-        const healAmount = Math.min(actualDamage, Math.max(0, enemy.maxHp - enemy.hp));
+        const rawHeal = Math.floor(actualDamage * RPG.Config.EMPOWERED_SAP_DRAIN_HEAL_RATE);
+        const healAmount = Math.min(rawHeal, Math.max(0, enemy.maxHp - enemy.hp));
         if (healAmount <= 0) return;
 
         enemy.hp += healAmount;
@@ -2740,11 +2742,29 @@ const battleSystem = {
             Math.random() < RPG.State.currentEnemy.drop.rate
         ) {
             const itemId = RPG.State.currentEnemy.drop.id;
-            RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
             if (itemId === "beeAmber") {
+                // Same idiom as the other pre-determined-appraisal amber grants: the ？琥珀
+                // goes in unidentified and only the queued appraisal result decides what it
+                // turns out to be, so the name 《蜂入り琥珀》 stays hidden until appraised.
+                RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                    ? RPG.State.unappraisedAmberResults
+                    : [];
+                RPG.State.unappraisedAmberResults.push("beeAmber");
                 RPG.State.flags.beeAmberObtained = true;
+                uiControl.addLog("🔸？琥珀を手に入れた！");
+            } else {
+                RPG.State.inventory[itemId] = (RPG.State.inventory[itemId] || 0) + 1;
+                uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`);
             }
-            uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[itemId]}を手に入れた！`);
+        }
+        if (
+            RPG.State.currentEnemy.bonusDrop &&
+            Math.random() < RPG.State.currentEnemy.bonusDrop.rate
+        ) {
+            const bonusItemId = RPG.State.currentEnemy.bonusDrop.id;
+            RPG.State.inventory[bonusItemId] = (RPG.State.inventory[bonusItemId] || 0) + 1;
+            uiControl.addLog(`${RPG.Assets.CONFIG.ITEM_NAME[bonusItemId]}を手に入れた！`);
         }
         if (Array.isArray(RPG.State.currentEnemy.drops) && RPG.State.currentEnemy.drops.length > 0) {
             const drops = RPG.State.currentEnemy.drops;

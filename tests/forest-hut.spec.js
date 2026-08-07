@@ -763,7 +763,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       expect(result.log).toContain('《耐火グローブ》で反撃した！');
     });
 
-    test('the amber sap absorption amount matches the actual post-mitigation HP loss', async ({ page }) => {
+    test('the amber sap absorption amount is half the actual post-mitigation HP loss', async ({ page }) => {
       await setupJourneyBattle(page, {
         enemyId: 'sap', enemyName: '琥珀の樹液', atk: 20, defense: 4, fireproofGloves: 1, // effective defense 6
         currentHP: 999, metThiefBoy: true,
@@ -784,7 +784,7 @@ test.describe('Chapter 1 forest hut + fireproof gloves + defense/parry', () => {
       });
       const actualLoss = 999 - result.currentHP;
       expect(actualLoss).toBe(20 - 6); // atk - effective defense, no parry
-      expect(result.enemyHp).toBe(30 + actualLoss);
+      expect(result.enemyHp).toBe(30 + Math.floor(actualLoss * 0.5));
     });
   });
 

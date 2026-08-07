@@ -720,4 +720,22 @@ test.describe('field utility items', () => {
       gratefulTalisman: 0,
     });
   });
+
+  test('the herb "getting used to it" line now waits for the 10th use, not the 3rd', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.herbUseCount = 3;
+      const atThird = explorationSystem.getItemUseDialogue('herb');
+
+      RPG.State.herbUseCount = 10;
+      const atTenth = explorationSystem.getItemUseDialogue('herb');
+
+      return {
+        atThird,
+        atTenthFirstLine: atTenth?.[0]?.text,
+      };
+    });
+
+    expect(result.atThird).toBeNull();
+    expect(result.atTenthFirstLine).toBe('カイン「この味、だんだん癖になってきた」');
+  });
 });

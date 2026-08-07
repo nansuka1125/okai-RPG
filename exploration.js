@@ -2995,7 +2995,7 @@ const explorationSystem = {
             const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = pickupLines.map(line => {
-                if (line === "🌿マタマタビの枝 を手に入れた！") {
+                if (line === "🪵マタマタビの枝 を手に入れた！") {
                     return {
                         text: line,
                         delay: 1500,
@@ -3021,7 +3021,7 @@ const explorationSystem = {
             const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = pickupLines.map(line => {
-                if (line === "🌿マタマタビの枝 を手に入れた！") {
+                if (line === "🪵マタマタビの枝 を手に入れた！") {
                     return {
                         text: line,
                         delay: 1500,
@@ -3167,7 +3167,7 @@ const explorationSystem = {
             if (line.startsWith("オーエン")) {
                 return { text: line, color: "#a020f0" };
             }
-            if (line === "🌿マタマタビの枝は活性化した") {
+            if (line === "🪵マタマタビの枝は活性化した") {
                 return {
                     text: line,
                     color: "#9acd32",
@@ -3407,7 +3407,7 @@ const explorationSystem = {
                     { text: "カイン「苦いのは結構好きだ。けど嬉しくはないな」" }
                 ];
             }
-            if (RPG.State.herbUseCount === 3) {
+            if (RPG.State.herbUseCount === 10) {
                 return [
                     { text: "カイン「この味、だんだん癖になってきた」" },
                     { text: "オーエン「癖になるほど薬草食べてるなんてカッコ悪いよ」", color: "#a020f0" },

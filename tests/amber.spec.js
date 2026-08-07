@@ -1129,6 +1129,40 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.owenDefeats).toBe(1);
   });
 
+  test('amber_weasel highHerb bonus drop rolls independently of, and does not replace, its existing drop', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const template = RPG.Assets.ENEMIES.find(enemy => enemy.id === 'amber_weasel');
+      const originalRandom = Math.random;
+      const runVictory = roll => {
+        RPG.State.currentEnemy = { ...template, hp: 0, armorHp: 0 };
+        RPG.State.mode = 'battle';
+        RPG.State.isBattling = true;
+        RPG.State.lastBlowBy = 'Cain';
+        RPG.State.defeatCounts.amber_weasel = { cain: 0, owen: 0 };
+        RPG.State.inventory.unknownAmber = 0;
+        RPG.State.inventory.highHerb = 0;
+        Math.random = () => roll;
+        battleSystem.executeStandardVictory('amber_weasel');
+        return {
+          unknownAmber: RPG.State.inventory.unknownAmber,
+          highHerb: RPG.State.inventory.highHerb,
+        };
+      };
+
+      // 0.2 <= 0.25 < 0.35: the existing drop (rate 0.2) misses while the independent
+      // bonusDrop (rate 0.35) still succeeds on its own roll.
+      const bonusOnly = runVictory(0.25);
+      // Both rates are satisfied together: the bonus coexists with, not instead of, the drop.
+      const both = runVictory(0);
+
+      Math.random = originalRandom;
+      return { bonusOnly, both };
+    });
+
+    expect(result.bonusOnly).toEqual({ unknownAmber: 0, highHerb: 1 });
+    expect(result.both).toEqual({ unknownAmber: 1, highHerb: 1 });
+  });
+
   test('amberized beasts stay locked until the thief-boy encounter', async ({ page }) => {
     const result = await page.evaluate(() => {
       Object.assign(RPG.State, {
@@ -3918,22 +3952,22 @@ test.describe('Chapter 1 amber system', () => {
 
     // --- drain ---
 
-    test('heals the enemy by exactly the HP Cain actually lost', async ({ page }) => {
+    test('heals the enemy by half the HP Cain actually lost', async ({ page }) => {
       const result = await runSapAttack(page, {
         metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
       });
-      expect(result.enemyHp).toBe(42);
+      expect(result.enemyHp).toBe(36); // floor(12 * 0.5)
       expect(result.currentHP).toBe(88);
-      expect(result.log).toContain('HPを吸収し、HPが12回復した');
+      expect(result.log).toContain('HPを吸収し、HPが6回復した');
     });
 
-    test('when the nominal attack would overkill Cain, the drain uses only the HP actually lost', async ({ page }) => {
+    test('when the nominal attack would overkill Cain, the drain is half the HP actually lost', async ({ page }) => {
       const result = await runSapAttack(page, {
         metThiefBoy: true, currentHP: 3, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
         hasOwenSavedLife: true, charm: 1,
       });
-      expect(result.enemyHp).toBe(33);
-      expect(result.log).toContain('HPが3回復した');
+      expect(result.enemyHp).toBe(31); // 3 HP actually lost, floor(3 * 0.5) = 1
+      expect(result.log).toContain('HPが1回復した');
     });
 
     test('the drain heal never exceeds the enemy max HP', async ({ page }) => {
@@ -3985,8 +4019,8 @@ test.describe('Chapter 1 amber system', () => {
       const result = await runSapAttack(page, {
         metThiefBoy: true, currentHP: 100, maxHP: 100, enemyHp: 30, atk: 12, randomValue: 0.9,
       });
-      expect(result.enemyHp).toBe(42);
-      expect(result.hpFillWidth).toBe('49.4118%'); // 42/85 max HP
+      expect(result.enemyHp).toBe(36); // 30 + floor(12 * 0.5)
+      expect(result.hpFillWidth).toBe('42.3529%'); // 36/85 max HP
     });
 
     // --- identity, kill counting, and Owen path ---
@@ -5563,7 +5597,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(state).toEqual({ sparkling: 0, keyAmber: 1 });
     });
 
-    test('the key amber never appears as a socket or trade-in candidate', async ({ page }) => {
+    test('the key amber never appears as a socket candidate, but trades in like other rare amber', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.mode = 'base';
         RPG.State.inventory.glowingBrooch = 1;
@@ -5592,11 +5626,32 @@ test.describe('Chapter 1 amber system', () => {
         };
       });
 
-      expect(result.tradeInMenu).not.toContain('鍵入り琥珀');
+      // Same label format as any other tradeInable catalog entry: name, owned count, price.
+      expect(result.tradeInMenu).toContain('《鍵入り琥珀》 ×2 → キラキラ1個');
       expect(result.socketList).not.toContain('鍵入り琥珀');
       expect(result.equipped).toBe(false);
       expect(result.equippedId).toBeNull();
       expect(result.keyAmber).toBe(2);
+    });
+
+    test('the key amber trades in for sparkling amber just like an ordinary rare amber', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.mode = 'base';
+        RPG.State.inventory.keyAmber = 1;
+        RPG.State.amberStorage.sparkling = 0;
+
+        innSystem.showAmberTradeInMenu();
+        [...document.querySelectorAll('#action-buttons button')]
+          .find(button => button.textContent.includes('《鍵入り琥珀》'))
+          .click();
+
+        return {
+          sparkling: RPG.State.amberStorage.sparkling,
+          keyAmber: RPG.State.inventory.keyAmber,
+        };
+      });
+
+      expect(result).toEqual({ sparkling: 1, keyAmber: 0 });
     });
 
     test('an ordinary rare amber still exchanges, sockets, and trades in as before', async ({ page }) => {
@@ -6010,10 +6065,12 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.hpAfterDamage).toBe(95); // 10 * 0.5
     });
 
-    test('beeAmber drops from skull_bee at most once, ever', async ({ page }) => {
+    test('beeAmber drops from skull_bee as an unappraised ？琥珀, at most once ever', async ({ page }) => {
       const result = await page.evaluate(() => {
         Object.assign(RPG.State, { exp: 0, cainLv: 1, equippedRareAmberId: null });
         RPG.State.inventory.beeAmber = 0;
+        RPG.State.inventory.unknownAmber = 0;
+        RPG.State.unappraisedAmberResults = [];
         RPG.State.flags.beeAmberObtained = false;
         RPG.State.defeatCounts.skull_bee = { cain: 0, owen: 0 };
         RPG.State.lastBlowBy = 'Cain';
@@ -6025,7 +6082,12 @@ test.describe('Chapter 1 amber system', () => {
           id: 'skull_bee', name: 'ドクロ蜂', hp: 0, xp: 0, gold: 0, drop: { id: 'beeAmber', rate: 1 },
         };
         battleSystem.executeStandardVictory('skull_bee');
-        const afterFirst = { count: RPG.State.inventory.beeAmber, obtained: RPG.State.flags.beeAmberObtained };
+        const afterFirst = {
+          unknownAmber: RPG.State.inventory.unknownAmber,
+          beeAmberCount: RPG.State.inventory.beeAmber,
+          queuedResults: [...RPG.State.unappraisedAmberResults],
+          obtained: RPG.State.flags.beeAmberObtained,
+        };
 
         RPG.State.currentEnemy = {
           id: 'skull_bee', name: 'ドクロ蜂', hp: 0, xp: 0, gold: 0, drop: { id: 'beeAmber', rate: 1 },
@@ -6034,10 +6096,12 @@ test.describe('Chapter 1 amber system', () => {
         battleSystem.executeStandardVictory('skull_bee');
 
         Math.random = originalRandom;
-        return { afterFirst, afterSecondCount: RPG.State.inventory.beeAmber };
+        return { afterFirst, afterSecondUnknownAmber: RPG.State.inventory.unknownAmber };
       });
-      expect(result.afterFirst).toEqual({ count: 1, obtained: true });
-      expect(result.afterSecondCount).toBe(1);
+      expect(result.afterFirst).toEqual({
+        unknownAmber: 1, beeAmberCount: 0, queuedResults: ['beeAmber'], obtained: true,
+      });
+      expect(result.afterSecondUnknownAmber).toBe(1);
     });
 
     test('ignoredAmber blocks new poison and cures existing poison on equip', async ({ page }) => {

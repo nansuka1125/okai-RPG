@@ -586,6 +586,8 @@ RPG.Assets.ENEMIES = [
         armorLabel: "硬化した皮膚",
         armorBreakText: "硬化した皮膚が砕け散った！",
         drop: { id: "unknownAmber", rate: 0.2 },
+        // Rolled independently of drop above; does not replace it.
+        bonusDrop: { id: "highHerb", rate: 0.35 },
         msg: "硬いカマで切り裂いてきた！"
     },
     {

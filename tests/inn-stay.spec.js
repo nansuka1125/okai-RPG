@@ -480,6 +480,68 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
     expect(result).toEqual({ travelStepsSinceStay: 0, herb1: true });
   });
 
+  test('the ordinary stay blackout covers the log with a fading overlay instead of hiding entries, and leaves the bottom menu untouched', async ({ page }) => {
+    await setStayState(page);
+    await page.evaluate(() => {
+      uiControl.addLog('カインはぐっすり眠った…');
+    });
+
+    const before = await page.evaluate(() => ({
+      stayDisplay: getComputedStyle(document.getElementById('btnInnStay')).display,
+      innUIDisplay: getComputedStyle(document.getElementById('innUI')).display,
+    }));
+
+    await callStay(page);
+
+    // The opening lines before the blackout are ordinary tap-gated dialogue, so drive taps
+    // (isSkipping-style) until night-mode actually engages, the same way drainStay() does.
+    await page.evaluate(() => { RPG.State.debug.isSkipping = true; });
+    let hasNightMode = false;
+    for (let i = 0; i < 200 && !hasNightMode; i++) {
+      hasNightMode = await page.evaluate(() => (
+        document.getElementById('logContainer')?.classList.contains('night-mode') === true
+      ));
+      if (hasNightMode) break;
+      const waiting = await page.evaluate(() => (
+        RPG.State.isWaitingForInput === true || explorationSystem.hasActiveTypewriter()
+      ));
+      if (waiting) await page.evaluate(() => uiControl.handlePlayerInput());
+      await page.waitForTimeout(30);
+    }
+    expect(hasNightMode).toBe(true);
+
+    const opacityEarly = await page.evaluate(() => (
+      Number(getComputedStyle(document.getElementById('logContainer'), '::before').opacity)
+    ));
+
+    await page.waitForTimeout(700);
+
+    const duringBlackout = await page.evaluate(() => {
+      const container = document.getElementById('logContainer');
+      const entries = [...container.querySelectorAll('.log-entry')];
+      return {
+        hasNightMode: container.classList.contains('night-mode'),
+        overlayOpacity: Number(getComputedStyle(container, '::before').opacity),
+        entryCount: entries.length,
+        entryDisplays: entries.map(entry => getComputedStyle(entry).display),
+        stayDisplay: getComputedStyle(document.getElementById('btnInnStay')).display,
+        innUIDisplay: getComputedStyle(document.getElementById('innUI')).display,
+      };
+    });
+
+    expect(duringBlackout.hasNightMode).toBe(true);
+    // The overlay is actively fading in over time, not an instant display:none-style snap.
+    expect(duringBlackout.overlayOpacity).toBeGreaterThan(opacityEarly);
+    // The pre-existing entry stays laid out in the DOM the whole time - only covered, not hidden.
+    expect(duringBlackout.entryCount).toBeGreaterThan(0);
+    expect(duringBlackout.entryDisplays.every(display => display !== 'none')).toBe(true);
+    // The bottom menu never changes because of the blackout.
+    expect(duringBlackout.stayDisplay).toBe(before.stayDisplay);
+    expect(duringBlackout.innUIDisplay).toBe(before.innUIDisplay);
+
+    await drainStay(page);
+  });
+
   test('17. a pending morning training still plays instead of the plain morning', async ({ page }) => {
     await setStayState(page, {
       flags: {

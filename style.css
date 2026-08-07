@@ -773,24 +773,30 @@ body.scene-former-highway #sceneBackdrop {
     }
 }
 
-/* Build 5.1: Night Phase */
-#logContainer {
-    transition: background-color 3.0s ease-in-out;
+/* Build 5.1: Night Phase. An opaque overlay (::before, not display:none on entries) covers
+   the log text only. Entries stay laid out underneath the whole time - night-mode never
+   collapses/re-expands the log's own layout, and nothing added while it's active is hidden
+   any differently than an entry that was already there. */
+#logContainer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background-color: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 3.0s ease-in-out;
 }
 
-#logContainer.night-mode {
-    background-color: black !important;
-}
-
-#logContainer.night-mode .log-entry {
-    display: none !important;
+#logContainer.night-mode::before {
+    opacity: 1;
 }
 
 /* Opt-in exception: a line tagged with this type stays readable on the darkened log, for
-   scenes that narrate while the log is blacked out. Existing night-mode scenes are untagged
-   and keep hiding every entry. */
-#logContainer.night-mode .log-entry.log-nightvisible {
-    display: block !important;
+   scenes that narrate while the log is blacked out. It paints above the ::before overlay
+   instead of the entries below it, which stay covered until night-mode is removed. */
+.log-entry.log-nightvisible {
+    z-index: 3;
 }
 
 /* Keep existing history intact while a special scene starts from a clean log view. */

@@ -6426,6 +6426,9 @@ test.describe('Chapter 1 amber system', () => {
     }
 
     test('the entrance examine becomes 裏道？ then 肉食カズラの巣, and fleeing changes nothing', async ({ page }) => {
+      // Two real trips through buildVineNestTransitionQueue's now-3s-per-leg blackout (enter,
+      // then flee) push this comfortably past Playwright's default 30s test timeout.
+      test.setTimeout(60000);
       await standAtHerbGardenEntrance(page);
       await expect(page.locator('#btnTalk')).toHaveText('調べる');
 
@@ -6449,7 +6452,9 @@ test.describe('Chapter 1 amber system', () => {
       }));
 
       await page.evaluate(() => explorationSystem.talk());
-      expect(await drainDialogue(page)).toBe('choice');
+      // Crosses both real 3s delays in buildVineNestTransitionQueue - the default 100-tap
+      // budget (5s at 50ms/tap) is no longer enough on its own.
+      expect(await drainDialogue(page, 200)).toBe('choice');
 
       const inNest = await page.evaluate(() => ({
         log: document.getElementById('logContainer')?.textContent || '',
@@ -6470,7 +6475,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(inNest.sceneFocus).toBe(true);
 
       await page.getByRole('button', { name: '【逃げる】', exact: true }).click();
-      await drainDialogue(page);
+      await drainDialogue(page, 200);
 
       const after = await page.evaluate(() => ({
         log: document.getElementById('logContainer')?.textContent || '',
@@ -6495,6 +6500,10 @@ test.describe('Chapter 1 amber system', () => {
     });
 
     test('three vines run back to back without Owen and pay one ignored amber', async ({ page }) => {
+      // Two real trips into the nest (interrupted attempt + the real run), each crossing
+      // buildVineNestTransitionQueue's now-3s-per-leg blackout, push this well past
+      // Playwright's default 30s test timeout.
+      test.setTimeout(60000);
       await standAtHerbGardenEntrance(page, {
         herbGardenVineNestState: 'confirmed',
         herbGardenVineNestCleared: false,
@@ -6506,7 +6515,8 @@ test.describe('Chapter 1 amber system', () => {
       // An interrupted run is discarded: the vampire amber / matamatabi accident drops the
       // chain without clearing the nest, so the next attempt starts at the first vine again.
       await page.evaluate(() => explorationSystem.talk());
-      await drainDialogue(page);
+      // Crosses both real 3s delays in buildVineNestTransitionQueue.
+      await drainDialogue(page, 200);
       await page.getByRole('button', { name: '【戦う】', exact: true }).click();
       expect(await page.evaluate(() => ({
         remaining: battleSystem.vineNestChainRemaining,
@@ -6523,7 +6533,8 @@ test.describe('Chapter 1 amber system', () => {
       await standAtHerbGardenEntrance(page);
       await page.evaluate(() => { window.__vineBattles = []; });
       await page.evaluate(() => explorationSystem.talk());
-      await drainDialogue(page);
+      // Crosses both real 3s delays in buildVineNestTransitionQueue.
+      await drainDialogue(page, 200);
       await page.getByRole('button', { name: '【戦う】', exact: true }).click();
       expect(await page.evaluate(() => ({
         remaining: battleSystem.vineNestChainRemaining,
@@ -6630,6 +6641,47 @@ test.describe('Chapter 1 amber system', () => {
       expect(appraised.log).toContain('《無視入り琥珀》と鑑定された。');
       expect(appraised.unknownAmber).toBe(0);
       expect(appraised.ignoredAmber).toBe(1);
+    });
+
+    test('the entrance blackout waits for the log overlay to darken before showing its narration line, and leaves the bottom menu untouched', async ({ page }) => {
+      await standAtHerbGardenEntrance(page, { herbGardenVineNestState: 'confirmed' });
+
+      const before = await page.evaluate(() => ({
+        forwardDisplay: getComputedStyle(document.getElementById('btnMoveForward')).display,
+        exploreUIDisplay: getComputedStyle(document.getElementById('exploreUI')).display,
+      }));
+
+      const startedAt = Date.now();
+      await page.evaluate(() => explorationSystem.enterVineNest());
+
+      await page.waitForFunction(() => (
+        (document.getElementById('logContainer')?.textContent || '').includes('カインは草むらを手探りで進んだ。')
+      ), { timeout: 15000 });
+      const elapsedMs = Date.now() - startedAt;
+
+      const duringBlackout = await page.evaluate(() => {
+        const container = document.getElementById('logContainer');
+        const nightvisible = container.querySelector('.log-nightvisible');
+        return {
+          hasNightMode: container.classList.contains('night-mode'),
+          overlayOpacity: Number(getComputedStyle(container, '::before').opacity),
+          nightvisibleZIndex: Number(getComputedStyle(nightvisible).zIndex),
+          forwardDisplay: getComputedStyle(document.getElementById('btnMoveForward')).display,
+          exploreUIDisplay: getComputedStyle(document.getElementById('exploreUI')).display,
+        };
+      });
+
+      // The fix waits for the log overlay's own 3s fade (style.css) before showing the line -
+      // it can no longer land at the old ~400ms mark, which is the point of the timing fix.
+      expect(elapsedMs).toBeGreaterThan(2500);
+      expect(duringBlackout.hasNightMode).toBe(true);
+      expect(duringBlackout.overlayOpacity).toBeGreaterThan(0.9);
+      expect(duringBlackout.nightvisibleZIndex).toBeGreaterThan(0);
+      // The bottom menu is completely unaffected by the blackout.
+      expect(duringBlackout.forwardDisplay).toBe(before.forwardDisplay);
+      expect(duringBlackout.exploreUIDisplay).toBe(before.exploreUIDisplay);
+
+      await drainDialogue(page, 200);
     });
   });
 });

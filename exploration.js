@@ -1670,7 +1670,10 @@ const explorationSystem = {
         return [
             {
                 text: null,
-                delay: 400,
+                // Matches #logContainer::before's own opacity transition (style.css), so the
+                // overlay is fully black by the time the nightvisible line below shows up,
+                // instead of appearing over a still-mid-fade background.
+                delay: 3000,
                 action: () => {
                     const logContainer = document.getElementById('logContainer');
                     if (logContainer) logContainer.classList.add('night-mode');
@@ -1681,7 +1684,9 @@ const explorationSystem = {
             { text: line, type: "nightvisible" },
             {
                 text: null,
-                delay: 400,
+                // Same reasoning in reverse: give the overlay's fade-out time to finish before
+                // the next (non-nightvisible) line shows, instead of revealing it mid-fade.
+                delay: 3000,
                 action: () => {
                     applyMove();
                     uiControl.updateUI();

@@ -3738,6 +3738,22 @@ const explorationSystem = {
                 success = true;
                 consumeItem = false;
                 break;
+            case 'nightMedicine':
+                if (!RPG.State.isAtInn) {
+                    uiControl.addLog("カイン（寝る前に飲もう）");
+                    uiControl.closeModal();
+                    return;
+                }
+                if (!innSystem.canStartNightMedicineNight()) {
+                    uiControl.addLog("カイン（…今夜はやめておこう）");
+                    uiControl.closeModal();
+                    return;
+                }
+                RPG.State.inventory[itemId]--;
+                uiControl.updateUI();
+                uiControl.closeModal();
+                innSystem.playNightMedicineSleep();
+                return;
             case 'lightBook':
             case 'purpleMacaron':
                 success = true;

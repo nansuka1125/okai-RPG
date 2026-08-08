@@ -457,6 +457,228 @@ test.describe('matamatabi night reservation is fur-gated, not activation-gated',
   });
 });
 
+test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+  });
+
+  test('defeating a Lv20 glowing cat rabbit grants nightMedicine once; escaping grants nothing', async ({ page }) => {
+    const setupBattle = () => page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: true,
+        battleState: { playerTookDamage: false },
+        currentEnemy: { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 20, xp: 0, gold: 0 },
+        equippedRareAmberId: null,
+      });
+      RPG.State.inventory.matamatabiBranch = 0;
+      RPG.State.flags.matamatabiActive = false;
+      RPG.State.flags.needsGlowingRabbitFur = false;
+    });
+    const readState = () => page.evaluate(() => ({
+      nightMedicine: RPG.State.inventory.nightMedicine,
+      received: RPG.State.flags.glowCatRabbitRewardLv20Received,
+    }));
+
+    await page.evaluate(() => {
+      RPG.State.inventory.nightMedicine = 0;
+      RPG.State.flags.glowCatRabbitRewardLv20Received = false;
+    });
+
+    await setupBattle();
+    await page.evaluate(() => battleSystem.endGlowingCatRabbitBattle(true)); // escape: no reward
+    await drainDialogue(page, 100);
+    expect(await readState()).toEqual({ nightMedicine: 0, received: false });
+
+    await setupBattle();
+    await page.evaluate(() => battleSystem.endGlowingCatRabbitBattle(false)); // defeat: reward once
+    await drainDialogue(page, 100);
+    expect(await readState()).toEqual({ nightMedicine: 1, received: true });
+
+    await setupBattle();
+    await page.evaluate(() => battleSystem.endGlowingCatRabbitBattle(false)); // second defeat: no duplicate
+    await drainDialogue(page, 100);
+    expect(await readState()).toEqual({ nightMedicine: 1, received: true });
+  });
+
+  test('canStartNightMedicineNight() reuses stay()\'s own priority chain: false while a priority night event is pending, true on a plain night', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        storyPhase: 4,
+        currentHP: 10,
+        maxHP: 140,
+        canStay: true,
+      });
+      RPG.State.silverCoins = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = true;
+      RPG.State.flags.matamatabiNightSeen = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      const withMatamatabiPending = innSystem.canStartNightMedicineNight();
+
+      RPG.State.flags.matamatabiNightPending = false;
+      const plainNight = innSystem.canStartNightMedicineNight();
+
+      return { withMatamatabiPending, plainNight };
+    });
+    expect(result).toEqual({ withMatamatabiPending: false, plainNight: true });
+  });
+
+  test('using nightMedicine away from the inn shows the flavor line and does not consume it', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: false });
+      RPG.State.inventory.nightMedicine = 1;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      explorationSystem.useItem('nightMedicine');
+      return {
+        nightMedicine: RPG.State.inventory.nightMedicine,
+        mode: RPG.State.mode,
+        log: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(result.nightMedicine).toBe(1);
+    expect(result.mode).toBe('base');
+    expect(result.log).toContain('カイン（寝る前に飲もう）');
+  });
+
+  test('using nightMedicine at the inn while a priority night event is pending does not consume it or start the scene', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true, storyPhase: 4, canStay: true });
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = true;
+      RPG.State.flags.matamatabiNightSeen = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.inventory.nightMedicine = 1;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      explorationSystem.useItem('nightMedicine');
+      return {
+        nightMedicine: RPG.State.inventory.nightMedicine,
+        mode: RPG.State.mode,
+        log: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(result.nightMedicine).toBe(1);
+    expect(result.mode).toBe('base');
+    expect(result.log).toContain('カイン（…今夜はやめておこう）');
+  });
+
+  test('using nightMedicine on a plain inn night plays the full scene through to the flavor-only ending, with no evasion state and the aftermath queued', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        storyPhase: 4,
+        canStay: true,
+        currentHP: 10,
+        maxHP: 140,
+        isPoisoned: true,
+      });
+      RPG.State.poisonDamageRemaining = 20;
+      RPG.State.silverCoins = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.flags.nightMedicineAftermathPending = false;
+      RPG.State.flags.nightMedicineAftermathSeen = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+    });
+    await drainDialogue(page, 350);
+
+    const result = await page.evaluate(() => ({
+      nightMedicine: RPG.State.inventory.nightMedicine,
+      currentHP: RPG.State.currentHP,
+      isPoisoned: RPG.State.isPoisoned,
+      poisonDamageRemaining: RPG.State.poisonDamageRemaining,
+      matamatabiActive: RPG.State.flags.matamatabiActive,
+      canStay: RPG.State.canStay,
+      aftermathPending: RPG.State.flags.nightMedicineAftermathPending,
+      aftermathSeen: RPG.State.flags.nightMedicineAftermathSeen,
+      evasionRemaining: RPG.State.nightMedicineEvasionBattlesRemaining,
+      mode: RPG.State.mode,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+
+    expect(result).toMatchObject({
+      nightMedicine: 0,
+      currentHP: 140,
+      isPoisoned: false,
+      poisonDamageRemaining: 0,
+      matamatabiActive: false,
+      canStay: false,
+      aftermathPending: true,
+      aftermathSeen: false,
+      evasionRemaining: undefined,
+      mode: 'base',
+    });
+    expect(result.log).toContain('カインは💊夜の薬を飲んだ！');
+    expect(result.log).toContain('カインの感覚が鋭敏になった！');
+    expect(result.log).not.toContain('回避が一時的に大幅アップ');
+  });
+
+  test('the inn-front aftermath does not fire immediately after the medicine night, only once the player actually exits to 宿屋前', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: true,
+        storyPhase: 4,
+        canStay: true,
+        currentHP: 10,
+        maxHP: 140,
+      });
+      RPG.State.silverCoins = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.flags.nightMedicineAftermathPending = false;
+      RPG.State.flags.nightMedicineAftermathSeen = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+    });
+    await drainDialogue(page, 350);
+
+    const rightAfter = await page.evaluate(() => ({
+      isAtInn: RPG.State.isAtInn,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(rightAfter.isAtInn).toBe(true);
+    expect(rightAfter.log).not.toContain('機嫌が良くなった');
+
+    await page.evaluate(() => {
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      innSystem.exitInn();
+    });
+    await drainDialogue(page, 100);
+
+    const afterExit = await page.evaluate(() => ({
+      aftermathSeen: RPG.State.flags.nightMedicineAftermathSeen,
+      aftermathPending: RPG.State.flags.nightMedicineAftermathPending,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(afterExit.aftermathSeen).toBe(true);
+    expect(afterExit.aftermathPending).toBe(false);
+    expect(afterExit.log).toContain('私、誰にも言いませんから！');
+    expect(afterExit.log).toContain('《オーエンは機嫌が良くなった！》');
+  });
+});
+
 test.describe('forest rain - 8m mud flavor', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {

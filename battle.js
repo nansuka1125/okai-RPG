@@ -2006,7 +2006,8 @@ const battleSystem = {
         const rewards = {
             5: { itemId: "lightBook", flag: "glowCatRabbitRewardLv5Received" },
             10: { itemId: "purpleMacaron", flag: "glowCatRabbitRewardLv10Received" },
-            15: { itemId: "glowingBunnyEars", flag: "glowCatRabbitRewardLv15Received" }
+            15: { itemId: "glowingBunnyEars", flag: "glowCatRabbitRewardLv15Received" },
+            20: { itemId: "nightMedicine", flag: "glowCatRabbitRewardLv20Received" }
         };
         const reward = rewards[rabbitLevel];
         if (!reward || RPG.State.flags[reward.flag] === true) return null;

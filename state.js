@@ -167,6 +167,7 @@ RPG.State = {
         lightBook: 0,
         purpleMacaron: 0,
         glowingBunnyEars: 0,
+        nightMedicine: 0,
         glowingBrooch: 0,
         lightRabbitBrooch: 0,
         unknownAmber: 0,
@@ -317,6 +318,9 @@ RPG.State = {
         glowCatRabbitRewardLv5Received: false, // Build 15.2.106: Prevent duplicate Lv5 victory rewards
         glowCatRabbitRewardLv10Received: false, // Build 15.2.106: Prevent duplicate Lv10 victory rewards
         glowCatRabbitRewardLv15Received: false, // Build 15.2.106: Prevent duplicate Lv15 victory rewards
+        glowCatRabbitRewardLv20Received: false, // Prevent duplicate Lv20 victory rewards (nightMedicine)
+        nightMedicineAftermathPending: false, // Play the inn-front aftermath after the medicine night
+        nightMedicineAftermathSeen: false, // Keep the inn-front aftermath one-time
         morningTraining1Done: false, // Build 15.2.107: First post-tree morning training scene
         morningTraining2Done: false, // Build 15.2.107: Post-fortune-request morning training scene
         morningTraining3Pending: false, // Build 15.2.107: Play the wood-chopping scene on a later inn-front exit

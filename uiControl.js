@@ -1215,6 +1215,7 @@ const uiControl = {
             key === 'lightBook' ||
             key === 'purpleMacaron' ||
             key === 'glowingBunnyEars' ||
+            key === 'nightMedicine' ||
             key === 'keyAmber' ||
             key === 'hardBottle' ||
             key === 'highHerbJam' ||
@@ -1653,13 +1654,11 @@ const uiControl = {
             [
                 "gotTestCoin",
                 "forest8mTreeHintShown",
-                "duelCoinAwarded",
-                "nightMedicineAftermathPending",
-                "nightMedicineAftermathSeen"
+                "duelCoinAwarded"
             ].forEach(flag => {
                 delete mergedState.flags[flag];
             });
-            ["nightMedicine", "mikawashiFeather", "debug_poison"].forEach(itemId => {
+            ["mikawashiFeather", "debug_poison"].forEach(itemId => {
                 delete mergedState.inventory[itemId];
             });
             delete mergedState.talkIndex;

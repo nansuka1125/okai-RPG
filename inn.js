@@ -1720,6 +1720,203 @@ innSystem = {
         explorationSystem.playDialogueLoop();
     },
 
+    // Mirrors stay()'s own priority chain (from its top guard through the ordinary-lottery
+    // branch) as a pure predicate, so nightMedicine can check "would an ordinary 泊まる right
+    // now lead to anything other than the plain lottery night?" without duplicating judgment -
+    // every condition below is copied verbatim from stay(). Keep this in sync if stay()'s
+    // priority chain changes.
+    canStartNightMedicineNight: function () {
+        if (RPG.State.mode !== "base") return false;
+
+        const hasThreeUndeliveredCoins =
+            RPG.State.flags.silverDelivered !== true &&
+            (RPG.State.silverCoins >= 3 || RPG.State.inventory.silverCoin >= 3);
+        if (hasThreeUndeliveredCoins) return false;
+
+        const shouldPlayMatamatabiNight =
+            RPG.State.flags.matamatabiNightPending === true &&
+            RPG.State.flags.matamatabiNightSeen !== true &&
+            RPG.State.flags.silverDelivered !== true;
+        if (shouldPlayMatamatabiNight) return false;
+
+        if (RPG.State.storyPhase === 6 && RPG.State.flags.wagonReadyForDeparture === true) return false;
+        if (RPG.State.storyPhase === 7 && RPG.State.flags.phase7DepartureNightSeen === true) return false;
+
+        const shouldPlayPhase6PostDeliverySleep =
+            RPG.State.storyPhase === 6 &&
+            RPG.State.flags.silverDelivered === true &&
+            RPG.State.flags.phase6PostDeliverySleepDone !== true;
+        if (shouldPlayPhase6PostDeliverySleep) return false;
+
+        const isAwaitingPostDeliveryRainSleep =
+            RPG.State.flags.thiefDiscoveryStatus === 1 &&
+            RPG.State.flags.hasSleptAfterThief !== true;
+        if (
+            RPG.State.currentHP >= RPG.State.maxHP &&
+            RPG.State.flags.amberMerchantMovePending !== true &&
+            !isAwaitingPostDeliveryRainSleep
+        ) return false;
+
+        if (!RPG.State.canStay) return false;
+
+        const shouldPlayFirstInnSleep =
+            RPG.State.storyPhase === 1 &&
+            RPG.State.flags.firstInnSleep === false;
+        if (shouldPlayFirstInnSleep) return false;
+
+        if (this.shouldUseFixedRoomStay()) return false;
+
+        // Within the ordinary lottery: selectInnEvent() steers every candidate toward the
+        // repair-investigation midnight interlude whenever it's still pending - not a chance,
+        // guaranteed for tonight (see selectInnEvent()).
+        if (
+            this.isInnRepairInspectionInProgress() &&
+            (RPG.State.flags.innStableMidnightSeen !== true || RPG.State.flags.innStorageMidnightSeen !== true)
+        ) return false;
+
+        return true;
+    },
+
+    // 💊夜の薬: Lv20 glowing-cat-rabbit reward. Drinking it inside the inn on an otherwise
+    // ordinary night (see canStartNightMedicineNight) plays a one-time scripted night in the
+    // plain room, then reuses the shared per-night bookkeeping (refreshHerbGardenHarvestsAfterStay
+    // etc.) exactly like every other stay branch. No gameplay effect - "感覚が鋭敏になった" is
+    // flavor only.
+    playNightMedicineSleep: function () {
+        const state = RPG.State;
+        const startingHP = state.currentHP;
+        const recoveryAmount = Math.max(0, state.maxHP - startingHP);
+
+        state.mode = "event";
+        state.canStay = false;
+        state.flags.nightMedicineAftermathPending = true;
+        state.dialogueQueue = [];
+
+        // Opening transition: blackout -> switch to the plain room backdrop -> reveal, so the
+        // scripted scene never starts against whatever background the player was standing in.
+        state.dialogueQueue.push(
+            {
+                text: null,
+                delay: 0,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.add('night-mode');
+                }
+            },
+            {
+                text: null,
+                delay: 800,
+                action: () => {
+                    this.showInnScene("room");
+                }
+            },
+            {
+                text: null,
+                delay: 300,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.remove('night-mode');
+                }
+            }
+        );
+
+        state.dialogueQueue.push(
+            { text: "カインは💊夜の薬を飲んだ！", type: "marker", color: "#f1e6c8" },
+            { text: "オーエン「よく平気で飲むよね」" },
+            { text: "カイン「寝る前に飲んだら、回復するとか」" },
+            { text: "オーエン「いつもぐっすり眠ってるじゃない」" },
+            { text: "カイン（…何かあればすぐ起きれるようにしてるつもりなんだが）" },
+            { text: "しばらくすると、じわじわと身体が温まってくる。むず痒いような熱が身体の中心に集まってくる。" },
+            { text: "カイン「…っ…はあ…」" },
+            { text: "カイン（「夜の薬」って、こっちの意味か……！　しまった）" },
+            { text: "身体が熱い。シャツもベルトも、肌に触れるものすべてが、くすぐったいような妙な刺激になっている。" },
+            { text: "カイン「……オーエン。少し離れてくれ」" },
+            { text: "オーエン「いいよ」" },
+            { text: "カイン「いや、この部屋からは出るな。そこにいてくれ。あと、こっちを見るな」" },
+            { text: "オーエン「何それ」" },
+            { text: "カイン「……悪い。今だけでいい」" },
+            { text: "この状態でオーエンを一人にするわけにはいかない。\nけれど、今の自分を正面から見られるのも耐えがたかった。" },
+            { text: "オーエン「どうして？」" },
+            { text: "カイン「……いいから」" },
+            { text: "オーエン「言えないんだ？」" },
+            { text: "カインは答えず、せめてシャツだけでも脱ごうと、震える指をボタンにかけた。" },
+            { text: "うまくつまめない。" },
+            { text: "カイン「……っ、は……」" },
+            { text: "その時、背後の気配が近づいた。" },
+            { text: "触れてはいない。\nそれなのに、すぐ後ろにある体温が分かるほど近い。" },
+            { text: "背中をぞくぞくとした感覚が這い上がり、カインの肩が震えた。" },
+            { text: "カイン「……あっ！？」" },
+            { text: "オーエン「手伝ってあげる」" },
+            { text: "オーエンの手が、ボタンにかかったカインの指へ、するりと重なる。" },
+            { text: "背後から身体を囲われたような距離だった。\n触れているのは手だけなのに、背中にはオーエンの熱があるように感じる。" },
+            { text: "カイン「……いらない……っ。今は、やめてくれ！」" },
+            { text: "コンコン、とノックの音。" },
+            { text: "娘が部屋に入ってくる。" },
+            { text: "娘「カインさん、余ったパンをよろしかったら――…」" },
+            { text: "ベッドの上では息を切らしたカインに、後ろから抱き抱えるようにオーエンが腕を回していた。二人の手はボタンにかかっている。" },
+            { text: "宿屋の娘「……っ、す、すみません！」" },
+            { text: "娘は盆を抱えたまま、勢いよく扉を閉めた。" },
+            { text: "――――バタン。", type: "marker", color: "#f1e6c8" }
+        );
+
+        // Sleep transition: blackout -> shared per-night bookkeeping -> reveal (still in "room").
+        state.dialogueQueue.push(
+            {
+                text: null,
+                delay: 0,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.add('night-mode');
+                }
+            },
+            {
+                text: null,
+                delay: 3000,
+                action: () => {
+                    state.currentHP = state.maxHP;
+                    this.refreshHerbGardenHarvestsAfterStay();
+                    state.isPoisoned = false;
+                    state.poisonDamageRemaining = 0;
+                    state.flags.matamatabiActive = false;
+                    state.matamatabiStepsRemaining = 0;
+                    uiControl.updateUI();
+                }
+            },
+            {
+                text: null,
+                action: () => {
+                    const logContainer = document.getElementById('logContainer');
+                    if (logContainer) logContainer.classList.remove('night-mode');
+                }
+            }
+        );
+
+        state.dialogueQueue.push(
+            { text: "カイン「あ、あれ？」" },
+            { text: "カイン（昨夜の途中から、全く記憶がない…）" },
+            { text: "耳元でオーエンが囁く。" },
+            { text: "オーエン「…おもしろかった」" },
+            { text: "カイン「うぁっ…！！！」" },
+            { text: "オーエン「…なに」" },
+            { text: "カイン「…やたら感覚が鋭敏だ。あの薬のせいか？」" },
+            { text: "オーエン「そうかもね」" },
+            {
+                text: "カインの感覚が鋭敏になった！",
+                type: "marker",
+                color: "#f1e6c8",
+                action: () => {
+                    if (recoveryAmount > 0) {
+                        uiControl.addLog(`HPが${recoveryAmount}回復した。`, "", "#9acd32");
+                    }
+                    this.showInnScene("lobby");
+                    uiControl.updateUI();
+                }
+            }
+        );
+
+        explorationSystem.playDialogueLoop();
+    },
+
     enterInn: function (showGreeting = true, options = {}) {
         const preserveEventMode = options.preserveEventMode === true;
         const skipEntryEvents = options.skipEntryEvents === true;
@@ -1836,6 +2033,35 @@ innSystem = {
                     text: null,
                     action: () => {
                         RPG.State.flags.treeExitTalkDone = true;
+                    }
+                }
+            ];
+            explorationSystem.playDialogueLoop();
+            return;
+        }
+
+        const shouldPlayNightMedicineAftermath =
+            RPG.State.flags.nightMedicineAftermathPending === true &&
+            RPG.State.flags.nightMedicineAftermathSeen !== true;
+
+        if (shouldPlayNightMedicineAftermath) {
+            RPG.State.mode = "event";
+            RPG.State.dialogueQueue = [
+                { text: "宿屋の娘が、物干し竿に洗濯物を掛けている。" },
+                { text: "カイン「……おはよう」" },
+                { text: "宿屋の娘「あ……」" },
+                { text: "娘はカインの顔を見ると、すぐに目を逸らした。" },
+                { text: "宿屋の娘「私、誰にも言いませんから！」" },
+                { text: "娘は真っ赤な顔で洗濯籠を抱え、そのまま宿屋へ逃げ込んだ。" },
+                { text: "カイン「…………」" },
+                { text: "オーエン「ふふ」" },
+                {
+                    text: "《オーエンは機嫌が良くなった！》",
+                    type: "marker",
+                    color: "#f1e6c8",
+                    action: () => {
+                        RPG.State.flags.nightMedicineAftermathPending = false;
+                        RPG.State.flags.nightMedicineAftermathSeen = true;
                     }
                 }
             ];

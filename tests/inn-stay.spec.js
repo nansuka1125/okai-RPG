@@ -790,7 +790,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     }, lodgingId);
   }
 
-  test('the stable interlude fires once, plays 話す/齧られた扉, then 寝る returns to the same stay\'s morning without a double heal, and does not refire', async ({ page }) => {
+  test('the stable interlude fires once, uses the shared talk/examine/sleep layout, then returns to the same stay\'s morning', async ({ page }) => {
     await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
 
     await callStay(page);
@@ -803,14 +803,14 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     }));
     expect(intro.log).toContain('カイン（ふわぁ…目が覚めちまったな）');
     expect(intro.log).toContain('オーエン「…ん」');
-    expect(intro.buttons).toEqual(['【話す】', '【齧られた扉】', '【アイテム】', '【寝る】']);
+    expect(intro.buttons).toEqual(['【話す】', '【調べる】', '【もう寝る】']);
 
     await page.getByRole('button', { name: '【話す】', exact: true }).click();
     await drainStay(page);
     const afterTalk = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
     expect(afterTalk).toContain('すごく眠そうだ');
 
-    await page.getByRole('button', { name: '【齧られた扉】', exact: true }).click();
+    await page.getByRole('button', { name: '【調べる】', exact: true }).click();
     await drainStay(page);
     const afterDoor = await page.evaluate(() => ({
       log: document.getElementById('logContainer')?.textContent || '',
@@ -830,7 +830,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
       travelStepsSinceStay: RPG.State.travelStepsSinceStay,
     }));
 
-    await page.getByRole('button', { name: '【寝る】', exact: true }).click();
+    await page.getByRole('button', { name: '【もう寝る】', exact: true }).click();
     const finalMode = await drainStay(page);
     expect(finalMode).toBe('base');
 
@@ -899,7 +899,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     expect(await drainStay(page)).toBe('choice');
 
     const examine = async () => {
-      await page.getByRole('button', { name: /^【棚を見る】$|^【調べる】$/, exact: true }).click();
+      await page.getByRole('button', { name: '【調べる】', exact: true }).click();
       await drainStay(page);
     };
 
@@ -950,24 +950,21 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     expect(snap).toContain('カイン（もうやめよう）');
   });
 
-  test('opening and closing the item modal from the interlude returns to its own menu', async ({ page }) => {
+  test('the interlude menu omits the item command and uses the shared grid layout', async ({ page }) => {
     await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
 
     await callStay(page);
     expect(await drainStay(page)).toBe('choice');
 
-    await page.getByRole('button', { name: '【アイテム】', exact: true }).click();
-    const modalOpen = await page.evaluate(() => document.getElementById('itemModal')?.style.display);
-    expect(modalOpen).toBe('flex');
-
-    await page.evaluate(() => uiControl.closeModal());
     const after = await page.evaluate(() => ({
-      modalDisplay: document.getElementById('itemModal')?.style.display,
-      mode: RPG.State.mode,
       buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+      display: document.getElementById('action-buttons')?.style.display,
+      grid: document.getElementById('action-buttons')?.classList.contains('btn-grid'),
     }));
-    expect(after.modalDisplay).toBe('none');
-    expect(after.mode).toBe('choice');
-    expect(after.buttons).toEqual(['【話す】', '【齧られた扉】', '【アイテム】', '【寝る】']);
+    expect(after).toEqual({
+      buttons: ['【話す】', '【調べる】', '【もう寝る】'],
+      display: 'grid',
+      grid: true,
+    });
   });
 });

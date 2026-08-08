@@ -410,6 +410,51 @@ test.describe('matamatabi night reservation is fur-gated, not activation-gated',
     // reservation set at the moment of fur pickup must survive that deactivation.
     expect(result).toEqual({ fur: 1, branch: 0, matamatabiActive: false, nightPending: true });
   });
+
+  test('a Lv10 followup conversation plays alongside the fur scene in the same battle, instead of being discarded', async ({ page }) => {
+    const queuedTexts = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: true,
+        battleState: { playerTookDamage: false },
+        currentEnemy: { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 10, xp: 0, gold: 0 },
+        equippedRareAmberId: null,
+      });
+      RPG.State.inventory.matamatabiBranch = 1;
+      RPG.State.flags.matamatabiActive = true;
+      RPG.State.flags.needsGlowingRabbitFur = true;
+      RPG.State.inventory.glowingCatRabbitFur = 0;
+      RPG.State.flags.phase4MatamatabiRabbitEncounters = 1; // guarantees the drop this encounter
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.glowCatRabbitTalkLv10Done = false;
+      battleSystem.endGlowingCatRabbitBattle(false);
+      return RPG.State.dialogueQueue.map(line => line.text);
+    });
+
+    // Both the fur scene (ending on the branch-deactivation line) and the Lv10 followup
+    // (opening on "またいたな…") must be present, fur scene first.
+    const deactivationIndex = queuedTexts.indexOf('オーエンが全て舐めとったため、枝は不活性化した。');
+    const followupIndex = queuedTexts.indexOf('カイン「またいたな…」');
+    expect(deactivationIndex).toBeGreaterThanOrEqual(0);
+    expect(followupIndex).toBeGreaterThan(deactivationIndex);
+
+    await drainDialogue(page, 60);
+
+    const result = await page.evaluate(() => ({
+      fur: RPG.State.inventory.glowingCatRabbitFur,
+      branch: RPG.State.inventory.matamatabiBranch,
+      matamatabiActive: RPG.State.flags.matamatabiActive,
+      nightPending: RPG.State.flags.matamatabiNightPending,
+      talkLv10Done: RPG.State.flags.glowCatRabbitTalkLv10Done,
+    }));
+    expect(result).toEqual({
+      fur: 1,
+      branch: 0,
+      matamatabiActive: false,
+      nightPending: true,
+      talkLv10Done: true,
+    });
+  });
 });
 
 test.describe('forest rain - 8m mud flavor', () => {

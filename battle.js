@@ -2144,24 +2144,24 @@ const battleSystem = {
 
         const shouldPlayFurScene = furAwarded && hadBranch;
         const furDialogueQueue = shouldPlayFurScene ? this.buildGlowingCatRabbitFurQueue() : [];
+        const followupDialogueQueue = followupDialogue
+            ? followupDialogue.map(line => ({ ...line }))
+            : [];
 
-        if (
-            shouldPlayFurScene ||
-            noFurDialogue.length > 0 ||
-            (followupDialogue && followupDialogue.length > 0) ||
-            matamatabiActivationQueue.length > 0
-        ) {
+        // Every source below is independently gated by the conditions computed above -
+        // concatenate them all rather than picking one, so a fur-scene battle never discards
+        // an already-earned (and already flag-marked) followup/no-fur/activation queue.
+        const combinedDialogueQueue = [
+            ...furDialogueQueue,
+            ...noFurDialogue,
+            ...followupDialogueQueue,
+            ...matamatabiActivationQueue
+        ];
+
+        if (combinedDialogueQueue.length > 0) {
             RPG.State.mode = "event";
             uiControl.updateUI();
-            RPG.State.dialogueQueue = [
-                ...(shouldPlayFurScene
-                    ? furDialogueQueue
-                    : [
-                        ...noFurDialogue,
-                        ...(followupDialogue ? followupDialogue.map(line => ({ ...line })) : []),
-                        ...matamatabiActivationQueue
-                    ])
-            ];
+            RPG.State.dialogueQueue = combinedDialogueQueue;
             explorationSystem.playDialogueLoop();
             return;
         }

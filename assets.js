@@ -2437,6 +2437,31 @@ RPG.Assets.EVENT_DATA = [
             // Boss aftermath rule:
             // This event starts after executeStandardVictory() has already shown the shared victory text.
             RPG.State.dialogueQueue = [
+                // Scene transition into the ending. playDialogueLoop() runs a queued action()
+                // immediately on dequeue - delay only postpones advancing to the NEXT entry -
+                // so the blackout, the wait, and the reveal must be three separate entries:
+                // 1) start the blackout, 2) a pure 1800ms wait with no action, 3) swap the
+                // background/clear the log/lift the blackout while still fully black.
+                {
+                    text: null,
+                    delay: 0,
+                    action: () => {
+                        const logContainer = document.getElementById('logContainer');
+                        if (logContainer) logContainer.classList.add('night-mode');
+                    }
+                },
+                { text: null, delay: 1800 },
+                {
+                    text: null,
+                    action: () => {
+                        if (typeof visualDirector !== "undefined") visualDirector.setScene('ending');
+                        const logContainer = document.getElementById('logContainer');
+                        if (logContainer) {
+                            logContainer.innerHTML = '';
+                            logContainer.classList.remove('night-mode');
+                        }
+                    }
+                },
                 { text: "荷馬車は大きな交易路に出た。" },
                 { text: "月が明るい。" },
                 { text: "カインはドロドロになった剣を鞘に収めてため息をついた。" },

@@ -540,6 +540,11 @@ body.scene-forest #sceneBackdrop {
     opacity: 0.98;
 }
 
+body.scene-ending #sceneBackdrop {
+    background-image: url("images/エンディング背景.jpg");
+    opacity: 0.98;
+}
+
 body.scene-forest #sceneReadingVeil {
     opacity: 1;
 }

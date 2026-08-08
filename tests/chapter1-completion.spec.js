@@ -70,6 +70,34 @@ async function drainDialogue(page, maxWaitMs = 7000) {
   throw new Error('dialogue did not finish before timeout');
 }
 
+// Same loop as drainDialogue, but stops the moment the log contains the given text instead of
+// waiting for the whole queue to finish - used to inspect the ending dialogue's opening lines
+// before Cinematics.playChapter1Clear()'s own scene transition clears the log again.
+async function drainDialogueUntilLogContains(page, text, maxWaitMs = 9000) {
+  await page.evaluate(() => {
+    RPG.State.debug.isSkipping = true;
+  });
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < maxWaitMs) {
+    const state = await page.evaluate((needle) => ({
+      mode: RPG.State.mode,
+      waiting: RPG.State.isWaitingForInput === true,
+      typewriting: explorationSystem.hasActiveTypewriter(),
+      hasText: (document.getElementById('logContainer')?.textContent || '').includes(needle),
+    }), text);
+
+    if (state.hasText || state.mode !== 'event') return state;
+
+    if (state.waiting || state.typewriting) {
+      await page.evaluate(() => uiControl.handlePlayerInput());
+    }
+    await page.waitForTimeout(25);
+  }
+
+  throw new Error(`log never contained "${text}" before timeout`);
+}
+
 test.describe('Chapter 1 completion route', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
@@ -723,6 +751,11 @@ test.describe('Chapter 1 completion route', () => {
         cleared: RPG.State.flags.chapter1Cleared,
         bossWins: RPG.State.highwayBattleCount[10],
         arrivalCompleted: RPG.State.completedEvents.includes('highway_10m_boss_arrival'),
+        // The blackout's own action runs synchronously the instant the ending event starts
+        // building its dialogueQueue (delay only postpones advancing to the NEXT queue entry,
+        // not running the current one's action), so this is already true here - no timing
+        // dependency involved.
+        blackedOut: document.getElementById('logContainer')?.classList.contains('night-mode'),
       };
     });
 
@@ -730,9 +763,21 @@ test.describe('Chapter 1 completion route', () => {
       cleared: false,
       bossWins: 1,
       arrivalCompleted: true,
+      blackedOut: true,
     });
 
-    await drainDialogue(page);
+    // Drain up to the ending's opening lines - still mid-scene, before playChapter1Clear()'s
+    // own transition clears the log again for the "第1章クリア" card.
+    await drainDialogueUntilLogContains(page, '月が明るい。');
+    const duringEnding = await page.evaluate(() => ({
+      sceneEnding: document.body.classList.contains('scene-ending'),
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(duringEnding.sceneEnding).toBe(true);
+    expect(duringEnding.log).toContain('荷馬車は大きな交易路に出た。');
+    expect(duringEnding.log).toContain('月が明るい。');
+
+    await drainDialogue(page, 9000);
     await expect.poll(
       () => page.evaluate(() => RPG.State.flags.chapter1Cleared)
     ).toBe(true);

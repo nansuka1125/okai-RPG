@@ -199,7 +199,8 @@ const visualDirector = {
             "herb-garden-deep",
             "vine-nest",
             "wagon",
-            "former-highway"
+            "former-highway",
+            "ending"
         ];
         const isForest = forestScenes.includes(activeScene);
         const isInn = innScenes.includes(activeScene);

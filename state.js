@@ -272,6 +272,7 @@ RPG.State = {
         readyForThiefBoy: false, // Flag for Thief Boy event
         isTreeRematch: false, // Build 15.1.1a: Persistent tracker for rematch state
         treeFirstDefeat: false, // Build 15.2.8: Track first defeat against the hungry amber tree
+        badEndSeen: false, // One-time flag: the Amber Forest BAD END sequence has already played
         treeExitTalkDone: false, // Build 15.2.9: One-time inn-exit talk after first amber tree defeat
         treeVictoryTalkDone: false, // Build 15.2.11: One-time post-victory talk after defeating the hungry amber tree
         amberTreeFourHitSceneSeen: false, // Build 15.2.6: One-time amber tree battle dialogue gate

@@ -2835,13 +2835,18 @@ innSystem = {
     // Build 8.26.1: Defeat Sequence logic
     showDefeatSequence: function (defeatedEnemyId = null, options = {}) {
         const vampireAmberRemoved = options.vampireAmberRemoved === true;
-        if (RPG.State.deathCount >= 3) {
+        if (RPG.State.deathCount >= 3 && RPG.State.flags.badEndSeen !== true) {
             this.showBadEnd();
             return;
         }
 
         const eventIndex = RPG.State.deathCount;
-        const scenario = RPG.Assets.GAME_TEXT.inn.defeatEvents[eventIndex];
+        // Once BAD END has already played, deathCount keeps climbing past the three
+        // dedicated defeat events - fall back to a generic awakening line instead of
+        // indexing off the end of defeatEvents.
+        const scenario = eventIndex < RPG.Assets.GAME_TEXT.inn.defeatEvents.length
+            ? RPG.Assets.GAME_TEXT.inn.defeatEvents[eventIndex]
+            : { text: ["カインは宿屋のベッドで目を覚ました。"] };
         const isFirstAmberTreeDefeat =
             defeatedEnemyId === "hungry_amber_tree" &&
             RPG.State.flags.treeFirstDefeat === false;
@@ -3005,6 +3010,7 @@ innSystem = {
                     logContainer.classList.remove('night-mode');
                 }
                 RPG.State.deathCount++; // Final increment
+                RPG.State.flags.badEndSeen = true;
             }
         });
 
@@ -3032,6 +3038,11 @@ innSystem = {
                 uiControl.updateUI();
             }
         });
+
+        RPG.State.dialogueQueue.push(
+            { text: "カインは宿屋のベッドで目を覚ました。" },
+            { text: "カイン「…………夢？」" }
+        );
 
         explorationSystem.playDialogueLoop();
     },

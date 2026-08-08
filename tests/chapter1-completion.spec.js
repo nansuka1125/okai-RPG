@@ -1075,6 +1075,94 @@ test.describe('Chapter 1 completion route', () => {
     expect(result.log).toContain('【BAD END 〜琥珀の森焼失〜】');
   });
 
+  test('the 4th defeat plays BAD END once, ends with the bedside wake-up lines, and marks badEndSeen', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        location: '森の深層',
+        currentDistance: 8,
+        currentHP: 0,
+        maxHP: 140,
+        isPoisoned: true,
+        deathCount: 3,
+        dialogueQueue: [],
+      });
+      RPG.State.flags.badEndSeen = false;
+      innSystem.showDefeatSequence('rat');
+    });
+
+    await drainDialogue(page, 10000);
+
+    const result = await page.evaluate(() => ({
+      deathCount: RPG.State.deathCount,
+      badEndSeen: RPG.State.flags.badEndSeen,
+      currentHP: RPG.State.currentHP,
+      maxHP: RPG.State.maxHP,
+      isPoisoned: RPG.State.isPoisoned,
+      mode: RPG.State.mode,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result).toMatchObject({
+      deathCount: 4,
+      badEndSeen: true,
+      currentHP: 14,
+      maxHP: 140,
+      isPoisoned: false,
+      mode: 'base',
+    });
+    expect(result.log).toContain('【BAD END 〜琥珀の森焼失〜】');
+    expect(result.log).toContain('カインは宿屋のベッドで目を覚ました。');
+    expect(result.log).toContain('カイン「…………夢？」');
+  });
+
+  test('a defeat after badEndSeen returns to the inn with only the generic awakening line, without repeating BAD END', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        location: '森の深層',
+        currentDistance: 8,
+        currentHP: 0,
+        maxHP: 140,
+        isPoisoned: true,
+        deathCount: 5,
+        dialogueQueue: [],
+      });
+      RPG.State.flags.badEndSeen = true;
+      innSystem.showDefeatSequence('rat');
+    });
+
+    await drainDialogue(page, 10000);
+
+    const result = await page.evaluate(() => ({
+      deathCount: RPG.State.deathCount,
+      badEndSeen: RPG.State.flags.badEndSeen,
+      currentHP: RPG.State.currentHP,
+      maxHP: RPG.State.maxHP,
+      isPoisoned: RPG.State.isPoisoned,
+      isAtInn: RPG.State.isAtInn,
+      mode: RPG.State.mode,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result).toMatchObject({
+      deathCount: 6,
+      badEndSeen: true,
+      currentHP: 14,
+      maxHP: 140,
+      isPoisoned: false,
+      isAtInn: true,
+      mode: 'base',
+    });
+    expect(result.log).toContain('カインは宿屋のベッドで目を覚ました。');
+    expect(result.log).not.toContain('【BAD END 〜琥珀の森焼失〜】');
+    expect(result.log).not.toContain('カイン「…………夢？」');
+  });
+
   test('fixed encounter table keeps the requested 2/4/6/8/10m order', async ({ page }) => {
     const specs = await page.evaluate(() => (
       [2, 4, 6, 8, 10].map(distance => {

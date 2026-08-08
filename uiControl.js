@@ -1124,7 +1124,11 @@ const uiControl = {
     },
 
     openModal: function () {
-        if (RPG.State.mode !== "base") return;
+        // The inn's midnight interlude holds the choice-mode lock for its own buttons, but its
+        // 【アイテム】 command still has to reach the ordinary inventory screen.
+        const inInnMidnight =
+            typeof innSystem !== "undefined" && innSystem.isInnMidnightActive();
+        if (RPG.State.mode !== "base" && !inInnMidnight) return;
 
         if (Cinematics.canPlayThiefDiscoveryFromInventory()) {
             Cinematics.playThiefDiscovery();

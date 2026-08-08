@@ -7,6 +7,259 @@ innSystem = {
         }
     },
 
+    // --- Midnight interlude (stable / storage) ---
+    //
+    // A one-shot "Cain wakes up in the middle of the night" scene spliced into an ordinary
+    // stay, between the heal/bookkeeping node and the morning block. It is NOT an exploration
+    // area: it just borrows the log, a darkened backdrop and four bespoke buttons, then hands
+    // the stay's own morning queue back untouched.
+    //
+    // Deliberately a module property rather than RPG.State: the per-night progress (door
+    // examined, how many times the shelf was searched) is meaningless once the night ends,
+    // so it must not be saved. Same idiom as battleSystem.vineNestChainRemaining.
+    // Shape: { id, doorSeen, shelfStage, pendingQueue }
+    innMidnight: null,
+
+    isInnMidnightActive: function () {
+        return this.innMidnight !== null;
+    },
+
+    getInnMidnightSeenFlag: function (eventId) {
+        if (eventId === "stable") return "innStableMidnightSeen";
+        if (eventId === "storage_room") return "innStorageMidnightSeen";
+        return null;
+    },
+
+    // The repair thread's inspection window: opened by tryUnlockInnRepairInspection() and
+    // closed again by the report to the innkeeper, which sets innRepairInspectionUnlocked
+    // back to false. No new progression stage is introduced for this event.
+    isInnRepairInspectionInProgress: function () {
+        return (
+            RPG.State.flags.innRepairInspectionUnlocked === true &&
+            RPG.State.flags.innRepairInspectionReported !== true
+        );
+    },
+
+    // Called from the ordinary stay queue. Returns false (and leaves the queue completely
+    // alone, so the morning simply continues) whenever this night is not a candidate.
+    tryStartInnMidnight: function (eventId) {
+        const seenFlag = this.getInnMidnightSeenFlag(eventId);
+        if (!seenFlag) return false;
+        if (!this.isInnRepairInspectionInProgress()) return false;
+        if (RPG.State.flags[seenFlag] === true) return false;
+
+        // Consumed the moment it actually starts, so an interrupted night never replays it.
+        RPG.State.flags[seenFlag] = true;
+
+        this.innMidnight = {
+            id: eventId,
+            doorSeen: false,
+            shelfStage: 0,
+            // The rest of the stay (morning lines, blackout release, notebook intro...) is
+            // parked here untouched and handed straight back by 【寝る】.
+            pendingQueue: RPG.State.dialogueQueue
+        };
+
+        // The stay blacked the log out for the night; lift it so the scene is readable, and
+        // swap to the darkened backdrop. 【寝る】 puts both back exactly as they were.
+        const logContainer = document.getElementById('logContainer');
+        if (logContainer) logContainer.classList.remove('night-mode');
+        this.showInnScene(eventId === "stable" ? "stable-night" : "storage-night");
+
+        RPG.State.dialogueQueue = (eventId === "stable"
+            ? [
+                "カイン（ふわぁ…目が覚めちまったな）",
+                "身体を起こして隣を見るとオーエンが丸まって寝ている。",
+                "オーエン「…ん」",
+                "カイン（あ…起きてる）",
+                "まだ夜中だ。"
+            ]
+            : [
+                "カイン（…ん。なんか、目が覚めちまった）",
+                "身体を伸ばしてふと横を見ると、オーエンと目が合った。",
+                "オーエン「…なに」",
+                "カイン（こいつも、起きていたのか）",
+                "まだ夜中だ。"
+            ]
+        ).map(text => (
+            text.startsWith("オーエン") ? { text, color: "#cc73ff" } : { text }
+        ));
+        return true;
+    },
+
+    // Every route back into the interlude funnels through the queue-empty branch of
+    // playDialogueLoop, so this is the single place that rebuilds the command set.
+    showInnMidnightMenu: function () {
+        if (!this.isInnMidnightActive()) return;
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        const isStable = this.innMidnight.id === "stable";
+        RPG.State.mode = 'choice';
+        container.innerHTML = '';
+        container.style.display = 'flex';
+
+        const addChoice = (text, action) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-full';
+            button.textContent = text;
+            button.onclick = action;
+            container.appendChild(button);
+        };
+
+        const examineSeen = isStable
+            ? this.innMidnight.doorSeen
+            : this.innMidnight.shelfStage > 0;
+        const examineLabel = examineSeen
+            ? '【調べる】'
+            : (isStable ? '【齧られた扉】' : '【棚を見る】');
+
+        addChoice('【話す】', () => this.playInnMidnightTalk());
+        addChoice(examineLabel, () => this.playInnMidnightExamine());
+        addChoice('【アイテム】', () => uiControl.openModal());
+        addChoice('【寝る】', () => this.finishInnMidnight());
+
+        // Same shared choice-mode lock the vine nest uses: only these buttons stay live.
+        uiControl.updateUI();
+    },
+
+    // Shared by 【話す】/【調べる】: hide the buttons, play the lines, and let the
+    // queue-empty hook bring the menu back.
+    playInnMidnightLines: function (lines) {
+        const container = document.getElementById('action-buttons');
+        if (container) container.style.display = 'none';
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = lines;
+        explorationSystem.playDialogueLoop();
+    },
+
+    playInnMidnightTalk: function () {
+        if (!this.isInnMidnightActive()) return;
+        this.playInnMidnightLines(this.innMidnight.id === "stable"
+            ? [
+                { text: "オーエン「……」", color: "#cc73ff" },
+                { text: "カイン（すごく眠そうだ。起きなくてもいいのに）" }
+            ]
+            : [
+                { text: "カイン（眠い。今は話すことがない）" }
+            ]);
+    },
+
+    playInnMidnightExamine: function () {
+        if (!this.isInnMidnightActive()) return;
+        this.playInnMidnightLines(this.innMidnight.id === "stable"
+            ? this.buildStableDoorLines()
+            : this.buildStorageShelfLines());
+    },
+
+    buildStableDoorLines: function () {
+        if (this.innMidnight.doorSeen === true) {
+            return [{ text: "カイン（もう十分だ。寝よう）" }];
+        }
+        this.innMidnight.doorSeen = true;
+        return [
+            { text: "扉の端が齧られている。" },
+            { text: "カイン（これは、普通のネズミだな）" },
+            { text: "オーエン「熱心だね」", color: "#cc73ff" },
+            { text: "カイン「…ここに魔物が入ったら馬が可哀想だからな」" }
+        ];
+    },
+
+    buildStorageShelfLines: function () {
+        const stage = (this.innMidnight.shelfStage || 0) + 1;
+        this.innMidnight.shelfStage = stage;
+
+        if (stage === 1) {
+            return [{ text: "カイン（ここにはまだネズミの被害は無さそうだ）" }];
+        }
+        if (stage === 2) {
+            return [
+                { text: "ガソゴソ…", type: "ambient" },
+                { text: "カイン（お。これは）" },
+                {
+                    text: "💨煙玉を見つけた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        RPG.State.inventory.smokeBomb = (RPG.State.inventory.smokeBomb || 0) + 1;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+        }
+        if (stage === 3) {
+            return [
+                { text: "ガソゴソ…", type: "ambient" },
+                { text: "カイン（まだあるかな）" },
+                {
+                    text: "🌿上薬草を見つけた！",
+                    type: "marker",
+                    color: "#9acd32",
+                    action: () => {
+                        RPG.State.inventory.highHerb = (RPG.State.inventory.highHerb || 0) + 1;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+        }
+        if (stage === 4) {
+            return [
+                { text: "ガサゴソ…", type: "ambient" },
+                { text: "カイン（奥に何かある）" },
+                {
+                    text: "🔸？琥珀を見つけた！",
+                    type: "marker",
+                    color: "#ffd166",
+                    action: () => {
+                        // Same idiom as the forest sparkling-amber sites: the amber goes in
+                        // unidentified and the queued result fixes it to 《キラキラ琥珀》.
+                        RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                        RPG.State.unappraisedAmberResults = Array.isArray(RPG.State.unappraisedAmberResults)
+                            ? RPG.State.unappraisedAmberResults
+                            : [];
+                        RPG.State.unappraisedAmberResults.push("sparkling");
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+        }
+        if (stage === 5) {
+            return [
+                { text: "ガサゴソ…", type: "ambient" },
+                { text: "オーエン「…本当に手癖が悪いね」", color: "#cc73ff" },
+                { text: "カイン「うっ…」（もうやめよう）" }
+            ];
+        }
+        return [{ text: "カイン（もうやめよう）" }];
+    },
+
+    // 【寝る】: never starts a new stay. The heal and every stay-once update already ran
+    // before the interlude began, so this only puts the presentation back and replays the
+    // parked morning queue.
+    finishInnMidnight: function () {
+        if (!this.isInnMidnightActive()) return;
+        const pending = this.innMidnight.pendingQueue || [];
+        const lodgingScene = this.innMidnight.id === "stable" ? "stable" : "storage";
+        // Cleared first so the queue-empty hook cannot pull the menu back up mid-handoff.
+        this.innMidnight = null;
+
+        const container = document.getElementById('action-buttons');
+        if (container) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+        }
+
+        this.showInnScene(lodgingScene);
+        // Re-blacked out because the morning block expects to start from the stay's blackout
+        // and releases it itself.
+        const logContainer = document.getElementById('logContainer');
+        if (logContainer) logContainer.classList.add('night-mode');
+
+        RPG.State.mode = "event";
+        RPG.State.dialogueQueue = pending;
+        explorationSystem.playDialogueLoop();
+    },
+
     getAutomaticMorningTrainingId: function () {
         const state = RPG.State;
         const flags = state.flags;
@@ -2202,6 +2455,15 @@ innSystem = {
                 RPG.State.matamatabiStepsRemaining = 0;
                 uiControl.updateUI();
             }
+        });
+
+        // Lowest-priority night beat, deliberately placed after the heal/bookkeeping node and
+        // before the morning: every special night above returns from stay() long before this,
+        // and a night that is not a candidate leaves the queue untouched and simply goes on to
+        // the morning. When it does fire it parks the rest of this queue and replays it on 【寝る】.
+        RPG.State.dialogueQueue.push({
+            text: null,
+            action: () => this.tryStartInnMidnight(event.id)
         });
 
         if (automaticMorningTrainingId) {

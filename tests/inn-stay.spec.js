@@ -726,3 +726,220 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
     expect(lines).toContain('カインはぐっすり眠った…');
   });
 });
+
+// Stable/storage midnight interlude, offered only during the inn-repair damage investigation
+// window (innRepairInspectionUnlocked, before the report). Forces the ordinary lottery branch
+// exactly like the "before the delivery" tests above (storyPhase 2, silverDelivered/
+// phase6PostDeliverySleepDone both false), then pins the lodging via selectInnEvent the same
+// way an existing test counts its calls.
+test.describe('inn stay: midnight interlude (stable/storage, repair investigation window)', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await page.goto('/chapter1.html');
+    await page.waitForFunction(() => (
+      typeof uiControl !== 'undefined' &&
+      typeof explorationSystem !== 'undefined' &&
+      typeof innSystem !== 'undefined'
+    ));
+    await advanceUntilInteractive(page);
+  });
+
+  async function setInvestigationLottery(page, lodgingId, overrides = {}) {
+    await setStayState(page, {
+      state: { storyPhase: 2, ...overrides.state },
+      flags: {
+        silverDelivered: false,
+        phase6PostDeliverySleepDone: false,
+        innRepairInspectionUnlocked: true,
+        innRepairInspectionReported: false,
+        ...overrides.flags,
+      },
+    });
+    await page.evaluate((id) => {
+      innSystem.selectInnEvent = () => RPG.Assets.INN_EVENTS.find(e => e.id === id);
+    }, lodgingId);
+  }
+
+  test('the stable interlude fires once, plays 話す/齧られた扉, then 寝る returns to the same stay\'s morning without a double heal, and does not refire', async ({ page }) => {
+    await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
+
+    await callStay(page);
+    const afterIntro = await drainStay(page);
+    expect(afterIntro).toBe('choice');
+
+    const intro = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+    }));
+    expect(intro.log).toContain('カイン（ふわぁ…目が覚めちまったな）');
+    expect(intro.log).toContain('オーエン「…ん」');
+    expect(intro.buttons).toEqual(['【話す】', '【齧られた扉】', '【アイテム】', '【寝る】']);
+
+    await page.getByRole('button', { name: '【話す】', exact: true }).click();
+    await drainStay(page);
+    const afterTalk = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(afterTalk).toContain('すごく眠そうだ');
+
+    await page.getByRole('button', { name: '【齧られた扉】', exact: true }).click();
+    await drainStay(page);
+    const afterDoor = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+    }));
+    expect(afterDoor.log).toContain('扉の端が齧られている。');
+    expect(afterDoor.log).toContain('オーエン「熱心だね」');
+    expect(afterDoor.buttons).toContain('【調べる】');
+
+    await page.getByRole('button', { name: '【調べる】', exact: true }).click();
+    await drainStay(page);
+    const afterDoorAgain = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(afterDoorAgain).toContain('カイン（もう十分だ。寝よう）');
+
+    const beforeSleep = await page.evaluate(() => ({
+      currentHP: RPG.State.currentHP,
+      travelStepsSinceStay: RPG.State.travelStepsSinceStay,
+    }));
+
+    await page.getByRole('button', { name: '【寝る】', exact: true }).click();
+    const finalMode = await drainStay(page);
+    expect(finalMode).toBe('base');
+
+    const after = await page.evaluate(() => ({
+      currentHP: RPG.State.currentHP,
+      travelStepsSinceStay: RPG.State.travelStepsSinceStay,
+      stableSeen: RPG.State.flags.innStableMidnightSeen,
+    }));
+    // The heal/bookkeeping node already ran before the interlude started; 寝る must not re-run it.
+    expect(after.currentHP).toBe(beforeSleep.currentHP);
+    expect(after.travelStepsSinceStay).toBe(beforeSleep.travelStepsSinceStay);
+    expect(after.stableSeen).toBe(true);
+
+    // A second stay, still mid-investigation, at the same lodging: must not fire again.
+    await setInvestigationLottery(page, 'stable');
+    await callStay(page);
+    const secondMode = await drainStay(page);
+    expect(secondMode).toBe('base');
+    const secondLog = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(secondLog).not.toContain('ふわぁ…目が覚めちまったな');
+  });
+
+  test('does not fire when a higher-priority night event is pending (matamatabi night pre-empts the ordinary lottery entirely)', async ({ page }) => {
+    await setStayState(page, {
+      state: { storyPhase: 2 },
+      flags: {
+        silverDelivered: false,
+        phase6PostDeliverySleepDone: false,
+        matamatabiNightPending: true,
+        matamatabiNightSeen: false,
+        innRepairInspectionUnlocked: true,
+        innRepairInspectionReported: false,
+        innStableMidnightSeen: false,
+      },
+    });
+
+    const selectCalls = await page.evaluate(() => {
+      const original = innSystem.selectInnEvent;
+      let calls = 0;
+      innSystem.selectInnEvent = function (...args) {
+        calls += 1;
+        return original.apply(innSystem, args);
+      };
+      innSystem.stay();
+      innSystem.selectInnEvent = original;
+      return calls;
+    });
+
+    // The matamatabi-night branch returns from stay() long before the ordinary lottery (and
+    // thus the midnight-interlude check) is ever reached.
+    expect(selectCalls).toBe(0);
+    const stableSeen = await page.evaluate(() => RPG.State.flags.innStableMidnightSeen);
+    expect(stableSeen).toBe(false);
+  });
+
+  test('the storage interlude yields smoke bomb, high herb, then a fixed-sparkling unknown amber in order, then goes quiet', async ({ page }) => {
+    await setInvestigationLottery(page, 'storage_room', { flags: { innStorageMidnightSeen: false } });
+    await page.evaluate(() => {
+      RPG.State.inventory.smokeBomb = 0;
+      RPG.State.inventory.highHerb = 0;
+      RPG.State.inventory.unknownAmber = 0;
+      RPG.State.unappraisedAmberResults = [];
+    });
+
+    await callStay(page);
+    expect(await drainStay(page)).toBe('choice');
+
+    const examine = async () => {
+      await page.getByRole('button', { name: /^【棚を見る】$|^【調べる】$/, exact: true }).click();
+      await drainStay(page);
+    };
+
+    await examine(); // 1st: nothing yet
+    let snap = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      smokeBomb: RPG.State.inventory.smokeBomb,
+    }));
+    expect(snap.log).toContain('ここにはまだネズミの被害は無さそうだ');
+    expect(snap.smokeBomb).toBe(0);
+
+    await examine(); // 2nd: smoke bomb
+    snap = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      smokeBomb: RPG.State.inventory.smokeBomb,
+    }));
+    expect(snap.log).toContain('💨煙玉を見つけた！');
+    expect(snap.smokeBomb).toBe(1);
+
+    await examine(); // 3rd: high herb
+    snap = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      highHerb: RPG.State.inventory.highHerb,
+    }));
+    expect(snap.log).toContain('🌿上薬草を見つけた！');
+    expect(snap.highHerb).toBe(1);
+
+    await examine(); // 4th: unknown amber, fixed to sparkling
+    snap = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      queued: RPG.State.unappraisedAmberResults,
+    }));
+    expect(snap.log).toContain('🔸？琥珀を見つけた！');
+    expect(snap.unknownAmber).toBe(1);
+    expect(snap.queued).toEqual(['sparkling']);
+
+    await examine(); // 5th: Owen comment, no item
+    snap = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      unknownAmber: RPG.State.inventory.unknownAmber,
+    }));
+    expect(snap.log).toContain('本当に手癖が悪いね');
+    expect(snap.unknownAmber).toBe(1);
+
+    await examine(); // 6th+: nothing more
+    snap = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
+    expect(snap).toContain('カイン（もうやめよう）');
+  });
+
+  test('opening and closing the item modal from the interlude returns to its own menu', async ({ page }) => {
+    await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
+
+    await callStay(page);
+    expect(await drainStay(page)).toBe('choice');
+
+    await page.getByRole('button', { name: '【アイテム】', exact: true }).click();
+    const modalOpen = await page.evaluate(() => document.getElementById('itemModal')?.style.display);
+    expect(modalOpen).toBe('flex');
+
+    await page.evaluate(() => uiControl.closeModal());
+    const after = await page.evaluate(() => ({
+      modalDisplay: document.getElementById('itemModal')?.style.display,
+      mode: RPG.State.mode,
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+    }));
+    expect(after.modalDisplay).toBe('none');
+    expect(after.mode).toBe('choice');
+    expect(after.buttons).toEqual(['【話す】', '【齧られた扉】', '【アイテム】', '【寝る】']);
+  });
+});

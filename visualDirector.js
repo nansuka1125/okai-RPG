@@ -135,6 +135,10 @@ const visualDirector = {
             "room",
             "stable-back-day",
             "stable-back-night",
+            // Darkened re-uses of the plain stable/storage art, for the midnight interlude only.
+            // The plain scenes above keep their own daytime look untouched.
+            "stable-night",
+            "storage-night",
             "none"
         ];
         this.innSceneOverride = validScenes.includes(sceneName) ? sceneName : null;
@@ -182,7 +186,9 @@ const visualDirector = {
             "inn-stable",
             "inn-room",
             "inn-stable-back-day",
-            "inn-stable-back-night"
+            "inn-stable-back-night",
+            "inn-stable-night",
+            "inn-storage-night"
         ];
         const sceneClasses = [
             ...forestScenes,

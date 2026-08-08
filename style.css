@@ -615,7 +615,23 @@ body.scene-inn-stable-back-night #sceneBackdrop {
     filter: saturate(0.82) brightness(0.9) contrast(1.04);
 }
 
+/* Midnight interlude: the same stable/storage art as the plain scenes above, only darkened.
+   Kept as separate scene names so the ordinary stable/storage look is never touched. */
+body.scene-inn-stable-night #sceneBackdrop {
+    background-image: url("images/amber-inn-stable.webp");
+    background-position: 42% center;
+    filter: saturate(0.72) brightness(0.5) contrast(1.06);
+}
+
+body.scene-inn-storage-night #sceneBackdrop {
+    background-image: url("images/amber-inn-storage.webp");
+    background-position: 54% center;
+    filter: saturate(0.72) brightness(0.5) contrast(1.06);
+}
+
 body.scene-inn-stable-back-night #sceneReadingVeil,
+body.scene-inn-stable-night #sceneReadingVeil,
+body.scene-inn-storage-night #sceneReadingVeil,
 body.scene-former-highway #sceneReadingVeil,
 body.scene-forest-deep-night #sceneReadingVeil {
     background:
@@ -1235,11 +1251,13 @@ body.travel-active button {
         background-position: 68% center;
     }
 
-    body.scene-inn-storage #sceneBackdrop {
+    body.scene-inn-storage #sceneBackdrop,
+    body.scene-inn-storage-night #sceneBackdrop {
         background-position: 52% center;
     }
 
-    body.scene-inn-stable #sceneBackdrop {
+    body.scene-inn-stable #sceneBackdrop,
+    body.scene-inn-stable-night #sceneBackdrop {
         background-position: 38% center;
     }
 

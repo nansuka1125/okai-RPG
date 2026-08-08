@@ -391,6 +391,11 @@ RPG.State = {
         innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
         innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
         innRepairAmberRewardReceived: false, // One-time fixed milk-amber result from the completed repair
+        // One-time midnight interludes during an ordinary stay, offered only while the repair
+        // damage inspection is open. Only "did it happen" is saved - the door/shelf progress
+        // inside a single night lives on innSystem.innMidnight and is intentionally transient.
+        innStableMidnightSeen: false, // The stable midnight interlude has actually played
+        innStorageMidnightSeen: false, // The storage midnight interlude has actually played
         hardBottleOpened: false, // Build 15.6.1: One-time opening flourish for the hard bottle once Cain reaches Lv10
         highHerbJamPrepared: false // Build 15.6.2: Prepared 上薬草のジャム; survives battles until it full-heals once at half HP or less
     },

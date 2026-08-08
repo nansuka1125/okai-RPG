@@ -985,6 +985,15 @@ const explorationSystem = {
             uiControl.hideFloatingArrow();
             uiControl.disableTapOverlay();
 
+            // The inn's midnight interlude owns the screen until 【寝る】. Hand control back to
+            // its own command menu instead of falling through to the teardown below, which
+            // would drop the mode lock and clear its backdrop. This one hook covers every way
+            // back into it: the intro lines, each command's lines, and any item-use dialogue.
+            if (typeof innSystem !== "undefined" && innSystem.isInnMidnightActive()) {
+                innSystem.showInnMidnightMenu();
+                return;
+            }
+
             // Build 9.0.0: Prevent overwriting battle mode
             if (RPG.State.mode === "event") {
                 RPG.State.mode = "base";

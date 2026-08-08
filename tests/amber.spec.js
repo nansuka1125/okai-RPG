@@ -2310,7 +2310,7 @@ test.describe('Chapter 1 amber system', () => {
         RPG.State.defeatCounts.test_dummy = { cain: 0, owen: 0 };
         Object.assign(RPG.State.flags, {
           matamatabiActive: false,
-          matamatabiAutoActivationDone: true,
+          matamatabiAutoActivationDone: ov.autoActivationDone ?? false,
           vampireAmberChainBattleCount: ov.chainCount ?? 2,
         });
         const log = document.getElementById('logContainer');
@@ -2438,23 +2438,12 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.currentHP).toBe(Math.floor(result.maxHP * 0.1));
     });
 
-    test('the accident is not a one-time event and recurs on a later trigger', async ({ page }) => {
-      await setupAccidentState(page, { chainCount: 2 });
-      const first = await page.evaluate(() => {
-        battleSystem.executeStandardVictory('test_dummy');
-        return RPG.State.mode;
-      });
-      expect(first).toBe('event');
-
-      await setupAccidentState(page, { chainCount: 1 });
-      const second = await page.evaluate(() => {
-        battleSystem.executeStandardVictory('test_dummy');
-        return {
-          mode: RPG.State.mode,
-          logHasLine: (document.getElementById('logContainer')?.textContent || '').includes('《マタマタビ》が活性化した。'),
-        };
-      });
-      expect(second).toEqual({ mode: 'event', logHasLine: true });
+    test('the accident stops auto-triggering after the first matamatabi activation gate is done', async ({ page }) => {
+      await setupAccidentState(page, { chainCount: 2, autoActivationDone: false });
+      const first = await page.evaluate(() => battleSystem.shouldTriggerVampireAmberMatamatabiAccident());
+      await setupAccidentState(page, { chainCount: 1, autoActivationDone: true });
+      const second = await page.evaluate(() => battleSystem.shouldTriggerVampireAmberMatamatabiAccident());
+      expect({ first, second }).toEqual({ first: true, second: false });
     });
 
     test('an Owen kill also triggers the accident instead of a normal Owen victory', async ({ page }) => {

@@ -290,18 +290,18 @@ const battleSystem = {
 
     // Build 15.6.x: Vampire-amber / matamatabi conflict. Checked ahead of the normal
     // post-battle matamatabi activation at every battle-end path that would otherwise
-    // build/use buildMatamatabiActivationQueue() - reuses the same underlying condition,
-    // just gated on the amber also being equipped.
+    // build/use buildMatamatabiActivationQueue(). The accident shares the normal
+    // activation's one-time automatic gate; later branches remain manual-use only.
     shouldTriggerVampireAmberMatamatabiAccident: function () {
         return (
             RPG.State.equippedRareAmberId === 'vampireAmber' &&
+            RPG.State.flags.matamatabiAutoActivationDone !== true &&
             this.shouldActivateMatamatabiAfterBattle()
         );
     },
 
-    // Not a one-time event - can recur every time the trigger condition is met. Bypasses
-    // all normal victory/defeat bookkeeping (no EXP/gold/drops/kill-count/deathCount, no
-    // matamatabi activation) and returns Cain to the inn the same way a real defeat does,
+    // Bypasses all normal victory/defeat bookkeeping (no EXP/gold/drops/kill-count/deathCount,
+    // no matamatabi activation) and returns Cain to the inn the same way a real defeat does,
     // minus the parts that shouldn't apply here.
     triggerVampireAmberMatamatabiAccident: function () {
         uiControl.detachRareAmber({ log: false });

@@ -664,7 +664,7 @@ const battleSystem = {
     // Keep the existing sap_source_awareness story threshold independent from the
     // notebook's visible second-tier target.
     getSapSecondTierTarget: function () {
-        return 15;
+        return 10;
     },
 
     getHighwayFixedBattleSpec: function (distance) {

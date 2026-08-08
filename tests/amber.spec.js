@@ -2983,24 +2983,24 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.sapSourceAwarenessSeen).toBe(false);
     });
 
-    test('does not fire at a cumulative sap kill count of 14', async ({ page }) => {
+    test('does not fire at a cumulative sap kill count of 9', async ({ page }) => {
       const result = await runVictory(page, {
         enemyId: 'sap',
-        defeatCounts: { cain: 13, owen: 0 },
+        defeatCounts: { cain: 8, owen: 0 },
         treeDefeated: true,
         amberTreeCoinMined: true,
         sapSourceAwarenessSeen: false,
       });
       expect(result).toMatchObject({
         sapSourceAwarenessSeen: false,
-        sapDefeatCounts: { cain: 14, owen: 0 },
+        sapDefeatCounts: { cain: 9, owen: 0 },
       });
     });
 
-    test('fires once the combined Cain+Owen sap kill count reaches 20', async ({ page }) => {
+    test('fires once the combined Cain+Owen sap kill count reaches 10', async ({ page }) => {
       const result = await runVictory(page, {
         enemyId: 'sap',
-        defeatCounts: { cain: 10, owen: 9 },
+        defeatCounts: { cain: 5, owen: 4 },
         lastBlowBy: 'Owen',
         treeDefeated: true,
         amberTreeCoinMined: true,
@@ -3009,7 +3009,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toMatchObject({
         mode: 'event',
         sapSourceAwarenessSeen: true,
-        sapDefeatCounts: { cain: 10, owen: 10 },
+        sapDefeatCounts: { cain: 5, owen: 5 },
       });
     });
 
@@ -3025,7 +3025,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.sapSourceAwarenessSeen).toBe(false);
     });
 
-    test('fires on the next sap win even for an old save already far past 20 kills', async ({ page }) => {
+    test('fires on the next sap win even for an old save already far past 10 kills', async ({ page }) => {
       const result = await runVictory(page, {
         enemyId: 'sap',
         defeatCounts: { cain: 30, owen: 5 },
@@ -3039,7 +3039,7 @@ test.describe('Chapter 1 amber system', () => {
     test('does not replay once already seen', async ({ page }) => {
       const first = await runVictory(page, {
         enemyId: 'sap',
-        defeatCounts: { cain: 19, owen: 0 },
+        defeatCounts: { cain: 9, owen: 0 },
         treeDefeated: true,
         amberTreeCoinMined: true,
         sapSourceAwarenessSeen: false,
@@ -3048,7 +3048,7 @@ test.describe('Chapter 1 amber system', () => {
 
       const second = await runVictory(page, {
         enemyId: 'sap',
-        defeatCounts: { cain: 20, owen: 0 },
+        defeatCounts: { cain: 10, owen: 0 },
         treeDefeated: true,
         amberTreeCoinMined: true,
         sapSourceAwarenessSeen: true,
@@ -3830,14 +3830,14 @@ test.describe('Chapter 1 amber system', () => {
 
     // --- sap_source_awareness threshold ---
 
-    test('sap_source_awareness does not fire at 14 cumulative sap kills', async ({ page }) => {
+    test('sap_source_awareness does not fire at 9 cumulative sap kills', async ({ page }) => {
       const result = await page.evaluate(() => {
         Object.assign(RPG.State, {
           mode: 'battle', isBattling: true,
           currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
           battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
         });
-        RPG.State.defeatCounts.sap = { cain: 13, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 8, owen: 0 };
         Object.assign(RPG.State.flags, {
           treeDefeated: true, amberTreeCoinMined: true, sapSourceAwarenessSeen: false,
           matamatabiActive: false, vampireAmberChainBattleCount: 0,
@@ -3850,17 +3850,17 @@ test.describe('Chapter 1 amber system', () => {
           sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
         };
       });
-      expect(result).toEqual({ seen: false, sapDefeatCounts: { cain: 14, owen: 0 } });
+      expect(result).toEqual({ seen: false, sapDefeatCounts: { cain: 9, owen: 0 } });
     });
 
-    test('sap_source_awareness fires once cumulative sap kills reach 15', async ({ page }) => {
+    test('sap_source_awareness fires once cumulative sap kills reach 10', async ({ page }) => {
       const result = await page.evaluate(() => {
         Object.assign(RPG.State, {
           mode: 'battle', isBattling: true,
           currentEnemy: { ...RPG.Assets.ENEMIES.find(e => e.id === 'sap'), hp: 0 },
           battleState: {}, equippedRareAmberId: null, lastBlowBy: 'Cain',
         });
-        RPG.State.defeatCounts.sap = { cain: 14, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 9, owen: 0 };
         Object.assign(RPG.State.flags, {
           treeDefeated: true, amberTreeCoinMined: true, sapSourceAwarenessSeen: false,
           matamatabiActive: false, vampireAmberChainBattleCount: 0,
@@ -3873,10 +3873,10 @@ test.describe('Chapter 1 amber system', () => {
           sapDefeatCounts: { ...RPG.State.defeatCounts.sap },
         };
       });
-      expect(result).toEqual({ seen: true, sapDefeatCounts: { cain: 15, owen: 0 } });
+      expect(result).toEqual({ seen: true, sapDefeatCounts: { cain: 10, owen: 0 } });
     });
 
-    test('sap_source_awareness fires on the next sap win for an old save already past 15 kills', async ({ page }) => {
+    test('sap_source_awareness fires on the next sap win for an old save already past 10 kills', async ({ page }) => {
       const result = await page.evaluate(() => {
         Object.assign(RPG.State, {
           mode: 'battle', isBattling: true,
@@ -3896,7 +3896,7 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toBe(true);
     });
 
-    test('post_tree_fatigue still takes priority over sap_source_awareness at the new 15-kill threshold', async ({ page }) => {
+    test('post_tree_fatigue still takes priority over sap_source_awareness at the new 10-kill threshold', async ({ page }) => {
       const runVictory = async (cfg) => page.evaluate((c) => {
         Object.assign(RPG.State, {
           mode: 'battle', isBattling: true,
@@ -3921,14 +3921,14 @@ test.describe('Chapter 1 amber system', () => {
       }, cfg);
 
       const first = await runVictory({
-        defeatCounts: { cain: 14, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 4,
+        defeatCounts: { cain: 9, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 4,
       });
       expect(first).toMatchObject({
         readyForThiefBoy: true, postTreeBattles: 'DONE', sapSourceAwarenessSeen: false,
       });
 
       const second = await runVictory({
-        defeatCounts: { cain: 15, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 'DONE',
+        defeatCounts: { cain: 10, owen: 0 }, sapSourceAwarenessSeen: false, postTreeBattles: 'DONE',
       });
       expect(second.sapSourceAwarenessSeen).toBe(true);
     });

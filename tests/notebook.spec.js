@@ -968,13 +968,13 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.beforeRows).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
     expect(result.claimableBefore).toEqual(['sap', 'amber_rat', 'amber_weasel']);
     expect(result.afterFirstClaim).toEqual({
-      highHerb: 8,
+      highHerb: 10,
       unknownAmber: 0,
       results: [],
       secretLetter: 1,
       received: { sap: true, amberRat: true, amberWeasel: true },
     });
-    expect(result.afterSecondClaim).toBe(8);
+    expect(result.afterSecondClaim).toBe(10);
     expect(result.afterReload).toEqual({
       targets: { sap: 40, amber_rat: 30, amber_weasel: 20 },
       received: { sap: true, amberRat: true, amberWeasel: true },

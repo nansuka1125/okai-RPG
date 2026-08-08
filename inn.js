@@ -123,11 +123,10 @@ innSystem = {
         uiControl.updateUI();
     },
 
-    // Shared by 【話す】/【調べる】: hide the buttons, play the lines, and let the
-    // queue-empty hook bring the menu back.
+    // Shared by 【話す】/【調べる】: play the lines (the 3 buttons stay visible but get
+    // disabled by updateControlPanels() while mode is "event"), and let the queue-empty
+    // hook bring the menu back.
     playInnMidnightLines: function (lines) {
-        const container = document.getElementById('action-buttons');
-        if (container) container.style.display = 'none';
         RPG.State.mode = "event";
         RPG.State.dialogueQueue = lines;
         explorationSystem.playDialogueLoop();

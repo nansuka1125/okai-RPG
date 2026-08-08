@@ -1051,6 +1051,45 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     });
   });
 
+  test('the 3 midnight-interlude buttons stay visible during dialogue (disabled, not hidden) and re-enable once it returns to the menu', async ({ page }) => {
+    await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
+
+    await callStay(page);
+    expect(await drainStay(page)).toBe('choice');
+
+    const before = await page.evaluate(() => ({
+      display: document.getElementById('action-buttons')?.style.display,
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => ({ text: b.textContent, disabled: b.disabled })),
+    }));
+    expect(before.display).toBe('grid');
+    expect(before.buttons.map(b => b.text)).toEqual(['【話す】', '【齧られた扉】', '【寝る】']);
+    expect(before.buttons.every(b => b.disabled === false)).toBe(true);
+
+    await page.getByRole('button', { name: '【話す】', exact: true }).click();
+
+    // Mid-dialogue: the same 3 buttons stay on screen (not display:none, so the footer/log
+    // height does not shift), but they're locked out while mode is 'event'.
+    const during = await page.evaluate(() => ({
+      mode: RPG.State.mode,
+      display: document.getElementById('action-buttons')?.style.display,
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => ({ text: b.textContent, disabled: b.disabled })),
+    }));
+    expect(during.mode).toBe('event');
+    expect(during.display).toBe('grid');
+    expect(during.buttons.map(b => b.text)).toEqual(['【話す】', '【齧られた扉】', '【寝る】']);
+    expect(during.buttons.every(b => b.disabled === true)).toBe(true);
+
+    expect(await drainStay(page)).toBe('choice');
+
+    const after = await page.evaluate(() => ({
+      display: document.getElementById('action-buttons')?.style.display,
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => ({ text: b.textContent, disabled: b.disabled })),
+    }));
+    expect(after.display).toBe('grid');
+    expect(after.buttons.map(b => b.text)).toEqual(['【話す】', '【齧られた扉】', '【寝る】']);
+    expect(after.buttons.every(b => b.disabled === false)).toBe(true);
+  });
+
   test('an updateUI() call mid-dialogue during the interlude never falls back to the ordinary innUI/exploreUI', async ({ page }) => {
     await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
 

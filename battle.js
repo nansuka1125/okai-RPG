@@ -970,6 +970,9 @@ const battleSystem = {
             skippedTurns: 0,
             playerTookDamage: false,
             gratefulTalismanSurvivalActive: false,
+            // Owen's normal combat-intervention gate: max two rolls per battle (see
+            // OWEN_BEHAVIOR.shouldIntervene). Not persisted beyond the battle.
+            owenInterventionRollsUsed: 0,
             highwayFixedDistance: Number.isFinite(options.highwayFixedDistance)
                 ? options.highwayFixedDistance
                 : null,
@@ -1341,6 +1344,22 @@ const battleSystem = {
             return;
         }
 
+        // Herb support: independent of hasOwenIntervened and the normal intervention-roll
+        // budget below, so throwing a herb never uses up Owen's real combat intervention.
+        if (RPG.Assets.OWEN_BEHAVIOR.shouldThrowHerb()) {
+            RPG.State.inventory.herb--;
+            const healAmount = Math.floor(RPG.State.maxHP * 0.3);
+            RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
+            uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
+            if (typeof visualDirector !== "undefined") {
+                visualDirector.playBattleCue("owen-action");
+            }
+            uiControl.updateUI();
+            const herbDelay = RPG.State.debug.isSkipping ? 50 : 1000;
+            setTimeout(callback, herbDelay);
+            return;
+        }
+
         if (RPG.State.hasOwenIntervened) {
             callback();
             return;
@@ -1365,12 +1384,6 @@ const battleSystem = {
         }
 
         switch (action) {
-            case "herb":
-                RPG.State.inventory.herb--;
-                const healAmount = Math.floor(RPG.State.maxHP * 0.3);
-                RPG.State.currentHP = Math.min(RPG.State.maxHP, RPG.State.currentHP + healAmount);
-                uiControl.addLog(RPG.Assets.BATTLE_TEXT.owen.herb, "", "#a333c8");
-                break;
             case "kill":
                 if (
                     RPG.State.flags.matamatabiActive === true &&

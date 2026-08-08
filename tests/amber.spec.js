@@ -6115,31 +6115,135 @@ test.describe('Chapter 1 amber system', () => {
   });
 
   test.describe('newly wired rare amber effects', () => {
-    test('sweetAmber adds a flat bonus to Owen intervention chance without touching decideAction', async ({ page }) => {
+    test('the normal intervention gate rolls at most twice per battle: immediately, then once more only after HP drops to <=50%', async ({ page }) => {
       const result = await page.evaluate(() => {
         Object.assign(RPG.State, {
           hasOwenIntervened: false,
-          currentEnemy: { id: 'dummy', name: 'ダミー' },
+          currentEnemy: { id: 'dummy', name: 'ダミー', isBoss: false },
           isPoisoned: false,
-          mood: 50,
+          equippedRareAmberId: null,
         });
         RPG.State.inventory.herb = 0;
         RPG.State.flags.matamatabiActive = false;
-        RPG.State.currentHP = RPG.State.maxHP; // stay out of the emergency-herb bypass
+        RPG.State.maxHP = 100;
+        RPG.State.currentHP = 100;
+        RPG.State.battleState = { owenInterventionRollsUsed: 0 };
 
         const originalRandom = Math.random;
-        Math.random = () => 0.55; // 55 > 50 (unequipped) but 55 <= 60 (equipped +10pp)
+        Math.random = () => 0.5; // misses the 30% roll every time, isolating the roll-budget logic
 
-        RPG.State.equippedRareAmberId = null;
-        const withoutAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(2);
+        const firstOpportunity = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(1);
+        const rollsAfterFirst = RPG.State.battleState.owenInterventionRollsUsed;
 
-        RPG.State.equippedRareAmberId = 'sweetAmber';
-        const withAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(2);
+        // Still above half HP: repeated opportunities must not consume a second roll.
+        const stillAboveHalfA = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(2);
+        const stillAboveHalfB = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(3);
+        const rollsWhileAboveHalf = RPG.State.battleState.owenInterventionRollsUsed;
+
+        RPG.State.currentHP = 50; // the HP<=50% checkpoint
+        const secondOpportunity = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(4);
+        const rollsAfterSecond = RPG.State.battleState.owenInterventionRollsUsed;
+
+        // A third opportunity, even still at/below half HP, must not roll again.
+        const thirdOpportunity = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(5);
+        const rollsAfterThird = RPG.State.battleState.owenInterventionRollsUsed;
 
         Math.random = originalRandom;
-        return { withoutAmber, withAmber };
+        return {
+          firstOpportunity, rollsAfterFirst,
+          stillAboveHalfA, stillAboveHalfB, rollsWhileAboveHalf,
+          secondOpportunity, rollsAfterSecond,
+          thirdOpportunity, rollsAfterThird,
+        };
       });
-      expect(result).toEqual({ withoutAmber: false, withAmber: true });
+      expect(result).toEqual({
+        firstOpportunity: false, rollsAfterFirst: 1,
+        stillAboveHalfA: false, stillAboveHalfB: false, rollsWhileAboveHalf: 1,
+        secondOpportunity: false, rollsAfterSecond: 2,
+        thirdOpportunity: false, rollsAfterThird: 2,
+      });
+    });
+
+    test('sweetAmber replaces the base 30% rate with 70% and forces freeze on a successful normal intervention', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        Object.assign(RPG.State, {
+          hasOwenIntervened: false,
+          currentEnemy: { id: 'dummy', name: 'ダミー', isBoss: false },
+          isPoisoned: false,
+        });
+        RPG.State.inventory.herb = 0;
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.maxHP = 100;
+        RPG.State.currentHP = 100;
+
+        const originalRandom = Math.random;
+        Math.random = () => 0.65; // misses the base 30% rate, hits the sweetAmber 70% rate
+
+        RPG.State.equippedRareAmberId = null;
+        RPG.State.battleState = { owenInterventionRollsUsed: 0 };
+        const withoutAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(1);
+
+        RPG.State.hasOwenIntervened = false;
+        RPG.State.equippedRareAmberId = 'sweetAmber';
+        RPG.State.battleState = { owenInterventionRollsUsed: 0 };
+        const withAmber = RPG.Assets.OWEN_BEHAVIOR.shouldIntervene(1);
+        const action = RPG.Assets.OWEN_BEHAVIOR.decideAction(1);
+
+        Math.random = originalRandom;
+        return { withoutAmber, withAmber, action };
+      });
+      expect(result).toEqual({ withoutAmber: false, withAmber: true, action: 'freeze' });
+    });
+
+    test('a successful intervention against the glowing cat rabbit always resolves as freeze, regardless of equipped amber', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        RPG.State.currentEnemy = { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', isBoss: false };
+        RPG.State.flags.matamatabiActive = false;
+
+        RPG.State.equippedRareAmberId = null;
+        const withoutAmber = RPG.Assets.OWEN_BEHAVIOR.decideAction(1);
+
+        RPG.State.equippedRareAmberId = 'sweetAmber';
+        const withSweetAmber = RPG.Assets.OWEN_BEHAVIOR.decideAction(1);
+
+        return { withoutAmber, withSweetAmber };
+      });
+      expect(result).toEqual({ withoutAmber: 'freeze', withSweetAmber: 'freeze' });
+    });
+
+    test('herb support never sets hasOwenIntervened or consumes the normal intervention roll budget', async ({ page }) => {
+      const result = await page.evaluate(async () => {
+        Object.assign(RPG.State, {
+          hasOwenIntervened: false,
+          currentEnemy: { id: 'dummy', name: 'ダミー', isBoss: false },
+          isPoisoned: false,
+          equippedRareAmberId: null,
+        });
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.maxHP = 100;
+        RPG.State.currentHP = 20; // below the 25% emergency threshold
+        RPG.State.inventory.herb = 3;
+        RPG.State.battleState = { owenInterventionRollsUsed: 0, skippedTurns: 0 };
+        RPG.State.debug.isSkipping = true;
+
+        const originalRandom = Math.random;
+        Math.random = () => 0.1; // hits the herb 60% roll
+
+        await new Promise(resolve => battleSystem.processOwenAction(resolve));
+
+        Math.random = originalRandom;
+        RPG.State.debug.isSkipping = false;
+
+        return {
+          herbUsed: 3 - RPG.State.inventory.herb,
+          currentHP: RPG.State.currentHP,
+          hasOwenIntervened: RPG.State.hasOwenIntervened,
+          rollsUsed: RPG.State.battleState.owenInterventionRollsUsed,
+        };
+      });
+      expect(result).toEqual({
+        herbUsed: 1, currentHP: 50, hasOwenIntervened: false, rollsUsed: 0,
+      });
     });
 
     test('beeAmber multiplies only Cain\'s first hit of the battle and halves incoming damage', async ({ page }) => {

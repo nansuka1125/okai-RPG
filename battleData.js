@@ -463,6 +463,21 @@ RPG.Assets.BATTLE_AI = {
 
 // 🧙‍♂️ Owen's Behavior Logic
 RPG.Assets.OWEN_BEHAVIOR = {
+    // Herb support is fully independent of the combat-intervention gate below: its own trigger
+    // condition/odds/heal amount are unchanged, it never sets hasOwenIntervened, and it never
+    // consumes one of shouldIntervene's two normal rolls.
+    shouldThrowHerb: function () {
+        const isEmergency =
+            (RPG.State.currentHP < (RPG.State.maxHP * 0.25) || RPG.State.isPoisoned) &&
+            RPG.State.inventory.herb > 0;
+        if (!isEmergency) return false;
+        return Math.random() < 0.6;
+    },
+
+    // Up to two rolls per battle: the first intervention opportunity, then - only if that one
+    // missed and Owen still hasn't intervened - the first turn Cain's HP drops to <=50%. No
+    // per-turn re-roll beyond that. mood no longer factors in; sweetAmber replaces the base
+    // rate outright instead of adding to it.
     shouldIntervene: function (battleTurn) {
         if (RPG.State.hasOwenIntervened) return false;
 
@@ -470,41 +485,51 @@ RPG.Assets.OWEN_BEHAVIOR = {
         const isMatamatabiActive = RPG.State.flags.matamatabiActive === true && !isGlowingCatRabbit;
         if (isMatamatabiActive) return true;
 
-        // Build 14.2.5: Targeted Supporter - Bypass mood check for Emergency (Herb)
-        const isEmergency = (RPG.State.currentHP < (RPG.State.maxHP * 0.25) || RPG.State.isPoisoned) && (RPG.State.inventory.herb > 0);
-        if (isEmergency) return true;
+        const battleState = RPG.State.battleState;
+        if (!battleState) return false;
 
-        // Chance based on mood (Mood 50 = 50% chance to *stay silent*). sweetAmber adds a flat
-        // equipment bonus to this gate only - it never touches decideAction's own odds below.
-        const sweetAmberBonus = RPG.State.equippedRareAmberId === "sweetAmber"
-            ? RPG.Config.RARE_AMBER_TUNING.SWEET_AMBER_INTERVENTION_BONUS_PP
-            : 0;
-        if (Math.random() * 100 > RPG.State.mood + sweetAmberBonus) return false;
-        return true;
+        const rollsUsed = battleState.owenInterventionRollsUsed || 0;
+        if (rollsUsed >= 2) return false;
+
+        const isLowHPCheckpoint = RPG.State.currentHP <= RPG.State.maxHP * 0.5;
+        if (rollsUsed >= 1 && !isLowHPCheckpoint) return false;
+
+        battleState.owenInterventionRollsUsed = rollsUsed + 1;
+
+        const rate = RPG.State.equippedRareAmberId === "sweetAmber"
+            ? RPG.Config.OWEN_INTERVENTION_TUNING.SWEET_AMBER_RATE
+            : RPG.Config.OWEN_INTERVENTION_TUNING.BASE_RATE;
+        return Math.random() < rate;
     },
 
     decideAction: function (battleTurn) {
-        // 1. Critical Support (Herb)
-        // Build 14.2.5: HP < 25% (1/4 Threshold) & 60% Chance
-        if ((RPG.State.currentHP < (RPG.State.maxHP * 0.25) || RPG.State.isPoisoned) && RPG.State.inventory.herb > 0) {
-            if (Math.random() < 0.6) return "herb";
-        }
+        // A successful intervention against the glowing cat rabbit is only ever useful as a
+        // freeze - kill can't touch it and idle wastes the intervention outright.
+        const isGlowingCatRabbit = RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit";
+        if (isGlowingCatRabbit) return "freeze";
 
-        // 2. Aggressive Intervention
+        const isBossEnemy = RPG.State.currentEnemy && RPG.State.currentEnemy.isBoss === true;
+        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true; // rabbit excluded above
+
+        // sweetAmber's boosted rate always resolves as a freeze, but only through the normal
+        // gate - matamatabi's own bypass keeps its existing kill-biased behavior untouched.
+        if (!isMatamatabiActive && RPG.State.equippedRareAmberId === "sweetAmber") return "freeze";
+
+        // Aggressive Intervention
         const isFirstTurn = battleTurn === 1;
         const isLowHP = RPG.State.currentHP < (RPG.State.maxHP * 0.4);
 
-        const isBossEnemy = RPG.State.currentEnemy && RPG.State.currentEnemy.isBoss === true;
-        const isGlowingCatRabbit = RPG.State.currentEnemy && RPG.State.currentEnemy.id === "glowing_cat_rabbit";
-        const isMatamatabiActive = RPG.State.flags.matamatabiActive === true && !isGlowingCatRabbit;
         if (!isBossEnemy && isMatamatabiActive && Math.random() < 0.8) return "kill";
         if (!isBossEnemy && (isFirstTurn || isLowHP) && Math.random() < 0.15) return "kill";
         if (Math.random() < 0.20) return "freeze";
 
-        // 3. Idle
-        if (Math.random() < 0.30) return "idle";
+        if (isMatamatabiActive) {
+            // Existing behavior: matamatabi's bypass can still end in no action at all.
+            return Math.random() < 0.30 ? "idle" : null;
+        }
 
-        return null;
+        // Outside matamatabi, the normal gate having succeeded must always resolve to an action.
+        return "idle";
     }
 };
 

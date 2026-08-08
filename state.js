@@ -45,10 +45,16 @@ RPG.Config = {
     // The gloves always provide their flat defense bonus. Their former parry-damage reduction
     // is intentionally replaced by the counterattack in battle.js.
     FIREPROOF_GLOVES_DEFENSE_BONUS: 2,
+    // Owen's up-to-two-rolls-per-battle combat intervention gate (separate from the herb
+    // support check, and no longer tied to RPG.State.mood). sweetAmber replaces BASE_RATE
+    // outright rather than adding a bonus to it, and always resolves as a freeze on success.
+    OWEN_INTERVENTION_TUNING: {
+        BASE_RATE: 0.30,
+        SWEET_AMBER_RATE: 0.70
+    },
     // Provisional, pre-balance rare-amber effect values. Kept in one place so tuning later
     // doesn't require hunting through battle.js/exploration.js/uiControl.js.
     RARE_AMBER_TUNING: {
-        SWEET_AMBER_INTERVENTION_BONUS_PP: 10, // Flat bonus added to Owen's intervention chance (0-100 scale, same units as RPG.State.mood)
         BEE_AMBER_FIRST_HIT_MULTIPLIER: 1.5, // Applied to Cain's first damage instance dealt each battle only
         BEE_AMBER_DAMAGE_TAKEN_MULTIPLIER: 0.5, // Applied to ordinary enemy-attack damage against Cain
         BEE_AMBER_DROP_RATE: 0.1, // skull_bee drop chance; capped to one lifetime copy via flags.beeAmberObtained

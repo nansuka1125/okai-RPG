@@ -284,6 +284,10 @@ RPG.State = {
         amberRatThreeKillTalkSeen: false, // One-time post-battle talk once cumulative amber_rat kills reach 3
         amberWeaselFirstKillTalkSeen: false, // One-time post-battle talk after the first cumulative amber_weasel kill
         firstAmberAppraisalDone: false,
+        hatedAmberExchanged: false,
+        sweetAmberExchanged: false,
+        herbAmberExchanged: false,
+        blueAmberExchanged: false,
         keyAmberExchanged: false, // The 《鍵入り琥珀》 trades exactly once; burning it back to 0 does not re-offer it
         vampireAmberAppraisalSeen: false,
         vampireAmberChainBattleCount: 0, // 0-5; battles completed in a row while vampireAmber is equipped. Next battle fought is this+1

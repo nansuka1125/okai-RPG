@@ -274,18 +274,21 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         id: "hatedAmber",
         name: "《嫌われ琥珀》",
         cost: 2,
+        exchangeOnceFlag: "hatedAmberExchanged",
         effect: "装備中、通常エンカウント率を30%から5%へ下げる。"
     },
     {
         id: "sweetAmber",
         name: "《甘そうな琥珀》",
         cost: 3,
+        exchangeOnceFlag: "sweetAmberExchanged",
         effect: "装備中、オーエンが戦闘へ介入しやすくなる。"
     },
     {
         id: "herbAmber",
         name: "《薬草入り琥珀》",
         cost: 3,
+        exchangeOnceFlag: "herbAmberExchanged",
         effect: "装備中、徐々に回復し、薬草の効果も高まる。"
     },
     {
@@ -306,6 +309,7 @@ RPG.Assets.RARE_AMBER_CATALOG = [
         id: "blueAmber",
         name: "《ブルーアンバー》",
         cost: 5,
+        exchangeOnceFlag: "blueAmberExchanged",
         effect: "装備中、剣技が発動しやすくなる。"
     },
     {

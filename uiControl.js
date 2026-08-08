@@ -1672,6 +1672,21 @@ const uiControl = {
             Object.keys(RPG.State).forEach(key => delete RPG.State[key]);
             Object.assign(RPG.State, mergedState);
 
+            // Before exchangeOnceFlag was added to the ordinary rare-amber entries, an old
+            // save could only prove an exchange happened by still holding the amber. Preserve
+            // that one-time state when the corresponding flag is absent or false.
+            if (Array.isArray(RPG.Assets?.RARE_AMBER_CATALOG)) {
+                RPG.Assets.RARE_AMBER_CATALOG.forEach(item => {
+                    if (
+                        item.exchangeOnceFlag &&
+                        RPG.State.flags[item.exchangeOnceFlag] !== true &&
+                        (RPG.State.inventory[item.id] || 0) > 0
+                    ) {
+                        RPG.State.flags[item.exchangeOnceFlag] = true;
+                    }
+                });
+            }
+
             // The former special unknown amber was visually identical to the normal one and
             // always appraised as Vampire Amber.  Fold old saves into the unified stack while
             // preserving that already-determined result.

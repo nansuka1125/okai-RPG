@@ -5817,6 +5817,90 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.tradeInMenu).toContain('《甘そうな琥珀》');
     });
 
+    test('one-time rare amber exchanges disappear from the menu and do not return after the item is spent', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const oneTimeItems = [
+          { id: 'hatedAmber', name: '《嫌われ琥珀》', cost: 2, flag: 'hatedAmberExchanged' },
+          { id: 'sweetAmber', name: '《甘そうな琥珀》', cost: 3, flag: 'sweetAmberExchanged' },
+          { id: 'herbAmber', name: '《薬草入り琥珀》', cost: 3, flag: 'herbAmberExchanged' },
+          { id: 'blueAmber', name: '《ブルーアンバー》', cost: 5, flag: 'blueAmberExchanged' },
+        ];
+
+        return oneTimeItems.map(item => {
+          RPG.State.mode = 'base';
+          RPG.State.amberStorage.sparkling = item.cost;
+          RPG.State.inventory[item.id] = 0;
+          RPG.State.flags[item.flag] = false;
+          innSystem.showAmberExchangeMenu();
+
+          const row = [...document.querySelectorAll('#action-buttons button')]
+            .find(button => button.textContent.includes(item.name));
+          row?.click();
+          [...document.querySelectorAll('#action-buttons button')]
+            .find(button => button.textContent.includes(`キラキラ${item.cost}個で交換する`))
+            ?.click();
+
+          const afterExchange = {
+            offeredAgain: (document.getElementById('action-buttons')?.textContent || '').includes(item.name),
+            flag: RPG.State.flags[item.flag],
+            inventory: RPG.State.inventory[item.id],
+          };
+
+          RPG.State.inventory[item.id] = 0;
+          innSystem.showAmberExchangeMenu();
+          return {
+            initiallyOffered: Boolean(row),
+            ...afterExchange,
+            offeredAfterSpent: (document.getElementById('action-buttons')?.textContent || '').includes(item.name),
+          };
+        });
+      });
+
+      expect(result).toEqual([
+        { initiallyOffered: true, offeredAgain: false, flag: true, inventory: 1, offeredAfterSpent: false },
+        { initiallyOffered: true, offeredAgain: false, flag: true, inventory: 1, offeredAfterSpent: false },
+        { initiallyOffered: true, offeredAgain: false, flag: true, inventory: 1, offeredAfterSpent: false },
+        { initiallyOffered: true, offeredAgain: false, flag: true, inventory: 1, offeredAfterSpent: false },
+      ]);
+    });
+
+    test('a legacy save holding these ambers loads them as already exchanged', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const legacy = JSON.parse(JSON.stringify(RPG.DefaultState));
+        legacy.mode = 'base';
+        legacy.amberStorage.sparkling = 5;
+        legacy.inventory.hatedAmber = 1;
+        legacy.inventory.sweetAmber = 1;
+        legacy.inventory.herbAmber = 1;
+        legacy.inventory.blueAmber = 1;
+        delete legacy.flags.hatedAmberExchanged;
+        delete legacy.flags.sweetAmberExchanged;
+        delete legacy.flags.herbAmberExchanged;
+        delete legacy.flags.blueAmberExchanged;
+        localStorage.setItem('okai_rpg_legacy_one_time_amber_test', JSON.stringify(legacy));
+
+        uiControl.loadFromStorage('okai_rpg_legacy_one_time_amber_test', '旧交換テスト');
+        RPG.State.mode = 'base';
+        innSystem.showAmberExchangeMenu();
+        const menu = document.getElementById('action-buttons')?.textContent || '';
+        return {
+          flags: {
+            hated: RPG.State.flags.hatedAmberExchanged,
+            sweet: RPG.State.flags.sweetAmberExchanged,
+            herb: RPG.State.flags.herbAmberExchanged,
+            blue: RPG.State.flags.blueAmberExchanged,
+          },
+          menu,
+        };
+      });
+
+      expect(result.flags).toEqual({ hated: true, sweet: true, herb: true, blue: true });
+      expect(result.menu).not.toContain('《嫌われ琥珀》');
+      expect(result.menu).not.toContain('《甘そうな琥珀》');
+      expect(result.menu).not.toContain('《薬草入り琥珀》');
+      expect(result.menu).not.toContain('《ブルーアンバー》');
+    });
+
     // --- the burn chance opens only at the very end of the root aftermath ---
 
     test('the burn chance opens after the whole aftermath, and only while holding the amber', async ({ page }) => {

@@ -518,12 +518,6 @@ body.rain-active #rainOverlay {
     opacity: var(--rain-opacity);
 }
 
-@media (prefers-reduced-motion: reduce) {
-    #rainOverlay::before {
-        animation: none;
-    }
-}
-
 #sceneReadingVeil {
     z-index: 1;
     background:

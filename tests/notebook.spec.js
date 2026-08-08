@@ -1008,16 +1008,16 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
-  test('amber rat 15 grants medicine and smoke as one idempotent set reward', async ({ page }) => {
+  test('amber rat 5 grants medicine and smoke as one idempotent set reward', async ({ page }) => {
     const immediate = await page.evaluate(() => {
       Object.assign(RPG.State, { mode: 'base', isAtInn: true });
       RPG.State.flags.amberRatBounty15Received = false;
-      RPG.State.defeatCounts.amber_rat = { cain: 10, owen: 5 };
+      RPG.State.defeatCounts.amber_rat = { cain: 5, owen: 0 };
       RPG.State.inventory.fakeWoundMedicine = 0;
       RPG.State.inventory.smokeBomb = 0;
 
-      innSystem.claimNotebookRewards('amber_rat', '15');
-      innSystem.claimNotebookRewards('amber_rat', '15');
+      innSystem.claimNotebookRewards('amber_rat', '5');
+      innSystem.claimNotebookRewards('amber_rat', '5');
       return {
         medicine: RPG.State.inventory.fakeWoundMedicine,
         smokeBomb: RPG.State.inventory.smokeBomb,
@@ -1035,7 +1035,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
 
     await drainDialogue(page);
     const afterDialogue = await page.evaluate(() => {
-      innSystem.claimNotebookRewards('amber_rat', '15');
+      innSystem.claimNotebookRewards('amber_rat', '5');
       return {
         medicine: RPG.State.inventory.fakeWoundMedicine,
         smokeBomb: RPG.State.inventory.smokeBomb,
@@ -1383,10 +1383,10 @@ test.describe('討伐ノート (bounty notebook)', () => {
       'rat:20': [['fakeWoundMedicine', 3]],
       'weasel:5': [['smokeBomb', 3]],
       'weasel:10': [['highHerb', 3]],
-      'sap:10': [['shinyOil', 3]],
-      'sap:15': [['hardBottle', 1]],
-      'amber_rat:15': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],
-      'amber_weasel:15': [['fakeWoundMedicine', 3]],
+      'sap:5': [['shinyOil', 3], ['fakeWoundMedicine', 3]],
+      'sap:10': [['hardBottle', 1]],
+      'amber_rat:5': [['fakeWoundMedicine', 3], ['smokeBomb', 3]],
+      'amber_weasel:5': [['fakeWoundMedicine', 3]],
     });
   });
 
@@ -1564,7 +1564,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'sapBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['highHerb', 5]],
+        items: [['highHerb', 5], ['shinyOil', 3]],
       },
       amber_rat: {
         target: null,
@@ -1572,7 +1572,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'amberRatBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['highHerb', 3]],
+        items: [['highHerb', 5], ['gratefulTalisman', 1]],
       },
       amber_weasel: {
         target: null,
@@ -1580,7 +1580,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
         claimedFlag: 'amberWeaselBountyAllReceived',
         unlockFlag: null,
         progressFlag: null,
-        items: [['highHerb', 3]],
+        items: [['highHerb', 5], ['gratefulTalisman', 1]],
       },
     });
     expect(result.lockedMarkers).toEqual(['－ALL', '－ALL', '－ALL', '－ALL', '－ALL']);

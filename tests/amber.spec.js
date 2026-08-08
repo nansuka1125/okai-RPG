@@ -3729,25 +3729,25 @@ test.describe('Chapter 1 amber system', () => {
       expect(result).toEqual({ ratPick: 'rat', weaselPick: 'weasel', sapPick: 'sap' });
     });
 
-    // --- sap notebook 15-tier ---
+    // --- sap notebook 10-tier ---
 
-    test('the sap second tier does not unlock at 14 kills', async ({ page }) => {
+    test('the sap second tier does not unlock at 9 kills', async ({ page }) => {
       const result = await page.evaluate(() => {
-        RPG.State.defeatCounts.sap = { cain: 14, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 9, owen: 0 };
         RPG.State.flags.sapBounty20Received = false;
-        return innSystem.isNotebookRewardClaimable('sap', '15');
+        return innSystem.isNotebookRewardClaimable('sap', '10');
       });
       expect(result).toBe(false);
     });
 
-    test('the sap second tier unlocks at 15 kills and grants the hard bottle', async ({ page }) => {
+    test('the sap second tier unlocks at 10 kills and grants the hard bottle', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.mode = 'base';
-        RPG.State.defeatCounts.sap = { cain: 15, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 10, owen: 0 };
         RPG.State.flags.sapBounty20Received = false;
         RPG.State.inventory.hardBottle = 0;
-        const claimable = innSystem.isNotebookRewardClaimable('sap', '15');
-        innSystem.claimNotebookRewards('sap', '15');
+        const claimable = innSystem.isNotebookRewardClaimable('sap', '10');
+        innSystem.claimNotebookRewards('sap', '10');
         return {
           claimable,
           hardBottle: RPG.State.inventory.hardBottle,
@@ -3763,7 +3763,7 @@ test.describe('Chapter 1 amber system', () => {
         RPG.State.defeatCounts.sap = { cain: 20, owen: 0 };
         RPG.State.flags.sapBounty20Received = true;
         RPG.State.inventory.hardBottle = 0;
-        innSystem.claimNotebookRewards('sap', '15');
+        innSystem.claimNotebookRewards('sap', '10');
         return {
           hardBottle: RPG.State.inventory.hardBottle,
           received: RPG.State.flags.sapBounty20Received,

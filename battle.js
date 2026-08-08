@@ -662,18 +662,10 @@ const battleSystem = {
         return true;
     },
 
-    // Keeps sap_source_awareness's threshold in sync with the sap notebook entry's second
-    // tier target (currently 15) instead of duplicating the number as a separate hardcoded
-    // constant. Looked up by claimedFlag since that name stays stable across target changes.
+    // Keep the existing sap_source_awareness story threshold independent from the
+    // notebook's visible second-tier target.
     getSapSecondTierTarget: function () {
-        const entries = Array.isArray(RPG.Assets.NOTEBOOK_ENTRIES)
-            ? RPG.Assets.NOTEBOOK_ENTRIES
-            : [];
-        const sapEntry = entries.find(entry => entry.enemyId === "sap");
-        const secondTier = sapEntry && sapEntry.tiers.find(
-            tier => tier.claimedFlag === "sapBounty20Received"
-        );
-        return Number.isFinite(secondTier && secondTier.target) ? secondTier.target : 15;
+        return 15;
     },
 
     getHighwayFixedBattleSpec: function (distance) {

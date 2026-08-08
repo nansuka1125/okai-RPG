@@ -174,20 +174,26 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
         encounterFlag: "notebookSapEncountered",
         tiers: [
             {
-                id: "10", label: "10", target: 10, claimedFlag: "sapBounty10Received",
-                items: [{ itemId: "shinyOil", qty: 3 }]
+                // The visible target moved from 10 to 5; keep the receipt flag for old saves.
+                id: "5", label: "5", target: 5, claimedFlag: "sapBounty10Received",
+                items: [
+                    { itemId: "shinyOil", qty: 3 },
+                    { itemId: "fakeWoundMedicine", qty: 3 }
+                ]
             },
             {
-                // Tier id/label read "15" (matches the new target); claimedFlag is kept as
-                // sapBounty20Received (unrenamed) so old-save receipt state stays valid.
-                id: "15", label: "15", target: 15, claimedFlag: "sapBounty20Received",
+                // The visible target moved from 15 to 10; keep the receipt flag for old saves.
+                id: "10", label: "10", target: 10, claimedFlag: "sapBounty20Received",
                 items: [{ itemId: "hardBottle", qty: 1 }]
             },
             {
                 id: "all", label: "ALL", target: null,
                 targetStateKey: "sap",
                 claimedFlag: "sapBountyAllReceived", claimEnabled: true,
-                items: [{ itemId: "highHerb", qty: 5 }]
+                items: [
+                    { itemId: "highHerb", qty: 5 },
+                    { itemId: "shinyOil", qty: 3 }
+                ]
             }
         ]
     },
@@ -199,7 +205,7 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
         encounterFlag: "notebookAmberRatEncountered",
         tiers: [
             {
-                id: "15", label: "15", target: 15, claimedFlag: "amberRatBounty15Received",
+                id: "5", label: "5", target: 5, claimedFlag: "amberRatBounty15Received",
                 items: [
                     { itemId: "fakeWoundMedicine", qty: 3 },
                     { itemId: "smokeBomb", qty: 3 }
@@ -209,7 +215,10 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
                 id: "all", label: "ALL", target: null,
                 targetStateKey: "amber_rat",
                 claimedFlag: "amberRatBountyAllReceived", claimEnabled: true,
-                items: [{ itemId: "highHerb", qty: 3 }]
+                items: [
+                    { itemId: "highHerb", qty: 5 },
+                    { itemId: "gratefulTalisman", qty: 1 }
+                ]
             }
         ]
     },
@@ -221,14 +230,17 @@ RPG.Assets.NOTEBOOK_ENTRIES = [
         encounterFlag: "notebookAmberWeaselEncountered",
         tiers: [
             {
-                id: "15", label: "15", target: 15, claimedFlag: "amberWeaselBounty15Received",
+                id: "5", label: "5", target: 5, claimedFlag: "amberWeaselBounty15Received",
                 items: [{ itemId: "fakeWoundMedicine", qty: 3 }]
             },
             {
                 id: "all", label: "ALL", target: null,
                 targetStateKey: "amber_weasel",
                 claimedFlag: "amberWeaselBountyAllReceived", claimEnabled: true,
-                items: [{ itemId: "highHerb", qty: 3 }]
+                items: [
+                    { itemId: "highHerb", qty: 5 },
+                    { itemId: "gratefulTalisman", qty: 1 }
+                ]
             }
         ]
     }

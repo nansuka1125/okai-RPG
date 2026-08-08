@@ -2267,6 +2267,9 @@ const explorationSystem = {
     inspectAmberRoot: function (distance) {
         const state = this.getAmberRootState(distance);
 
+        const hasPriorAmberRootProgress = Object.values(RPG.State.amberRootState || {})
+            .some(rootState => rootState !== "unexamined");
+
         if (state === "ignited") {
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = [
@@ -2296,6 +2299,13 @@ const explorationSystem = {
                 }
             ];
             this.playDialogueLoop();
+            return;
+        }
+
+        if (state === "unexamined" && hasPriorAmberRootProgress) {
+            if (!RPG.State.amberRootState) RPG.State.amberRootState = {};
+            RPG.State.amberRootState[distance] = "examined";
+            this.showAmberRootChoices(distance);
             return;
         }
 

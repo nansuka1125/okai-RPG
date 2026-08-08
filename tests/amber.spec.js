@@ -4288,19 +4288,33 @@ test.describe('Chapter 1 amber system', () => {
       expect(after).toBe('琥珀樹の根');
     });
 
-    test('the three sites can be inspected in any order and are tracked independently', async ({ page }) => {
+    test('only the first root site shows the discovery dialogue; later sites open choices directly', async ({ page }) => {
       await setForestRootState(page, { distance: 8, sapSourceAwarenessSeen: true });
       await callTalk(page);
       await drainDialogue(page);
       await closeRootChoices(page);
 
-      await page.evaluate(() => { RPG.State.currentDistance = 6; });
-      await callTalk(page);
-      await drainDialogue(page);
-      await closeRootChoices(page);
+      const laterSiteResults = [];
+      for (const distance of [6, 7]) {
+        await page.evaluate((nextDistance) => {
+          RPG.State.currentDistance = nextDistance;
+          document.getElementById('logContainer').innerHTML = '';
+        }, distance);
+        await callTalk(page);
+        laterSiteResults.push(await page.evaluate(() => ({
+          mode: RPG.State.mode,
+          log: document.getElementById('logContainer')?.textContent || '',
+        })));
+        await closeRootChoices(page);
+      }
 
-      const rootState = await page.evaluate(() => RPG.State.amberRootState);
-      expect(rootState).toEqual({ 6: 'examined', 7: 'unexamined', 8: 'examined' });
+      expect(laterSiteResults).toEqual([
+        { mode: 'choice', log: '' },
+        { mode: 'choice', log: '' },
+      ]);
+      await expect.poll(async () => page.evaluate(() => RPG.State.amberRootState)).toEqual({
+        6: 'examined', 7: 'examined', 8: 'examined',
+      });
     });
 
     // --- first inspection vs. re-inspection ---

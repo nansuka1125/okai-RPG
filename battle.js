@@ -378,7 +378,6 @@ const battleSystem = {
                     action: () => {
                         RPG.State.flags.matamatabiAutoActivationDone = true;
                         RPG.State.flags.matamatabiActive = true;
-                        RPG.State.flags.matamatabiNightPending = true;
                         RPG.State.matamatabiStepsRemaining = 10;
                         uiControl.updateUI();
                     }
@@ -1976,13 +1975,11 @@ const battleSystem = {
         if (!enemy || enemy.id !== "glowing_cat_rabbit") return false;
         const canReceiveQuestFur =
             RPG.State.flags.needsGlowingRabbitFur === true &&
-            (RPG.State.inventory.glowingCatRabbitFur || 0) === 0;
+            (RPG.State.inventory.glowingCatRabbitFur || 0) === 0 &&
+            RPG.State.flags.matamatabiActive === true;
 
         if (!canReceiveQuestFur) return false;
-        if (
-            RPG.State.flags.matamatabiActive === true &&
-            (RPG.State.flags.phase4MatamatabiRabbitEncounters || 0) >= 1
-        ) {
+        if ((RPG.State.flags.phase4MatamatabiRabbitEncounters || 0) >= 1) {
             return true;
         }
         return Math.random() < 0.2;
@@ -2108,6 +2105,7 @@ const battleSystem = {
             );
             RPG.State.inventory.glowingCatRabbitFur = (RPG.State.inventory.glowingCatRabbitFur || 0) + 1;
             RPG.State.flags.phase4MatamatabiRabbitEncounters = 0;
+            RPG.State.flags.matamatabiNightPending = true;
             if (!hadBranch) {
                 uiControl.addLog("✨光る猫うさぎの毛を手に入れた！", "", "#ffd166");
             }

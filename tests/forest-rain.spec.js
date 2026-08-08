@@ -317,6 +317,101 @@ test.describe('matamatabi branch re-acquisition at 4m', () => {
   });
 });
 
+test.describe('matamatabi night reservation is fur-gated, not activation-gated', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', error => {
+      throw new Error(`Uncaught page error: ${error.message}`);
+    });
+    await openGame(page);
+  });
+
+  test('the branch auto-activating no longer reserves the matamatabi night by itself', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.matamatabiBranch = 1;
+      RPG.State.flags.matamatabiActive = false;
+      RPG.State.flags.matamatabiAutoActivationDone = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.battleState = { playerTookDamage: true };
+
+      const queue = battleSystem.buildMatamatabiActivationQueue();
+      queue[queue.length - 1]?.action?.();
+
+      return {
+        matamatabiActive: RPG.State.flags.matamatabiActive,
+        autoActivationDone: RPG.State.flags.matamatabiAutoActivationDone,
+        nightPending: RPG.State.flags.matamatabiNightPending,
+      };
+    });
+    expect(result).toEqual({ matamatabiActive: true, autoActivationDone: true, nightPending: false });
+  });
+
+  test('manually reusing the branch from inventory no longer reserves the matamatabi night by itself', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.inventory.matamatabiBranch = 1;
+      RPG.State.flags.matamatabiActive = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.matamatabiUseCount = 1;
+
+      const queue = explorationSystem.buildMatamatabiManualUseQueue();
+      queue.find(entry => entry.action)?.action?.();
+
+      return {
+        matamatabiActive: RPG.State.flags.matamatabiActive,
+        nightPending: RPG.State.flags.matamatabiNightPending,
+      };
+    });
+    expect(result).toEqual({ matamatabiActive: true, nightPending: false });
+  });
+
+  test('the glowing cat rabbit only drops its fur while matamatabi is active, even with the encounter counter maxed', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.needsGlowingRabbitFur = true;
+      RPG.State.inventory.glowingCatRabbitFur = 0;
+      RPG.State.flags.phase4MatamatabiRabbitEncounters = 3;
+      const enemy = { id: 'glowing_cat_rabbit' };
+
+      RPG.State.flags.matamatabiActive = false;
+      const withoutMatamatabi = battleSystem.shouldAwardGlowingCatRabbitFur(enemy);
+
+      RPG.State.flags.matamatabiActive = true;
+      const withMatamatabi = battleSystem.shouldAwardGlowingCatRabbitFur(enemy);
+
+      return { withoutMatamatabi, withMatamatabi };
+    });
+    expect(result).toEqual({ withoutMatamatabi: false, withMatamatabi: true });
+  });
+
+  test('obtaining the fur reserves the matamatabi night even when Owen licks the branch clean in the same scene', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isBattling: true,
+        battleState: { playerTookDamage: false },
+        currentEnemy: { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 5, xp: 0, gold: 0 },
+        equippedRareAmberId: null,
+      });
+      RPG.State.inventory.matamatabiBranch = 1;
+      RPG.State.flags.matamatabiActive = true;
+      RPG.State.flags.needsGlowingRabbitFur = true;
+      RPG.State.inventory.glowingCatRabbitFur = 0;
+      RPG.State.flags.phase4MatamatabiRabbitEncounters = 1; // guarantees the drop this encounter
+      RPG.State.flags.matamatabiNightPending = false;
+      battleSystem.endGlowingCatRabbitBattle(false);
+    });
+    await drainDialogue(page, 60);
+
+    const result = await page.evaluate(() => ({
+      fur: RPG.State.inventory.glowingCatRabbitFur,
+      branch: RPG.State.inventory.matamatabiBranch,
+      matamatabiActive: RPG.State.flags.matamatabiActive,
+      nightPending: RPG.State.flags.matamatabiNightPending,
+    }));
+    // Owen "licks the branch clean" in this same scene (deactivating it), yet the night
+    // reservation set at the moment of fur pickup must survive that deactivation.
+    expect(result).toEqual({ fur: 1, branch: 0, matamatabiActive: false, nightPending: true });
+  });
+});
+
 test.describe('forest rain - 8m mud flavor', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {

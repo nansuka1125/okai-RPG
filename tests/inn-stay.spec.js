@@ -291,6 +291,34 @@ test.describe('inn stay: fixed room after delivery + forest pacification night',
     expect(result.canStay).toBe(true);
   });
 
+  test('7b. a full-HP stay is allowed once while awaiting the post-delivery rain sleep, then refused again once slept', async ({ page }) => {
+    await setStayState(page, {
+      state: { currentHP: 140 },
+      flags: { thiefDiscoveryStatus: 1, hasSleptAfterThief: false },
+    });
+    await callStay(page);
+    const firstMode = await drainStay(page);
+    const afterFirstStay = await page.evaluate(() => ({
+      hasSleptAfterThief: RPG.State.flags.hasSleptAfterThief,
+    }));
+    expect(firstMode).toBe('base');
+    expect(afterFirstStay.hasSleptAfterThief).toBe(true);
+
+    // Mirror the travel-then-return that would normally reopen canStay, then confirm the
+    // one-time bypass has closed now that hasSleptAfterThief is satisfied.
+    await page.evaluate(() => {
+      RPG.State.canStay = true;
+      RPG.State.currentHP = RPG.State.maxHP;
+    });
+    await callStay(page);
+    const result = await page.evaluate(() => ({
+      log: document.getElementById('logContainer')?.textContent || '',
+      mode: RPG.State.mode,
+    }));
+    expect(result.log).toContain('カイン「今はまだ休む必要はないな。」');
+    expect(result.mode).toBe('base');
+  });
+
   test('8. a second stay without travelling in between is still refused', async ({ page }) => {
     await setStayState(page, { state: { canStay: false } });
     await callStay(page);

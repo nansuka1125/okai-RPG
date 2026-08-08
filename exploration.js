@@ -3254,7 +3254,6 @@ const explorationSystem = {
                     color: "#9acd32",
                     action: () => {
                         RPG.State.flags.matamatabiActive = true;
-                        RPG.State.flags.matamatabiNightPending = true;
                         RPG.State.matamatabiStepsRemaining = 10;
                         RPG.State.matamatabiUseCount = (RPG.State.matamatabiUseCount || 0) + 1;
                         uiControl.updateUI();

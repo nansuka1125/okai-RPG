@@ -1188,7 +1188,12 @@ innSystem = {
             .map(item => `${item.name}：${item.cost}個\n${item.effect}`)
             .join("\n\n");
         this.ensureAmberState();
-        const fixedResult = RPG.State.unappraisedAmberResults.shift() || null;
+        // A plain (non-fixed) ？琥珀 always wins the first slot so the tutorial conversation
+        // below can't be preempted by a fixed result queued from an unrelated pickup (e.g. the
+        // forest 2m/9m sparkling bark) - the fixed result stays queued for a later appraisal.
+        const unknownCount = RPG.State.inventory.unknownAmber || 0;
+        const hasNormalAmber = unknownCount > RPG.State.unappraisedAmberResults.length;
+        const fixedResult = hasNormalAmber ? null : (RPG.State.unappraisedAmberResults.shift() || null);
         RPG.State.mode = "event";
         if (fixedResult) {
             const fixedAppraisal = RPG.Assets.AMBER_APPRAISAL[fixedResult] || null;
@@ -2283,9 +2288,14 @@ innSystem = {
             return;
         }
 
+        const isAwaitingPostDeliveryRainSleep =
+            RPG.State.flags.thiefDiscoveryStatus === 1 &&
+            RPG.State.flags.hasSleptAfterThief !== true;
+
         if (
             RPG.State.currentHP >= RPG.State.maxHP &&
-            RPG.State.flags.amberMerchantMovePending !== true
+            RPG.State.flags.amberMerchantMovePending !== true &&
+            !isAwaitingPostDeliveryRainSleep
         ) {
             uiControl.addLog("カイン「今はまだ休む必要はないな。」");
             return;

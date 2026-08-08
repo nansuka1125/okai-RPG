@@ -3407,10 +3407,29 @@ innSystem = {
     },
 
     selectInnEvent: function () {
-        // 未読優先ロジック: 未読イベントがあれば、その中から抽選。なければ全イベントから抽選。
-        let candidates = RPG.Assets.INN_EVENTS.filter(e => !this.isInnEventViewed(e));
-        if (candidates.length === 0) {
-            candidates = RPG.Assets.INN_EVENTS;
+        let candidates;
+
+        // Repair-investigation midnight priority: while the inspection window is open and at
+        // least one of the stable/storage midnight interludes is still unseen, steer tonight's
+        // lodging toward whichever of those two is still unseen instead of leaving it to the
+        // ordinary unread-first lottery below. Only reached once every higher-priority special
+        // night (matamatabi, phase6 post-delivery sleep, etc.) has already ruled itself out.
+        if (this.isInnRepairInspectionInProgress()) {
+            const midnightCandidates = RPG.Assets.INN_EVENTS.filter(e => (
+                (e.id === "stable" && RPG.State.flags.innStableMidnightSeen !== true) ||
+                (e.id === "storage_room" && RPG.State.flags.innStorageMidnightSeen !== true)
+            ));
+            if (midnightCandidates.length > 0) {
+                candidates = midnightCandidates;
+            }
+        }
+
+        if (!candidates) {
+            // 未読優先ロジック: 未読イベントがあれば、その中から抽選。なければ全イベントから抽選。
+            candidates = RPG.Assets.INN_EVENTS.filter(e => !this.isInnEventViewed(e));
+            if (candidates.length === 0) {
+                candidates = RPG.Assets.INN_EVENTS;
+            }
         }
 
         const totalWeight = candidates.reduce((sum, e) => sum + e.weight, 0);

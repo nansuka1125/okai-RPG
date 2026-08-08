@@ -887,6 +887,80 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     expect(stableSeen).toBe(false);
   });
 
+  test('repair-investigation priority: with both midnight interludes unseen, the ordinary lottery only ever weighs stable vs storage_room', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionUnlocked = true;
+      RPG.State.flags.innRepairInspectionReported = false;
+      RPG.State.flags.innStableMidnightSeen = false;
+      RPG.State.flags.innStorageMidnightSeen = false;
+
+      const originalRandom = Math.random;
+      Math.random = () => 0.01; // lands in storage_room's share (weight 50 of 80)
+      const lowPick = innSystem.selectInnEvent().id;
+      Math.random = () => 0.99; // lands in stable's share
+      const highPick = innSystem.selectInnEvent().id;
+      Math.random = originalRandom;
+      return { lowPick, highPick };
+    });
+    expect(result).toEqual({ lowPick: 'storage_room', highPick: 'stable' });
+  });
+
+  test('repair-investigation priority: with only the stable interlude unseen, the lottery always picks stable', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionUnlocked = true;
+      RPG.State.flags.innRepairInspectionReported = false;
+      RPG.State.flags.innStableMidnightSeen = false;
+      RPG.State.flags.innStorageMidnightSeen = true;
+
+      const originalRandom = Math.random;
+      Math.random = () => 0.01;
+      const lowPick = innSystem.selectInnEvent().id;
+      Math.random = () => 0.99;
+      const highPick = innSystem.selectInnEvent().id;
+      Math.random = originalRandom;
+      return { lowPick, highPick };
+    });
+    expect(result).toEqual({ lowPick: 'stable', highPick: 'stable' });
+  });
+
+  test('repair-investigation priority: with only the storage interlude unseen, the lottery always picks storage_room', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionUnlocked = true;
+      RPG.State.flags.innRepairInspectionReported = false;
+      RPG.State.flags.innStableMidnightSeen = true;
+      RPG.State.flags.innStorageMidnightSeen = false;
+
+      const originalRandom = Math.random;
+      Math.random = () => 0.01;
+      const lowPick = innSystem.selectInnEvent().id;
+      Math.random = () => 0.99;
+      const highPick = innSystem.selectInnEvent().id;
+      Math.random = originalRandom;
+      return { lowPick, highPick };
+    });
+    expect(result).toEqual({ lowPick: 'storage_room', highPick: 'storage_room' });
+  });
+
+  test('repair-investigation priority ends once both interludes are seen: the ordinary lottery can pick daughter_room again', async ({ page }) => {
+    const pick = await page.evaluate(() => {
+      RPG.State.flags.innRepairInspectionUnlocked = true;
+      RPG.State.flags.innRepairInspectionReported = false;
+      RPG.State.flags.innStableMidnightSeen = true;
+      RPG.State.flags.innStorageMidnightSeen = true;
+      RPG.State.innEventViewedIds = ['storage_room', 'stable', 'daughter_room'];
+
+      const originalRandom = Math.random;
+      // Total weight is 90 (50+30+10) once every event has been viewed; 0.95*90=85.5 falls
+      // in daughter_room's slot ([80,90)), which the repair-priority override would otherwise
+      // never allow through.
+      Math.random = () => 0.95;
+      const result = innSystem.selectInnEvent().id;
+      Math.random = originalRandom;
+      return result;
+    });
+    expect(pick).toBe('daughter_room');
+  });
+
   test('the storage interlude yields smoke bomb, high herb, then a fixed-sparkling unknown amber in order, then goes quiet', async ({ page }) => {
     await setInvestigationLottery(page, 'storage_room', { flags: { innStorageMidnightSeen: false } });
     await page.evaluate(() => {

@@ -3099,10 +3099,15 @@ const explorationSystem = {
 
         if (dist === 4 && this.canReacquireMatamatabiBranch()) {
             flags.matamatabiBranchFoundAgain = true;
-            const pickupLines = RPG.Assets.GAME_TEXT.events.phase4MatamatabiPickup4m || [];
+            const pickupLines = [
+                "カイン「……」",
+                "パキッ",
+                "🪵マタマタビの枝を手に入れた！",
+                "オーエン「………」"
+            ];
             RPG.State.mode = "event";
             RPG.State.dialogueQueue = pickupLines.map(line => {
-                if (line === "🪵マタマタビの枝 を手に入れた！") {
+                if (line === "🪵マタマタビの枝を手に入れた！") {
                     return {
                         text: line,
                         delay: 1500,

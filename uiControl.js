@@ -1672,6 +1672,13 @@ const uiControl = {
             Object.keys(RPG.State).forEach(key => delete RPG.State[key]);
             Object.assign(RPG.State, mergedState);
 
+            // Reconcile old saved ALL targets after the third amber root has already been
+            // defeated. Existing targets are only lowered when the new current-count+5 cap is
+            // smaller; completed rewards and defeat counts remain untouched.
+            if (typeof battleSystem !== "undefined") {
+                battleSystem.initializeAmberEnemyAllTargets();
+            }
+
             // Before exchangeOnceFlag was added to the ordinary rare-amber entries, an old
             // save could only prove an exchange happened by still holding the amber. Preserve
             // that one-time state when the corresponding flag is absent or false.

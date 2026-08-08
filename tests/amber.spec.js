@@ -5310,9 +5310,9 @@ test.describe('Chapter 1 amber system', () => {
         RPG.State.amberRootState = { 6: 'ignited', 7: 'ignited', 8: 'ignited' };
         RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
         RPG.State.inventory.hardOil = 1;
-        RPG.State.defeatCounts.sap = { cain: 28, owen: 0 };
-        RPG.State.defeatCounts.amber_rat = { cain: 12, owen: 8 };
-        RPG.State.defeatCounts.amber_weasel = { cain: 9, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 15, owen: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 11, owen: 0 };
+        RPG.State.defeatCounts.amber_weasel = { cain: 8, owen: 0 };
         const template = RPG.Assets.ENEMIES.find(e => e.id === 'amber_burning_root');
         RPG.State.defeatCounts.amber_burning_root = { cain: 0, owen: 0 };
 
@@ -5335,9 +5335,9 @@ test.describe('Chapter 1 amber system', () => {
         battleSystem.executeStandardVictory('amber_burning_root');
         const afterThirdRoot = { ...RPG.State.amberEnemyAllTargets };
 
-        RPG.State.defeatCounts.sap = { cain: 99, owen: 0 };
-        RPG.State.defeatCounts.amber_rat = { cain: 99, owen: 0 };
-        RPG.State.defeatCounts.amber_weasel = { cain: 99, owen: 0 };
+        RPG.State.defeatCounts.sap = { cain: 15, owen: 0 };
+        RPG.State.defeatCounts.amber_rat = { cain: 11, owen: 0 };
+        RPG.State.defeatCounts.amber_weasel = { cain: 8, owen: 0 };
         const recalculated = battleSystem.initializeAmberEnemyAllTargets();
 
         const snapshot = uiControl.createSaveSnapshot('journal');
@@ -5357,12 +5357,12 @@ test.describe('Chapter 1 amber system', () => {
       expect(result.rootState).toEqual({ 6: 'defeated', 7: 'defeated', 8: 'defeated' });
       expect(result.hardOil).toBe(1);
       expect(result.afterTwoRoots).toEqual({ sap: null, amber_rat: null, amber_weasel: null });
-      expect(result.afterThirdRoot).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
+      expect(result.afterThirdRoot).toEqual({ sap: 20, amber_rat: 16, amber_weasel: 13 });
       expect(result.recalculated).toBe(false);
-      expect(result.afterReload).toEqual({ sap: 40, amber_rat: 30, amber_weasel: 20 });
+      expect(result.afterReload).toEqual({ sap: 20, amber_rat: 16, amber_weasel: 13 });
     });
 
-    test('the third root never stores an ALL target below 15, even with very few kills logged', async ({ page }) => {
+    test('the third root uses current cumulative defeats plus five with no minimum floor', async ({ page }) => {
       const result = await page.evaluate(() => {
         RPG.State.amberRootState = { 6: 'defeated', 7: 'defeated', 8: 'defeated' };
         RPG.State.amberEnemyAllTargets = { sap: null, amber_rat: null, amber_weasel: null };
@@ -5374,9 +5374,41 @@ test.describe('Chapter 1 amber system', () => {
 
         return { ...RPG.State.amberEnemyAllTargets };
       });
-      // Raw calc (0+10 rounded up to the next 10) would be 10 for all three; the floor keeps
-      // them at 15, matching the last normal (non-ALL) notebook tier for each enemy.
-      expect(result).toEqual({ sap: 15, amber_rat: 15, amber_weasel: 15 });
+      expect(result).toEqual({ sap: 5, amber_rat: 5, amber_weasel: 5 });
+    });
+
+    test('loading an old saved ALL target lowers only oversized targets to current defeats plus five', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const snapshot = JSON.parse(JSON.stringify(RPG.DefaultState));
+        snapshot.amberRootState = { 6: 'defeated', 7: 'defeated', 8: 'defeated' };
+        snapshot.amberEnemyAllTargets = { sap: 30, amber_rat: 30, amber_weasel: 20 };
+        snapshot.defeatCounts.sap = { cain: 15, owen: 0 };
+        snapshot.defeatCounts.amber_rat = { cain: 11, owen: 0 };
+        snapshot.defeatCounts.amber_weasel = { cain: 8, owen: 0 };
+        localStorage.setItem('okai_rpg_amber_all_target_migration', JSON.stringify(snapshot));
+
+        uiControl.loadFromStorage('okai_rpg_amber_all_target_migration', '旧ALL目標テスト');
+        return { ...RPG.State.amberEnemyAllTargets };
+      });
+
+      expect(result).toEqual({ sap: 20, amber_rat: 16, amber_weasel: 13 });
+    });
+
+    test('loading saved ALL targets at or below the new cap does not raise them', async ({ page }) => {
+      const result = await page.evaluate(() => {
+        const snapshot = JSON.parse(JSON.stringify(RPG.DefaultState));
+        snapshot.amberRootState = { 6: 'defeated', 7: 'defeated', 8: 'defeated' };
+        snapshot.amberEnemyAllTargets = { sap: 20, amber_rat: 15, amber_weasel: 13 };
+        snapshot.defeatCounts.sap = { cain: 15, owen: 0 };
+        snapshot.defeatCounts.amber_rat = { cain: 11, owen: 0 };
+        snapshot.defeatCounts.amber_weasel = { cain: 8, owen: 0 };
+        localStorage.setItem('okai_rpg_amber_all_target_no_raise', JSON.stringify(snapshot));
+
+        uiControl.loadFromStorage('okai_rpg_amber_all_target_no_raise', 'ALL目標据え置きテスト');
+        return { ...RPG.State.amberEnemyAllTargets };
+      });
+
+      expect(result).toEqual({ sap: 20, amber_rat: 15, amber_weasel: 13 });
     });
 
     test('finite targets remove only completed amber encounters from their random candidates', async ({ page }) => {

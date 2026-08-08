@@ -1011,6 +1011,14 @@ const explorationSystem = {
                 visualDirector.clearInnScene();
             }
 
+            if (
+                typeof innSystem !== "undefined" &&
+                innSystem.shouldAutoPlayPicnicDateAfterStay()
+            ) {
+                innSystem.playPicnicDateScene();
+                return;
+            }
+
             // UIロック解除
             const allButtons = document.querySelectorAll('button');
             allButtons.forEach(btn => {
@@ -3528,6 +3536,22 @@ const explorationSystem = {
                 : this.buildSomeonesDiaryFirstReadQueue();
         }
 
+        if (itemId === 'secretLetter') {
+            return [
+                { text: "カインは秘密のお手紙を読んだ。" },
+                {
+                    text: RPG.Assets.CONFIG.ITEM_DESC.secretLetter,
+                    type: "marker",
+                    color: "#f1e6c8",
+                    action: () => {
+                        RPG.State.flags.secretLetterRead = true;
+                        RPG.State.flags.picnicDateStaySincePassed = false;
+                        uiControl.updateUI();
+                    }
+                }
+            ];
+        }
+
         if (itemId === 'keyAmber') {
             const useCount = Math.max(0, Number(RPG.State.keyAmberUseCount) || 0);
             if (useCount === 1) {
@@ -3730,6 +3754,10 @@ const explorationSystem = {
                 consumeItem = false;
                 break;
             case 'someonesDiary':
+                success = true;
+                consumeItem = false;
+                break;
+            case 'secretLetter':
                 success = true;
                 consumeItem = false;
                 break;

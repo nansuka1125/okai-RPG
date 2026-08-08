@@ -334,6 +334,7 @@ innSystem = {
 
         RPG.State.mode = "event";
         RPG.State.inventory.secretLetter = Math.max(0, RPG.State.inventory.secretLetter - 1);
+        RPG.State.flags.secretLetterRead = false;
         RPG.State.flags.picnicDateStaySincePassed = false;
 
         RPG.State.dialogueQueue = [
@@ -369,6 +370,20 @@ innSystem = {
         ];
         uiControl.updateUI();
         explorationSystem.playDialogueLoop();
+    },
+
+    shouldAutoPlayPicnicDateAfterStay: function () {
+        const state = RPG.State;
+        const flags = state.flags;
+        return (
+            state.mode === "base" &&
+            state.isAtInn === true &&
+            state.isInDungeon !== true &&
+            (state.inventory.secretLetter || 0) > 0 &&
+            flags.secretLetterRead === true &&
+            flags.herbGardenHandholdAttempted === true &&
+            flags.picnicDateStaySincePassed === true
+        );
     },
 
     // The ordinary fixed-room stay. Despite the name it now serves every post-delivery stay,
@@ -552,9 +567,11 @@ innSystem = {
         }
 
         // secretLetter is only ever granted by finishing the notebook (see
-        // isLastNotebookAllTierClaim), so holding it here means the picnic date's 【娘とデート】
-        // button is waiting to appear - but only from the stay after the letter arrived.
-        if (RPG.State.inventory.secretLetter > 0) {
+        // isLastNotebookAllTierClaim). Once read, the following completed stay starts the date.
+        if (
+            RPG.State.inventory.secretLetter > 0 &&
+            RPG.State.flags.secretLetterRead === true
+        ) {
             RPG.State.flags.picnicDateStaySincePassed = true;
         }
     },

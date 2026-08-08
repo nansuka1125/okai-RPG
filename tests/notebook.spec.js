@@ -1390,7 +1390,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     });
   });
 
-  test('all unappraised amber is one non-usable inventory entry', async ({ page }) => {
+  test('unappraised amber stays non-usable while secretLetter is readable', async ({ page }) => {
     const result = await page.evaluate(() => {
       RPG.State.inventory.unknownAmber = 3;
       RPG.State.unappraisedAmberResults = ['vampireAmber'];
@@ -1432,9 +1432,29 @@ test.describe('討伐ノート (bounty notebook)', () => {
       letterDescription: '誰かに宛てて書かれた手紙。',
       inventoryText: '🔸？琥珀 (×3)㊙️秘密のお手紙 (×1)',
       amberHasUseButton: false,
-      letterHasUseButton: false,
+      letterHasUseButton: true,
       socketable: false,
     });
+  });
+
+  test('secretLetter can be read without consuming it', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.secretLetter = 1;
+      explorationSystem.useItem('secretLetter');
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      secretLetter: RPG.State.inventory.secretLetter,
+      secretLetterRead: RPG.State.flags.secretLetterRead,
+      log: [...document.querySelectorAll('#logContainer .log-entry')].map(element => element.textContent),
+    }));
+
+    expect(result.secretLetter).toBe(1);
+    expect(result.secretLetterRead).toBe(true);
+    expect(result.log).toContain('カインは秘密のお手紙を読んだ。');
+    expect(result.log).toContain('誰かに宛てて書かれた手紙。');
   });
 
   test('old special unknown amber saves migrate into the unified confirmed stack', async ({ page }) => {

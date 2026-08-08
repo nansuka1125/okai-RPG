@@ -685,14 +685,35 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
     expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
   });
 
-  test('after one stay with the letter and the handhold event done, the button becomes 娘とデート', async ({ page }) => {
+  test('an unread letter stays pending after a stay, without starting the date', async ({ page }) => {
     await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
     await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
     await callStay(page);
     await drainStay(page);
 
     const state = await notebookButtonState(page);
-    expect(state).toEqual({ text: '娘とデート', disabled: false, display: 'flex' });
+    expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
+  });
+
+  test('reading the letter then staying automatically plays the picnic date', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
+    await page.evaluate(() => {
+      RPG.State.inventory.secretLetter = 1;
+      explorationSystem.useItem('secretLetter');
+    });
+    await drainStay(page);
+
+    await callStay(page);
+    await drainStay(page, 30000);
+
+    const result = await page.evaluate(() => ({
+      secretLetter: RPG.State.inventory.secretLetter,
+      mode: RPG.State.mode,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.secretLetter).toBe(0);
+    expect(result.mode).toBe('base');
+    expect(result.log).toContain('【ピクニックデート】');
   });
 
   test('clicking the date button plays the full scene without touching real exploration state', async ({ page }) => {

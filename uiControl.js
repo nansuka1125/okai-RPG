@@ -503,10 +503,11 @@ const uiControl = {
 
             if (btnInnNotebook) {
                 // secretLetter only exists as the notebook's dynamic final-completion reward
-                // (see innSystem.isLastNotebookAllTierClaim), so holding it doubles as "the
-                // notebook is done, the date is pending" without a separate completion flag.
+                // (see innSystem.isLastNotebookAllTierClaim). The date becomes eligible only
+                // after the player reads it and completes the following stay.
                 const secretLetterHeld = RPG.State.inventory.secretLetter > 0;
                 const dateReady = secretLetterHeld &&
+                    RPG.State.flags.secretLetterRead === true &&
                     RPG.State.flags.herbGardenHandholdAttempted === true &&
                     RPG.State.flags.picnicDateStaySincePassed === true;
 
@@ -1220,6 +1221,7 @@ const uiControl = {
             key === 'hardBottle' ||
             key === 'highHerbJam' ||
             key === 'someonesDiary' ||
+            key === 'secretLetter' ||
             key === 'gratefulTalisman' ||
             canUseEmptyBottle ||
             canUseScentPouch ||

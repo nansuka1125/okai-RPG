@@ -241,6 +241,7 @@ RPG.State = {
         scentPouchQuestStarted: false, // Build 15.2.93: The wagon's horse needs a calming scent pouch
         herbGardenBreathAttempted: false, // Build 15.2.93: Phase 6 3m option completion
         herbGardenHandholdAttempted: false, // Build 15.2.93: Phase 6 3m option completion
+        secretLetterRead: false, // The final notebook letter must be read before the next stay starts the picnic date
         herbGardenFortuneConsultUnlocked: false, // Build 15.2.93: Handhold failure unlocks the fortune teller
         herbGardenBroochGranted: false, // Build 15.2.93: The light rabbit brooch has been loaned
         herbGardenFortuneFollowupDone: false, // Build 15.2.93: One-time material hint after receiving the brooch

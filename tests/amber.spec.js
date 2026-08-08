@@ -527,7 +527,42 @@ test.describe('Chapter 1 amber system', () => {
     expect(result.log).not.toContain('undefined');
   });
 
-  test('a confirmed amber is displayed with and appraised before the normal first amber', async ({ page }) => {
+  test('a plain ？琥珀 takes priority over a queued fixed result for the first appraisal, leaving the fixed result queued', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.mode = 'base';
+      RPG.State.inventory.unknownAmber = 2;
+      RPG.State.unappraisedAmberResults = ['junk'];
+      RPG.State.amberStorage.sparkling = 0;
+      RPG.State.junkAmberDelivered = 0;
+      RPG.State.flags.treeDefeated = true;
+      RPG.State.flags.amberMerchantRecognized = true;
+      RPG.State.flags.borrowedMiningKnifeReceived = true;
+      RPG.State.flags.firstAmberAppraisalDone = false;
+      innSystem.interactWithAmberMerchant();
+    });
+    await drainDialogue(page);
+
+    const result = await page.evaluate(() => ({
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      sparkling: RPG.State.amberStorage.sparkling,
+      junkAmberDelivered: RPG.State.junkAmberDelivered,
+      queuedResults: RPG.State.unappraisedAmberResults,
+      firstDone: RPG.State.flags.firstAmberAppraisalDone,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+
+    expect(result).toMatchObject({
+      unknownAmber: 1,
+      sparkling: 1,
+      junkAmberDelivered: 0,
+      queuedResults: ['junk'],
+      firstDone: true,
+    });
+    expect(result.log).toContain('交換一覧');
+    expect(result.log).toContain('鑑定結果：《キラキラ琥珀》');
+  });
+
+  test('a plain first amber takes priority over a queued confirmed amber, which stays queued for later', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.mode = 'base';
       RPG.State.inventory.unknownAmber = 2;
@@ -548,18 +583,20 @@ test.describe('Chapter 1 amber system', () => {
       sparkling: RPG.State.amberStorage.sparkling,
       firstDone: RPG.State.flags.firstAmberAppraisalDone,
       vampireSeen: RPG.State.flags.vampireAmberAppraisalSeen,
+      queuedResults: RPG.State.unappraisedAmberResults,
       log: document.getElementById('logContainer')?.textContent || '',
     }));
 
+    // The plain (non-fixed) ？琥珀 wins the first-appraisal slot, so the tutorial
+    // conversation plays and the confirmed vampireAmber result is left queued, untouched.
     expect(result.unknownAmber).toBe(1);
-    expect(result.vampireAmber).toBe(1);
-    expect(result.sparkling).toBe(0);
+    expect(result.vampireAmber).toBe(0);
+    expect(result.sparkling).toBe(1);
     expect(result.firstDone).toBe(true);
-    expect(result.vampireSeen).toBe(true);
-    expect(result.log).toContain('《吸血琥珀》と鑑定された。');
-    expect(result.log).toContain(
-      '自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？'
-    );
+    expect(result.vampireSeen).toBe(false);
+    expect(result.queuedResults).toEqual(['vampireAmber']);
+    expect(result.log).toContain('交換一覧');
+    expect(result.log).toContain('鑑定結果：《キラキラ琥珀》');
 
     await page.evaluate(() => {
       const originalRandom = Math.random;

@@ -294,6 +294,22 @@ const uiControl = {
             btn.style.pointerEvents = "auto";
         });
 
+        // The repair-investigation midnight interlude owns #action-buttons directly (its own
+        // choice menu, or a playing dialogue that hid it) and is never itself "at the inn" in
+        // the ordinary sense - item-grant lines calling updateUI() mid-dialogue must not fall
+        // back to the real innUI/exploreUI underneath. Only the menu's own 3 buttons are ever
+        // live, and only while that menu (not a dialogue line) is on screen.
+        if (typeof innSystem !== "undefined" && innSystem.isInnMidnightActive()) {
+            const isMenuActive = RPG.State.mode === "choice";
+            allButtons.forEach(btn => {
+                const isActiveMidnightButton = isMenuActive && actionButtons?.contains(btn);
+                btn.disabled = !isActiveMidnightButton;
+                btn.style.opacity = isActiveMidnightButton ? "1" : "0.5";
+                btn.style.pointerEvents = isActiveMidnightButton ? "auto" : "none";
+            });
+            return;
+        }
+
         if (RPG.State.flags.chapter1Cleared === true) {
             const titleButton = this.showChapter1ClearControls();
             const miniSaveButton = document.getElementById('miniSaveButton');
@@ -336,8 +352,14 @@ const uiControl = {
         }
 
         if (mode === "battle") {
-            // Battle State: Keep exploration menu visible, but greyed out
-            if (exploreUI) exploreUI.style.display = 'grid';
+            // Battle State: Keep the current location's own menu visible, but greyed out -
+            // the inn's rat-event battles happen while isAtInn is still true, so they should
+            // stay on innUI rather than showing the inn-front exploreUI underneath.
+            if (RPG.State.isAtInn) {
+                if (innUI) innUI.style.display = 'grid';
+            } else {
+                if (exploreUI) exploreUI.style.display = 'grid';
+            }
             allButtons.forEach(btn => {
                 btn.disabled = true;
                 btn.style.opacity = "0.5";

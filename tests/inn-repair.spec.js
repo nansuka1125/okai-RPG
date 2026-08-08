@@ -511,6 +511,38 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     expect(flag).toBe(true);
   });
 
+  test('2g. a battle fought while isAtInn keeps innUI visible (greyed out) instead of the inn-front exploreUI, and an ordinary field battle still shows exploreUI', async ({ page }) => {
+    await setCleanInnBaseline(page);
+
+    const atInn = await page.evaluate(() => {
+      RPG.State.isAtInn = true;
+      RPG.State.mode = 'battle';
+      uiControl.updateUI();
+      return {
+        innUiDisplay: document.getElementById('innUI')?.style.display,
+        exploreUiDisplay: document.getElementById('exploreUI')?.style.display,
+        innButtonsDisabled: [...document.querySelectorAll('#innUI button')]
+          .every(btn => btn.disabled),
+      };
+    });
+    expect(atInn).toEqual({ innUiDisplay: 'grid', exploreUiDisplay: 'none', innButtonsDisabled: true });
+
+    const outsideInn = await page.evaluate(() => {
+      RPG.State.isAtInn = false;
+      RPG.State.isInDungeon = true;
+      RPG.State.explorationArea = 'forest';
+      RPG.State.mode = 'battle';
+      uiControl.updateUI();
+      return {
+        innUiDisplay: document.getElementById('innUI')?.style.display,
+        exploreUiDisplay: document.getElementById('exploreUI')?.style.display,
+        exploreButtonsDisabled: [...document.querySelectorAll('#exploreUI button')]
+          .every(btn => btn.disabled),
+      };
+    });
+    expect(outsideInn).toEqual({ innUiDisplay: 'none', exploreUiDisplay: 'grid', exploreButtonsDisabled: true });
+  });
+
   test('3. choosing the innkeeper consult plays the specified dialogue once', async ({ page }) => {
     await setCleanInnBaseline(page, {
       flags: { innRatEvent: true, innRatEvent2: true, repairConsultBattleFought: true },

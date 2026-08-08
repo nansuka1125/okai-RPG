@@ -108,9 +108,16 @@ innSystem = {
             container.appendChild(button);
         };
 
+        const examineSeen = isStable
+            ? this.innMidnight.doorSeen
+            : this.innMidnight.shelfStage > 0;
+        const examineLabel = examineSeen
+            ? '【調べる】'
+            : (isStable ? '【齧られた扉】' : '【棚を見る】');
+
         addChoice('【話す】', () => this.playInnMidnightTalk());
-        addChoice('【調べる】', () => this.playInnMidnightExamine());
-        addChoice('【もう寝る】', () => this.finishInnMidnight(), 'btn-full');
+        addChoice(examineLabel, () => this.playInnMidnightExamine());
+        addChoice('【寝る】', () => this.finishInnMidnight(), 'btn-full');
 
         // Same shared choice-mode lock the vine nest uses: only these buttons stay live.
         uiControl.updateUI();

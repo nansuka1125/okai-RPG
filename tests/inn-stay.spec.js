@@ -790,7 +790,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     }, lodgingId);
   }
 
-  test('the stable interlude fires once, uses the shared talk/examine/sleep layout, then returns to the same stay\'s morning', async ({ page }) => {
+  test('the stable interlude fires once, uses the shared talk/examine/sleep layout with the dynamic door label, then returns to the same stay\'s morning', async ({ page }) => {
     await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
 
     await callStay(page);
@@ -803,14 +803,14 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     }));
     expect(intro.log).toContain('カイン（ふわぁ…目が覚めちまったな）');
     expect(intro.log).toContain('オーエン「…ん」');
-    expect(intro.buttons).toEqual(['【話す】', '【調べる】', '【もう寝る】']);
+    expect(intro.buttons).toEqual(['【話す】', '【齧られた扉】', '【寝る】']);
 
     await page.getByRole('button', { name: '【話す】', exact: true }).click();
     await drainStay(page);
     const afterTalk = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
     expect(afterTalk).toContain('すごく眠そうだ');
 
-    await page.getByRole('button', { name: '【調べる】', exact: true }).click();
+    await page.getByRole('button', { name: '【齧られた扉】', exact: true }).click();
     await drainStay(page);
     const afterDoor = await page.evaluate(() => ({
       log: document.getElementById('logContainer')?.textContent || '',
@@ -818,6 +818,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     }));
     expect(afterDoor.log).toContain('扉の端が齧られている。');
     expect(afterDoor.log).toContain('オーエン「熱心だね」');
+    // The label switches to 【調べる】 once the door has been seen once.
     expect(afterDoor.buttons).toContain('【調べる】');
 
     await page.getByRole('button', { name: '【調べる】', exact: true }).click();
@@ -830,7 +831,7 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
       travelStepsSinceStay: RPG.State.travelStepsSinceStay,
     }));
 
-    await page.getByRole('button', { name: '【もう寝る】', exact: true }).click();
+    await page.getByRole('button', { name: '【寝る】', exact: true }).click();
     const finalMode = await drainStay(page);
     expect(finalMode).toBe('base');
 
@@ -898,8 +899,13 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     await callStay(page);
     expect(await drainStay(page)).toBe('choice');
 
+    const initialButtons = await page.evaluate(() => (
+      [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent)
+    ));
+    expect(initialButtons).toEqual(['【話す】', '【棚を見る】', '【寝る】']);
+
     const examine = async () => {
-      await page.getByRole('button', { name: '【調べる】', exact: true }).click();
+      await page.getByRole('button', { name: /^【棚を見る】$|^【調べる】$/, exact: true }).click();
       await drainStay(page);
     };
 
@@ -907,9 +913,12 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
     let snap = await page.evaluate(() => ({
       log: document.getElementById('logContainer')?.textContent || '',
       smokeBomb: RPG.State.inventory.smokeBomb,
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
     }));
     expect(snap.log).toContain('ここにはまだネズミの被害は無さそうだ');
     expect(snap.smokeBomb).toBe(0);
+    // The label switches to 【調べる】 once the shelf has been searched once.
+    expect(snap.buttons).toContain('【調べる】');
 
     await examine(); // 2nd: smoke bomb
     snap = await page.evaluate(() => ({
@@ -962,9 +971,30 @@ test.describe('inn stay: midnight interlude (stable/storage, repair investigatio
       grid: document.getElementById('action-buttons')?.classList.contains('btn-grid'),
     }));
     expect(after).toEqual({
-      buttons: ['【話す】', '【調べる】', '【もう寝る】'],
+      buttons: ['【話す】', '【齧られた扉】', '【寝る】'],
       display: 'grid',
       grid: true,
     });
+  });
+
+  test('an updateUI() call mid-dialogue during the interlude never falls back to the ordinary innUI/exploreUI', async ({ page }) => {
+    await setInvestigationLottery(page, 'stable', { flags: { innStableMidnightSeen: false } });
+
+    await callStay(page);
+    expect(await drainStay(page)).toBe('choice');
+
+    // Item-grant lines in the interlude (e.g. buildStorageShelfLines's smoke-bomb/highHerb/
+    // ？琥珀 actions) call uiControl.updateUI() while RPG.State.mode is still 'event', not
+    // 'choice'. Reproduce that directly instead of racing real dialogue timing.
+    const result = await page.evaluate(() => {
+      RPG.State.mode = 'event';
+      uiControl.updateUI();
+      return {
+        mode: RPG.State.mode,
+        innUiDisplay: document.getElementById('innUI')?.style.display,
+        exploreUiDisplay: document.getElementById('exploreUI')?.style.display,
+      };
+    });
+    expect(result).toEqual({ mode: 'event', innUiDisplay: 'none', exploreUiDisplay: 'none' });
   });
 });

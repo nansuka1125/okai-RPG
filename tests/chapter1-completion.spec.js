@@ -953,6 +953,83 @@ test.describe('Chapter 1 completion route', () => {
     });
   });
 
+  test('the Amber Forest bad end clears its backdrop before ??? and returns to the inn after completion', async ({ page }) => {
+    const start = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        location: '森の深層',
+        currentDistance: 8,
+        currentHP: 0,
+        maxHP: 140,
+        isPoisoned: true,
+        dialogueQueue: [],
+      });
+      visualDirector.clearScene();
+      uiControl.updateUI();
+
+      const sceneChanges = [];
+      const originalSyncScene = visualDirector.syncScene;
+      visualDirector.syncScene = function () {
+        sceneChanges.push({ location: RPG.State.location, scene: this.getActiveScene() });
+        return originalSyncScene.apply(this, arguments);
+      };
+      try {
+        innSystem.showBadEnd();
+      } finally {
+        visualDirector.syncScene = originalSyncScene;
+      }
+
+      return {
+        initialScene: 'forest-deep-day',
+        activeScene: visualDirector.getActiveScene(),
+        location: RPG.State.location,
+        locationLabel: document.getElementById('currentLocationName')?.textContent,
+        sceneChanges,
+      };
+    });
+
+    const clearedIndex = start.sceneChanges.findIndex(change => change.scene === 'none');
+    const unknownLocationIndex = start.sceneChanges.findIndex(change => change.location === '？？？');
+    expect(start.initialScene).toBe('forest-deep-day');
+    expect(start.activeScene).toBe('none');
+    expect(start.location).toBe('？？？');
+    expect(start.locationLabel).toBe('？？？');
+    expect(clearedIndex).toBeGreaterThanOrEqual(0);
+    expect(unknownLocationIndex).toBeGreaterThan(clearedIndex);
+
+    await drainDialogue(page, 10000);
+
+    const result = await page.evaluate(() => ({
+      mode: RPG.State.mode,
+      isAtInn: RPG.State.isAtInn,
+      isInDungeon: RPG.State.isInDungeon,
+      explorationArea: RPG.State.explorationArea,
+      location: RPG.State.location,
+      currentDistance: RPG.State.currentDistance,
+      currentHP: RPG.State.currentHP,
+      maxHP: RPG.State.maxHP,
+      isPoisoned: RPG.State.isPoisoned,
+      activeScene: visualDirector.getActiveScene(),
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result).toMatchObject({
+      mode: 'base',
+      isAtInn: true,
+      isInDungeon: false,
+      explorationArea: null,
+      location: '宿屋《琥珀亭》',
+      currentDistance: 0,
+      currentHP: 14,
+      maxHP: 140,
+      isPoisoned: false,
+      activeScene: 'inn-lobby',
+    });
+    expect(result.log).toContain('【BAD END 〜琥珀の森焼失〜】');
+  });
+
   test('fixed encounter table keeps the requested 2/4/6/8/10m order', async ({ page }) => {
     const specs = await page.evaluate(() => (
       [2, 4, 6, 8, 10].map(distance => {

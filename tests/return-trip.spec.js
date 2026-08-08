@@ -372,6 +372,29 @@ test.describe('return trip - full sequence', () => {
     expect(afterDelivery.item).toEqual({ text: 'アイテム', disabled: false });
   });
 
+  test('at 10m, the unfinished giant-larva corpse inspection re-enables 調べる but not アイテム during the rainy return', async ({ page }) => {
+    const pendingInspection = await page.evaluate(() => {
+      RPG.State.currentDistance = 10;
+      RPG.State.larvaCorpseStage = 0;
+      uiControl.updateUI();
+      return {
+        talkDisabled: document.getElementById('btnTalk')?.disabled,
+        itemDisabled: document.getElementById('btnItem')?.disabled,
+      };
+    });
+    expect(pendingInspection).toEqual({ talkDisabled: false, itemDisabled: true });
+
+    const completedInspection = await page.evaluate(() => {
+      RPG.State.larvaCorpseStage = 3;
+      uiControl.updateUI();
+      return {
+        talkDisabled: document.getElementById('btnTalk')?.disabled,
+        itemDisabled: document.getElementById('btnItem')?.disabled,
+      };
+    });
+    expect(completedInspection).toEqual({ talkDisabled: true, itemDisabled: true });
+  });
+
   test('75. debug.isSkipping does not jam the walk', async ({ page }) => {
     await page.evaluate(() => {
       RPG.State.debug.isSkipping = true;

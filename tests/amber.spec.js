@@ -387,9 +387,10 @@ test.describe('Chapter 1 amber system', () => {
       Object.assign(RPG.State.flags, {
         introDebtTalkPending: false,
         innRepairHelpStarted: false,
-        needsGlowingRabbitFur: false,
+        needsGlowingRabbitFur: true,
         heardMatamatabiRumor: false,
       });
+      RPG.State.inventory.glowingCatRabbitFur = 0;
       innSystem.talk();
     });
     await drainDialogue(page);
@@ -409,6 +410,24 @@ test.describe('Chapter 1 amber system', () => {
       document.getElementById('logContainer')?.textContent || ''
     ));
     expect(after).toContain('娘「森の中にある白っぽい低木が、猫っぽい魔物を惹きつけるかもしれません」');
+
+    await page.evaluate(() => {
+      RPG.State.inventory.glowingCatRabbitFur = 1;
+      innSystem.talk();
+    });
+    await drainDialogue(page);
+
+    const afterFur = await page.evaluate(() => {
+      const lines = Array.from(document.querySelectorAll('#logContainer .log-entry'))
+        .map(el => el.textContent || '')
+        .filter(Boolean);
+      return {
+        lastLine: lines[lines.length - 1],
+        sharedLoop05: RPG.Assets.TALK_DATA.innTalk.sharedLoop05,
+      };
+    });
+    expect(afterFur.sharedLoop05).toContain(afterFur.lastLine);
+    expect(afterFur.lastLine).not.toContain('森の中にある白っぽい低木が、猫っぽい魔物を惹きつけるかもしれません');
   });
 
   test('the inn first recognizes the amber merchant on observe after the first coin', async ({ page }) => {

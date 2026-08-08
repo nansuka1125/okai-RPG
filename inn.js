@@ -2037,7 +2037,11 @@ innSystem = {
 
         if (!selectedLines) {
             if (currentPhase <= 5) {
-                if (RPG.State.flags.heardMatamatabiRumor === true) {
+                if (
+                    RPG.State.flags.heardMatamatabiRumor === true &&
+                    RPG.State.flags.needsGlowingRabbitFur === true &&
+                    (RPG.State.inventory.glowingCatRabbitFur || 0) === 0
+                ) {
                     selectedLines = [talkData.matamatabiInfoLine];
                 } else {
                     // Inn talk uses its own shared loop pool and currentInnTalkLoop memory.
@@ -2953,8 +2957,12 @@ innSystem = {
 
     // Build 8.25: Bad End "The Burning of Amber Forest"
     showBadEnd: function () {
+        if (typeof visualDirector !== "undefined") {
+            // Remove the forest backdrop before revealing the mysterious location label.
+            visualDirector.setScene("none");
+        }
         RPG.State.mode = "event";
-        RPG.State.location = "ーー？？？ーー"; // ★場所名を謎にする
+        RPG.State.location = "？？？";
         uiControl.updateUI(); // UIに反映
         uiControl.updateControlPanels();
 
@@ -3001,20 +3009,20 @@ innSystem = {
             });
         }
 
-        // Final Action: Show "Return to Title" button
+        // Final Action: return to the inn only after the complete bad-end scene has played.
         RPG.State.dialogueQueue.push({
             text: "",
             delay: 1000,
             action: () => {
-                const btnContainer = document.getElementById('action-buttons');
-                if (btnContainer) {
-                    btnContainer.innerHTML = '';
-                    const btn = document.createElement('button');
-                    btn.className = 'btn btn-full btn-accent';
-                    btn.textContent = 'タイトルへ戻る';
-                    btn.onclick = () => location.reload();
-                    btnContainer.appendChild(btn);
+                // Reuse the established defeat-return path and keep controls locked until
+                // the dialogue queue finishes, matching ordinary defeat recovery.
+                this.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
+                RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
+                RPG.State.isPoisoned = false;
+                if (typeof visualDirector !== "undefined") {
+                    visualDirector.clearScene();
                 }
+                uiControl.updateUI();
             }
         });
 

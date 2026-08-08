@@ -612,6 +612,13 @@ const uiControl = {
                 explorationSystem.isPeacefulReturnActive() &&
                 explorationSystem.isRainActive();
             const shouldGreyOutTalkAndItem = isOnWagonInForest || isRainyPeacefulReturn;
+            const hasPendingGiantLarvaCorpseInspection =
+                RPG.State.currentDistance === 10 &&
+                RPG.State.location !== "かつての街道" &&
+                RPG.State.flags.giantLarvaDefeated === true &&
+                (RPG.State.larvaCorpseStage || 0) < 3;
+            const shouldGreyOutTalk =
+                isOnWagonInForest || (isRainyPeacefulReturn && !hasPendingGiantLarvaCorpseInspection);
 
             if (!RPG.State.isInDungeon) {
                 if (btnEnterInn) btnEnterInn.style.display = 'flex';
@@ -780,7 +787,7 @@ const uiControl = {
                         btnTalk.textContent = "森小屋";
                     }
 
-                    if (shouldGreyOutTalkAndItem) {
+                    if (shouldGreyOutTalk) {
                         btnTalk.disabled = true;
                         btnTalk.style.opacity = "0.25";
                         btnTalk.style.pointerEvents = "none";

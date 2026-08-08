@@ -1522,6 +1522,9 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
       hardOil: RPG.State.inventory.hardOil,
       glossyOil: RPG.State.inventory.glossyOil,
       delivered: RPG.State.flags.innRepairTimberDelivered,
+      amberRewardReceived: RPG.State.flags.innRepairAmberRewardReceived,
+      unknownAmber: RPG.State.inventory.unknownAmber,
+      queuedAmberResults: RPG.State.unappraisedAmberResults,
       memo: uiControl.getJourneyMemo(),
       label: document.getElementById('btnInnObserve')?.textContent,
       logText: document.getElementById('logContainer')?.textContent || '',
@@ -1532,9 +1535,14 @@ test.describe('宿の修繕・導入部分 (innkeeper repair consult + rat-20 bo
     expect(result.hardOil).toBe(0);
     expect(result.glossyOil).toBe(0);
     expect(result.delivered).toBe(true);
+    expect(result.amberRewardReceived).toBe(true);
+    expect(result.unknownAmber).toBe(1);
+    expect(result.queuedAmberResults).toEqual(['milkAmber']);
     expect(result.memo).toBe('宿を直すための木材を店主へ渡した。');
     expect(result.label).toBe('様子を見る');
     expect(result.logText).toContain('これなら板に加工できる。ありがとう、助かったよ');
+    expect(result.logText).toContain('店主「そうだ。物置にあったやつだが、これやるよ」');
+    expect(result.logText).toContain('🔸？琥珀を1個受け取った！');
     expect(result.logText).not.toContain('油を手に入れた');
   });
 
@@ -2160,7 +2168,7 @@ test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/com
       expect(canResumeStill).toBe(true);
     });
 
-    test('only finishing the event consumes glossyOil and sets innRepairCompleted, together', async ({ page }) => {
+    test('only finishing the event consumes glossyOil and sets innRepairCompleted, together, and grants no amber reward (moved to timber delivery)', async ({ page }) => {
       await setRepairBackHalfBaseline(page, {
         flags: { innRepairHelpStarted: true, innRepairOilsReceived: true },
         glossyOil: 1, shinyOil: 1, hardOil: 1,
@@ -2182,13 +2190,13 @@ test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/com
       expect(result.shinyOil).toBe(1);
       expect(result.hardOil).toBe(1);
       expect(result.completed).toBe(true);
-      expect(result.amberRewardReceived).toBe(true);
-      expect(result.unknownAmber).toBe(1);
-      expect(result.queuedAmberResults).toEqual(['milkAmber']);
+      expect(result.amberRewardReceived).toBe(false);
+      expect(result.unknownAmber).toBe(0);
+      expect(result.queuedAmberResults).toEqual([]);
       expect(result.logText).toContain('宿屋の修理が終わった！');
       expect(result.logText).toContain('釘を手に入れた！（店主が）');
-      expect(result.logText).toContain('店主「そうだ。物置にあったやつだが、これやるよ」');
-      expect(result.logText).toContain('🔸？琥珀を1個受け取った！');
+      expect(result.logText).not.toContain('店主「そうだ。物置にあったやつだが、これやるよ」');
+      expect(result.logText).not.toContain('🔸？琥珀を1個受け取った！');
     });
 
     test('the nail is not added as an inventory item', async ({ page }) => {
@@ -2218,10 +2226,12 @@ test.describe('宿の修繕・後半 (help intro + daughter\'s oils + resume/com
       await page.evaluate(() => explorationSystem.talk());
       const logText = await page.evaluate(() => document.getElementById('logContainer')?.textContent || '');
       expect(logText).not.toContain('宿屋の修理が終わった！　宿屋の修理が終わった！');
+      // The amber reward now comes from timber delivery, not from completion, so replaying
+      // (or even just reaching) completion here must not have granted it.
       expect(await page.evaluate(() => ({
         unknownAmber: RPG.State.inventory.unknownAmber,
         queuedAmberResults: RPG.State.unappraisedAmberResults,
-      }))).toEqual({ unknownAmber: 1, queuedAmberResults: ['milkAmber'] });
+      }))).toEqual({ unknownAmber: 0, queuedAmberResults: [] });
     });
 
     test('repeated player-input taps during the finish event do not double-consume or double-complete', async ({ page }) => {

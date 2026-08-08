@@ -3193,6 +3193,12 @@ innSystem = {
                         (RPG.State.inventory.amberTreeTimber || 0) - 1
                     );
                     RPG.State.flags.innRepairTimberDelivered = true;
+                    if (RPG.State.flags.innRepairAmberRewardReceived !== true) {
+                        this.ensureAmberState();
+                        RPG.State.inventory.unknownAmber = (RPG.State.inventory.unknownAmber || 0) + 1;
+                        RPG.State.unappraisedAmberResults.push("milkAmber");
+                        RPG.State.flags.innRepairAmberRewardReceived = true;
+                    }
                     uiControl.updateUI();
                 }
             );

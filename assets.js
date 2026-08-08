@@ -1506,7 +1506,9 @@ RPG.Assets.GAME_TEXT = {
             "カイン「宿を直すのに使えそうな木材を持ってきた」",
             "カインは《琥珀樹の木材》を店主へ渡した。",
             "店主「おお、こいつは頑丈だな。これなら板に加工できる。ありがとう、助かったよ」",
-            "店主は、修繕に使う板材を確保した。"
+            "店主は、修繕に使う板材を確保した。",
+            "店主「そうだ。物置にあったやつだが、これやるよ」",
+            "🔸？琥珀を1個受け取った！"
         ],
         innRepairHelpStart: [
             "カインは、宿屋の外壁に開いた大穴を見た。",
@@ -1582,10 +1584,6 @@ RPG.Assets.GAME_TEXT = {
             "店主「ほどほどに、だ！」",
             "宿屋の修理が終わった！",
             "カイン（タダで泊めてもらってるからな）"
-        ],
-        innRepairAmberReward: [
-            "店主「そうだ。物置にあったやつだが、これやるよ」",
-            "🔸？琥珀を1個受け取った！"
         ],
         // Burning the 《鍵入り琥珀》 on the burn site of a just-defeated amber root. The
         // "🗝️古びた鍵を手に入れた！" line is matched verbatim in exploration.js to attach the

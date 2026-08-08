@@ -396,7 +396,7 @@ RPG.State = {
         innRepairHelpStarted: false, // The innkeeper repair-help intro has played; waiting on the daughter's oils
         innRepairOilsReceived: false, // The daughter has granted all three oils; waiting to resume the repair
         innRepairCompleted: false, // The outer wall hole has been sealed; the repair thread's terminal state
-        innRepairAmberRewardReceived: false, // One-time fixed milk-amber result from the completed repair
+        innRepairAmberRewardReceived: false, // One-time fixed milk-amber result, granted on timber delivery
         // One-time midnight interludes during an ordinary stay, offered only while the repair
         // damage inspection is open. Only "did it happen" is saved - the door/shelf progress
         // inside a single night lives on innSystem.innMidnight and is intentionally transient.

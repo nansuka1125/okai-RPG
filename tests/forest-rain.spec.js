@@ -381,6 +381,39 @@ test.describe('matamatabi night reservation is fur-gated, not activation-gated',
     expect(result).toEqual({ withoutMatamatabi: false, withMatamatabi: true });
   });
 
+  test('a first Lv5 encounter in Phase4 still queues its one-time followup conversation', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const originalPlayDialogueLoop = explorationSystem.playDialogueLoop;
+      explorationSystem.playDialogueLoop = () => {};
+      try {
+        Object.assign(RPG.State, {
+          mode: 'base',
+          storyPhase: 4,
+          isBattling: true,
+          battleState: { playerTookDamage: false },
+          currentEnemy: { id: 'glowing_cat_rabbit', name: '光る猫うさぎ', rabbitLevel: 5, xp: 0, gold: 0 },
+          equippedRareAmberId: null,
+        });
+        RPG.State.flags.glowCatRabbitTalkLv5Done = false;
+        RPG.State.flags.needsGlowingRabbitFur = false;
+        RPG.State.flags.matamatabiActive = false;
+        RPG.State.inventory.glowingCatRabbitFur = 0;
+        RPG.State.inventory.matamatabiBranch = 0;
+
+        battleSystem.endGlowingCatRabbitBattle(false);
+
+        return {
+          queued: RPG.State.dialogueQueue.some(line => line.text === 'カイン「なんだったんだあれは…」'),
+          talkLv5Done: RPG.State.flags.glowCatRabbitTalkLv5Done,
+        };
+      } finally {
+        explorationSystem.playDialogueLoop = originalPlayDialogueLoop;
+      }
+    });
+
+    expect(result).toEqual({ queued: true, talkLv5Done: true });
+  });
+
   test('obtaining the fur reserves the matamatabi night even when Owen licks the branch clean in the same scene', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {

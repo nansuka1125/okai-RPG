@@ -2199,7 +2199,7 @@ const battleSystem = {
     getGlowingCatRabbitFollowupDialogue: function (rabbitLevel) {
         const flags = RPG.State.flags;
 
-        if (rabbitLevel === 5 && RPG.State.storyPhase <= 3 && !flags.glowCatRabbitTalkLv5Done) {
+        if (rabbitLevel === 5 && !flags.glowCatRabbitTalkLv5Done) {
             flags.glowCatRabbitTalkLv5Done = true;
             return [
                 { text: "カイン「なんだったんだあれは…」" },

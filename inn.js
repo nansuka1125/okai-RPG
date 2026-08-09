@@ -1737,11 +1737,10 @@ innSystem = {
         explorationSystem.playDialogueLoop();
     },
 
-    // Mirrors stay()'s own priority chain (from its top guard through the ordinary-lottery
-    // branch) as a pure predicate, so nightMedicine can check "would an ordinary 泊まる right
-    // now lead to anything other than the plain lottery night?" without duplicating judgment -
-    // every condition below is copied verbatim from stay(). Keep this in sync if stay()'s
-    // priority chain changes.
+    // Used from the inn front (see explorationSystem.useItem's 'nightMedicine' case) to check
+    // whether a one-time scripted night event is still owed tonight - not whether stay() would
+    // currently allow an ordinary 泊まる (full-HP blocking, the fixed-room/lottery split, etc.
+    // are irrelevant here; drinking the medicine is its own night event, independent of 泊まる).
     canStartNightMedicineNight: function () {
         if (RPG.State.mode !== "base") return false;
 
@@ -1757,22 +1756,12 @@ innSystem = {
         if (shouldPlayMatamatabiNight) return false;
 
         if (RPG.State.storyPhase === 6 && RPG.State.flags.wagonReadyForDeparture === true) return false;
-        if (RPG.State.storyPhase === 7 && RPG.State.flags.phase7DepartureNightSeen === true) return false;
 
         const shouldPlayPhase6PostDeliverySleep =
             RPG.State.storyPhase === 6 &&
             RPG.State.flags.silverDelivered === true &&
             RPG.State.flags.phase6PostDeliverySleepDone !== true;
         if (shouldPlayPhase6PostDeliverySleep) return false;
-
-        const isAwaitingPostDeliveryRainSleep =
-            RPG.State.flags.thiefDiscoveryStatus === 1 &&
-            RPG.State.flags.hasSleptAfterThief !== true;
-        if (
-            RPG.State.currentHP >= RPG.State.maxHP &&
-            RPG.State.flags.amberMerchantMovePending !== true &&
-            !isAwaitingPostDeliveryRainSleep
-        ) return false;
 
         if (!RPG.State.canStay) return false;
 
@@ -1781,7 +1770,18 @@ innSystem = {
             RPG.State.flags.firstInnSleep === false;
         if (shouldPlayFirstInnSleep) return false;
 
-        if (this.shouldUseFixedRoomStay()) return false;
+        // Only block within the fixed-room era when there's genuinely one-time content still
+        // owed tonight (the forest-pacified night) - shouldUseFixedRoomStay() alone just means
+        // "no lottery flavor text", which has nothing to do with the medicine.
+        if (this.shouldUseFixedRoomStay() && this.shouldPlayForestPacifiedNight()) return false;
+
+        // A one-time automatic morning scene is queued for tomorrow (ordinary lottery and fixed
+        // room mornings both carry this) - protect it the same way stay() does.
+        if (this.getAutomaticMorningTrainingId() !== null) return false;
+        if (
+            RPG.State.flags.morningTraining3Pending === true &&
+            this.canScheduleMorningTraining3()
+        ) return false;
 
         // Within the ordinary lottery: selectInnEvent() steers every candidate toward the
         // repair-investigation midnight interlude whenever it's still pending - not a chance,
@@ -1792,6 +1792,39 @@ innSystem = {
         ) return false;
 
         return true;
+    },
+
+    // 💊夜の薬: confirmation prompt before spending the item. Mirrors the shared choice-mode
+    // pattern used by explorationSystem.showForestHutKeyChoices() - #action-buttons is a
+    // location-independent footer, so this works from the inn front the same way.
+    showNightMedicineChoice: function () {
+        const container = document.getElementById('action-buttons');
+        if (!container) return;
+
+        uiControl.addLog("【夜の薬を飲んで寝ますか？】");
+        RPG.State.mode = 'choice';
+        container.innerHTML = '';
+        container.style.display = 'flex';
+        const addChoice = (text, action) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-full';
+            button.textContent = text;
+            button.onclick = action;
+            container.appendChild(button);
+        };
+
+        addChoice('【はい】', () => {
+            container.style.display = 'none';
+            RPG.State.inventory.nightMedicine = Math.max(0, (RPG.State.inventory.nightMedicine || 0) - 1);
+            this.playNightMedicineSleep();
+        });
+        addChoice('【いいえ】', () => {
+            container.style.display = 'none';
+            RPG.State.mode = 'base';
+            uiControl.updateUI();
+        });
+
+        uiControl.updateUI();
     },
 
     // 💊夜の薬: Lv20 glowing-cat-rabbit reward. Drinking it inside the inn on an otherwise
@@ -1806,11 +1839,12 @@ innSystem = {
 
         state.mode = "event";
         state.canStay = false;
-        state.flags.nightMedicineAftermathPending = true;
         state.dialogueQueue = [];
 
-        // Opening transition: blackout -> switch to the plain room backdrop -> reveal, so the
-        // scripted scene never starts against whatever background the player was standing in.
+        // Opening transition: blackout -> actually enter the inn (state, not just backdrop),
+        // then switch to the plain room -> reveal. Called from the inn front, so this needs the
+        // same "recover to the inn from anywhere" entry showDefeatSequence()/showBadEnd() use -
+        // skipEntryEvents avoids replaying the welcome/thief-collision/phase4-fortune intro.
         state.dialogueQueue.push(
             {
                 text: null,
@@ -1824,6 +1858,12 @@ innSystem = {
                 text: null,
                 delay: 800,
                 action: () => {
+                    this.enterInn(false, {
+                        preserveEventMode: true,
+                        skipEntryEvents: true,
+                        suppressWelcome: true
+                    });
+                    state.canStay = false;
                     this.showInnScene("room");
                 }
             },
@@ -1896,6 +1936,9 @@ innSystem = {
                     state.poisonDamageRemaining = 0;
                     state.flags.matamatabiActive = false;
                     state.matamatabiStepsRemaining = 0;
+                    if (this.canScheduleMorningTraining3()) {
+                        state.flags.morningTraining3Pending = true;
+                    }
                     uiControl.updateUI();
                 }
             },
@@ -1925,6 +1968,8 @@ innSystem = {
                     if (recoveryAmount > 0) {
                         uiControl.addLog(`HPが${recoveryAmount}回復した。`, "", "#9acd32");
                     }
+                    state.flags.nightMedicineAftermathPending = true;
+                    state.flags.nightMedicineAftermathSeen = false;
                     this.showInnScene("lobby");
                     uiControl.updateUI();
                 }
@@ -1937,6 +1982,7 @@ innSystem = {
     enterInn: function (showGreeting = true, options = {}) {
         const preserveEventMode = options.preserveEventMode === true;
         const skipEntryEvents = options.skipEntryEvents === true;
+        const suppressWelcome = options.suppressWelcome === true;
 
         // Build 12.1.0: Delegated to scenarioEvents
         if (!skipEntryEvents && scenarioEvents.thiefBoyEvent.handleInnEntranceCollision()) return;
@@ -1957,7 +2003,9 @@ innSystem = {
         RPG.State.currentInnTalkLoop = null;
         RPG.State.mode = preserveEventMode ? "event" : "base";
         RPG.State.location = "宿屋《琥珀亭》";
-        uiControl.addLog(RPG.Assets.GAME_TEXT.inn.welcome, "marker");
+        if (!suppressWelcome) {
+            uiControl.addLog(RPG.Assets.GAME_TEXT.inn.welcome, "marker");
+        }
 
         if (showGreeting && RPG.State.flags.silverDelivered === true) {
             uiControl.addLog(RPG.Assets.GAME_TEXT.inn.ownerGreeting);

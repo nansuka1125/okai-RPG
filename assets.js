@@ -79,7 +79,7 @@ RPG.Assets.CONFIG = {
         lightBook: "光る猫うさぎの本？",
         purpleMacaron: "体に悪そうな色をしている。",
         glowingBunnyEars: "片方がうさ耳、片方が猫耳。",
-        nightMedicine: "寝る前に飲もう。",
+        nightMedicine: "寝る前に飲もう。宿屋前で使おう。",
         glowingBrooch: "小さく開く構造になっている。",
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",

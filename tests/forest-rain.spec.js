@@ -504,7 +504,7 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
     expect(await readState()).toEqual({ nightMedicine: 1, received: true });
   });
 
-  test('canStartNightMedicineNight() reuses stay()\'s own priority chain: false while a priority night event is pending, true on a plain night', async ({ page }) => {
+  test('canStartNightMedicineNight(): false while a priority night event is pending, true on a plain night', async ({ page }) => {
     const result = await page.evaluate(() => {
       Object.assign(RPG.State, {
         mode: 'base',
@@ -531,9 +531,21 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
     expect(result).toEqual({ withMatamatabiPending: false, plainNight: true });
   });
 
-  test('using nightMedicine away from the inn shows the flavor line and does not consume it', async ({ page }) => {
+  test('the inn interior command panel has no item button, which is why nightMedicine can only ever be used from the inn front', async ({ page }) => {
+    const hasItemButtonInInnUI = await page.evaluate(() => (
+      document.querySelector('#innUI #btnItem') !== null
+    ));
+    expect(hasItemButtonInInnUI).toBe(false);
+  });
+
+  test('using nightMedicine away from the inn front (e.g. the forest) shows the flavor line and does not consume it', async ({ page }) => {
     const result = await page.evaluate(() => {
-      Object.assign(RPG.State, { mode: 'base', isAtInn: false });
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+      });
       RPG.State.inventory.nightMedicine = 1;
       const log = document.getElementById('logContainer');
       if (log) log.innerHTML = '';
@@ -549,9 +561,29 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
     expect(result.log).toContain('カイン（寝る前に飲もう）');
   });
 
-  test('using nightMedicine at the inn while a priority night event is pending does not consume it or start the scene', async ({ page }) => {
+  test('using nightMedicine inside the inn interior also shows the flavor line (there is no item command there in practice, but the guard still holds)', async ({ page }) => {
     const result = await page.evaluate(() => {
-      Object.assign(RPG.State, { mode: 'base', isAtInn: true, storyPhase: 4, canStay: true });
+      Object.assign(RPG.State, { mode: 'base', isAtInn: true, isInDungeon: false });
+      RPG.State.inventory.nightMedicine = 1;
+      const log = document.getElementById('logContainer');
+      if (log) log.innerHTML = '';
+      explorationSystem.useItem('nightMedicine');
+      return {
+        nightMedicine: RPG.State.inventory.nightMedicine,
+        mode: RPG.State.mode,
+        log: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(result.nightMedicine).toBe(1);
+    expect(result.mode).toBe('base');
+    expect(result.log).toContain('カイン（寝る前に飲もう）');
+  });
+
+  test('using nightMedicine at the inn front while a priority night event is pending does not consume it or open the confirmation', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 4, canStay: true,
+      });
       RPG.State.flags.silverDelivered = false;
       RPG.State.flags.matamatabiNightPending = true;
       RPG.State.flags.matamatabiNightSeen = false;
@@ -572,11 +604,138 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
     expect(result.log).toContain('カイン（…今夜はやめておこう）');
   });
 
-  test('using nightMedicine on a plain inn night plays the full scene through to the flavor-only ending, with no evasion state and the aftermath queued', async ({ page }) => {
+  test('answering いいえ to the confirmation leaves the medicine unconsumed and returns to base mode', async ({ page }) => {
+    const setup = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 4, canStay: true,
+        currentHP: 10, maxHP: 140,
+      });
+      RPG.State.silverCoins = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+      return {
+        buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+        modeAtChoice: RPG.State.mode,
+      };
+    });
+    expect(setup.buttons).toEqual(['【はい】', '【いいえ】']);
+    expect(setup.modeAtChoice).toBe('choice');
+
+    await page.getByRole('button', { name: '【いいえ】', exact: true }).click();
+    const after = await page.evaluate(() => ({
+      nightMedicine: RPG.State.inventory.nightMedicine,
+      mode: RPG.State.mode,
+    }));
+    expect(after).toEqual({ nightMedicine: 1, mode: 'base' });
+  });
+
+  test('regression: full HP at the inn front still reaches the confirmation dialog', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 4, canStay: true,
+        currentHP: 140, maxHP: 140,
+      });
+      RPG.State.silverCoins = 0;
+      RPG.State.inventory.silverCoin = 0;
+      RPG.State.flags.silverDelivered = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.amberMerchantMovePending = false;
+      RPG.State.flags.thiefDiscoveryStatus = 0;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+      return {
+        buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+        nightMedicine: RPG.State.inventory.nightMedicine,
+      };
+    });
+    expect(result.buttons).toEqual(['【はい】', '【いいえ】']);
+    expect(result.nightMedicine).toBe(1);
+  });
+
+  test('regression: the fixed-room era without a pending forest-pacified night still reaches the confirmation dialog', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 6, canStay: true,
+        currentHP: 10, maxHP: 140,
+      });
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      RPG.State.flags.forest2mPacifiedTalkSeen = false;
+      RPG.State.flags.forestPacifiedNightSeen = false;
+      RPG.State.flags.wagonReadyForDeparture = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+      return {
+        buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+        nightMedicine: RPG.State.inventory.nightMedicine,
+      };
+    });
+    expect(result.buttons).toEqual(['【はい】', '【いいえ】']);
+    expect(result.nightMedicine).toBe(1);
+  });
+
+  test('regression: Phase7 ordinary fixed-room stays still reach the confirmation dialog', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 7, canStay: true,
+        currentHP: 10, maxHP: 140,
+      });
+      RPG.State.flags.phase7DepartureNightSeen = true;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+      return {
+        buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+        nightMedicine: RPG.State.inventory.nightMedicine,
+      };
+    });
+    expect(result.buttons).toEqual(['【はい】', '【いいえ】']);
+    expect(result.nightMedicine).toBe(1);
+  });
+
+  test('regression: pending automatic morning training 3 protects the night', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base', isAtInn: false, isInDungeon: false, storyPhase: 6, canStay: true,
+        currentHP: 10, maxHP: 140,
+      });
+      RPG.State.flags.silverDelivered = true;
+      RPG.State.flags.phase6PostDeliverySleepDone = true;
+      RPG.State.flags.morningTraining2Done = true;
+      RPG.State.flags.morningTraining3Done = false;
+      RPG.State.flags.morningTraining3Pending = true;
+      RPG.State.flags.forest2mPacifiedTalkSeen = false;
+      RPG.State.flags.forestPacifiedNightSeen = false;
+      RPG.State.flags.matamatabiNightPending = false;
+      RPG.State.flags.innRepairInspectionUnlocked = false;
+      RPG.State.inventory.nightMedicine = 1;
+      explorationSystem.useItem('nightMedicine');
+      return {
+        nightMedicine: RPG.State.inventory.nightMedicine,
+        mode: RPG.State.mode,
+        log: document.getElementById('logContainer')?.textContent || '',
+      };
+    });
+    expect(result).toEqual(expect.objectContaining({ nightMedicine: 1, mode: 'base' }));
+    expect(result.log).toContain('カイン（…今夜はやめておこう）');
+  });
+
+  test('using nightMedicine at the inn front on a plain night opens the confirmation, then はい plays the full scene through to the flavor-only ending, with no evasion state and the aftermath queued', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
         mode: 'base',
-        isAtInn: true,
+        isAtInn: false,
+        isInDungeon: false,
         storyPhase: 4,
         canStay: true,
         currentHP: 10,
@@ -593,9 +752,21 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
       RPG.State.flags.innRepairInspectionUnlocked = false;
       RPG.State.flags.nightMedicineAftermathPending = false;
       RPG.State.flags.nightMedicineAftermathSeen = false;
+      RPG.State.flags.morningTraining2Done = true;
+      RPG.State.flags.morningTraining3Done = false;
+      RPG.State.flags.morningTraining3Pending = false;
       RPG.State.inventory.nightMedicine = 1;
       explorationSystem.useItem('nightMedicine');
     });
+
+    const beforeConfirm = await page.evaluate(() => ({
+      buttons: [...document.querySelectorAll('#action-buttons button')].map(b => b.textContent),
+      nightMedicine: RPG.State.inventory.nightMedicine,
+    }));
+    expect(beforeConfirm.buttons).toEqual(['【はい】', '【いいえ】']);
+    expect(beforeConfirm.nightMedicine).toBe(1);
+
+    await page.getByRole('button', { name: '【はい】', exact: true }).click();
     await drainDialogue(page, 350);
 
     const result = await page.evaluate(() => ({
@@ -605,8 +776,10 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
       poisonDamageRemaining: RPG.State.poisonDamageRemaining,
       matamatabiActive: RPG.State.flags.matamatabiActive,
       canStay: RPG.State.canStay,
+      isAtInn: RPG.State.isAtInn,
       aftermathPending: RPG.State.flags.nightMedicineAftermathPending,
       aftermathSeen: RPG.State.flags.nightMedicineAftermathSeen,
+      morningTraining3Pending: RPG.State.flags.morningTraining3Pending,
       evasionRemaining: RPG.State.nightMedicineEvasionBattlesRemaining,
       mode: RPG.State.mode,
       log: document.getElementById('logContainer')?.textContent || '',
@@ -619,21 +792,25 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
       poisonDamageRemaining: 0,
       matamatabiActive: false,
       canStay: false,
+      isAtInn: true,
       aftermathPending: true,
       aftermathSeen: false,
+      morningTraining3Pending: true,
       evasionRemaining: undefined,
       mode: 'base',
     });
     expect(result.log).toContain('カインは💊夜の薬を飲んだ！');
     expect(result.log).toContain('カインの感覚が鋭敏になった！');
     expect(result.log).not.toContain('回避が一時的に大幅アップ');
+    expect(result.log).not.toContain('―― 宿屋《琥珀亭》 ――');
   });
 
   test('the inn-front aftermath does not fire immediately after the medicine night, only once the player actually exits to 宿屋前', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
         mode: 'base',
-        isAtInn: true,
+        isAtInn: false,
+        isInDungeon: false,
         storyPhase: 4,
         canStay: true,
         currentHP: 10,
@@ -651,6 +828,7 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
       RPG.State.inventory.nightMedicine = 1;
       explorationSystem.useItem('nightMedicine');
     });
+    await page.getByRole('button', { name: '【はい】', exact: true }).click();
     await drainDialogue(page, 350);
 
     const rightAfter = await page.evaluate(() => ({

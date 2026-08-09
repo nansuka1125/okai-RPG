@@ -3758,8 +3758,9 @@ const explorationSystem = {
                 success = true;
                 consumeItem = false;
                 break;
-            case 'nightMedicine':
-                if (!RPG.State.isAtInn) {
+            case 'nightMedicine': {
+                const isAtInnFront = RPG.State.isAtInn !== true && RPG.State.isInDungeon !== true;
+                if (!isAtInnFront) {
                     uiControl.addLog("カイン（寝る前に飲もう）");
                     uiControl.closeModal();
                     return;
@@ -3769,11 +3770,10 @@ const explorationSystem = {
                     uiControl.closeModal();
                     return;
                 }
-                RPG.State.inventory[itemId]--;
-                uiControl.updateUI();
                 uiControl.closeModal();
-                innSystem.playNightMedicineSleep();
+                innSystem.showNightMedicineChoice();
                 return;
+            }
             case 'lightBook':
             case 'purpleMacaron':
                 success = true;

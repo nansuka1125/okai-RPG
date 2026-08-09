@@ -1091,6 +1091,13 @@ const uiControl = {
         return `(×${count})`;
     },
 
+    getItemDescription: function (itemId) {
+        if (itemId === 'secretLetter' && RPG.State.flags.secretLetterRead === true) {
+            return RPG.Assets.CONFIG.ITEM_DESC.secretLetterBody;
+        }
+        return RPG.Assets.CONFIG.ITEM_DESC[itemId];
+    },
+
     getHighHerbJamDescriptionSuffix: function (itemId, count) {
         if (itemId !== 'highHerbJam') return "";
         return `あと${count}回分ある。`;
@@ -1180,7 +1187,7 @@ const uiControl = {
     selectItem: function (key, count) {
         const detail = document.getElementById('itemDetailArea');
         if (!detail) return;
-        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> ${this.getInventoryCountLabel(key, count)}<br><span style="font-size:12px;color:#aaa;">${RPG.Assets.CONFIG.ITEM_DESC[key]}${this.getHighHerbJamDescriptionSuffix(key, count)}${this.getVampireAmberChainDescriptionSuffix(key)}</span>`;
+        let html = `<strong>${RPG.Assets.CONFIG.ITEM_NAME[key]}</strong> ${this.getInventoryCountLabel(key, count)}<br><span style="font-size:12px;color:#aaa;">${this.getItemDescription(key)}${this.getHighHerbJamDescriptionSuffix(key, count)}${this.getVampireAmberChainDescriptionSuffix(key)}</span>`;
 
         // アイテム使用ボタンの表示判定
         // 将来的にはtype判定などが望ましいが、今はswitchか個別判定

@@ -3532,7 +3532,7 @@ const explorationSystem = {
             return [
                 { text: "カインは秘密のお手紙を読んだ。" },
                 {
-                    text: RPG.Assets.CONFIG.ITEM_DESC.secretLetter,
+                    text: RPG.Assets.CONFIG.ITEM_DESC.secretLetterBody,
                     type: "marker",
                     color: "#f1e6c8",
                     action: () => {

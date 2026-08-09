@@ -800,6 +800,8 @@ test.describe('glowing cat rabbit Lv20 reward: 💊夜の薬', () => {
       mode: 'base',
     });
     expect(result.log).toContain('カインは💊夜の薬を飲んだ！');
+    expect(result.log).toContain('朝になった！');
+    expect(result.log).toContain('カインはベッドで目を覚ました。');
     expect(result.log).toContain('カインの感覚が鋭敏になった！');
     expect(result.log).not.toContain('回避が一時的に大幅アップ');
     expect(result.log).not.toContain('―― 宿屋《琥珀亭》 ――');

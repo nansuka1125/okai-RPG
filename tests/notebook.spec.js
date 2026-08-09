@@ -1406,6 +1406,10 @@ test.describe('討伐ノート (bounty notebook)', () => {
       const letterHasUseButton = Boolean(
         document.querySelector('#itemDetailArea button')
       );
+      const unreadLetterDescription = document.getElementById('itemDetailArea')?.textContent || '';
+      RPG.State.flags.secretLetterRead = true;
+      uiControl.selectItem('secretLetter', 1);
+      const readLetterDescription = document.getElementById('itemDetailArea')?.textContent || '';
 
       return {
         unknownAmber: RPG.State.inventory.unknownAmber,
@@ -1417,6 +1421,8 @@ test.describe('討伐ノート (bounty notebook)', () => {
         inventoryText,
         amberHasUseButton,
         letterHasUseButton,
+        unreadLetterDescription,
+        readLetterDescription,
         socketable: RPG.Assets.RARE_AMBER_CATALOG.some(
           amber => amber.id === 'unknownAmber'
         ),
@@ -1429,10 +1435,12 @@ test.describe('討伐ノート (bounty notebook)', () => {
       amberName: '🔸？琥珀',
       amberDescription: 'まだ鑑定されていない琥珀。琥珀商なら正体が分かる。',
       letterName: '㊙️秘密のお手紙',
-      letterDescription: '『カインさんが森で活躍している姿を、いつも素敵だなと思っています。\n今度、よかったら一緒に森でピクニックしませんか？』',
+      letterDescription: '俺への手紙。読もう。',
       inventoryText: '🔸？琥珀 (×3)㊙️秘密のお手紙 (×1)',
       amberHasUseButton: false,
       letterHasUseButton: true,
+      unreadLetterDescription: expect.stringContaining('俺への手紙。読もう。'),
+      readLetterDescription: expect.stringContaining('『カインさんが森で活躍している姿を、いつも素敵だなと思っています。\n今度、よかったら一緒に森でピクニックしませんか？』'),
       socketable: false,
     });
   });

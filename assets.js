@@ -84,7 +84,7 @@ RPG.Assets.CONFIG = {
         lightRabbitBrooch: "耐混乱/耐幻惑の効果がある。",
         unknownAmber: "まだ鑑定されていない琥珀。琥珀商なら正体が分かる。",
         vampireAmber: "自分のHPを少し吸う代わりに、攻撃力を大きく高めるレア琥珀。宿屋の娘がなぜこれを……？",
-        secretLetter: "誰かに宛てて書かれた手紙。",
+        secretLetter: "『カインさんが森で活躍している姿を、いつも素敵だなと思っています。\n今度、よかったら一緒に森でピクニックしませんか？』",
         borrowedMiningKnife: "琥珀商から借りた採掘用のナイフ。大事な商売道具らしい。",
         miningKnife: "琥珀を採掘するためのナイフ。借りた時から性能は変わっていない。",
         amberTreeTimber: "表面が琥珀化した、硬く丈夫な木材。",

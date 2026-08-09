@@ -637,9 +637,8 @@ const PICNIC_FOREST_LAST_LINE = '（一蓮托生という言葉が浮かんだ�
 const PICNIC_INN_FRONT_FIRST_LINE = '娘は仕事に戻っていった。';
 const PICNIC_INN_FRONT_LAST_LINE = 'だが何も言わなかった。';
 
-// v2: the date is no longer forced from stay() - it's a button (【娘とデート】, swapped in for
-// 討伐ノート) the player clicks once secretLetter is held, the herb-garden handhold event is
-// behind him, and at least one stay has passed since the letter arrived.
+// v2: the date button unlocks after the player reads secretLetter, stays once, and completes the
+// herb-garden handhold event.
 test.describe('inn stay: picnic date button (secretLetter)', () => {
   test.beforeEach(async ({ page }) => {
     page.on('pageerror', error => {
@@ -675,14 +674,47 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
     expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
   });
 
-  test('without the herb-garden handhold event, a stay does not ready the date button', async ({ page }) => {
+  test('a read letter stays locked after one stay until the herb-garden handhold flag is set', async ({ page }) => {
     await setStayState(page, { flags: { herbGardenHandholdAttempted: false } });
-    await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
+    await page.evaluate(() => {
+      RPG.State.inventory.secretLetter = 1;
+      explorationSystem.useItem('secretLetter');
+    });
+    await drainStay(page);
     await callStay(page);
     await drainStay(page);
 
-    const state = await notebookButtonState(page);
-    expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
+    const beforeHandhold = await notebookButtonState(page);
+    expect(beforeHandhold).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
+
+    const afterHandhold = await page.evaluate(() => {
+      RPG.State.flags.herbGardenHandholdAttempted = true;
+      uiControl.updateUI();
+      const btn = document.getElementById('btnInnNotebook');
+      return { text: btn?.textContent, disabled: Boolean(btn?.disabled), display: btn?.style.display };
+    });
+    expect(afterHandhold).toEqual({ text: '娘とデート', disabled: false, display: 'flex' });
+  });
+
+  test('reading the letter and staying does not start the date until the unlocked command is used', async ({ page }) => {
+    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
+    await page.evaluate(() => {
+      RPG.State.inventory.secretLetter = 1;
+      explorationSystem.useItem('secretLetter');
+    });
+    await drainStay(page);
+    await callStay(page);
+    await drainStay(page);
+
+    const result = await page.evaluate(() => ({
+      secretLetter: RPG.State.inventory.secretLetter,
+      mode: RPG.State.mode,
+      log: document.getElementById('logContainer')?.textContent || '',
+    }));
+    expect(result.secretLetter).toBe(1);
+    expect(result.mode).toBe('base');
+    expect(result.log).not.toContain('【ピクニックデート】');
+    expect(await notebookButtonState(page)).toEqual({ text: '娘とデート', disabled: false, display: 'flex' });
   });
 
   test('an unread letter stays pending after a stay, without starting the date', async ({ page }) => {
@@ -693,27 +725,6 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
 
     const state = await notebookButtonState(page);
     expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
-  });
-
-  test('reading the letter then staying automatically plays the picnic date', async ({ page }) => {
-    await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
-    await page.evaluate(() => {
-      RPG.State.inventory.secretLetter = 1;
-      explorationSystem.useItem('secretLetter');
-    });
-    await drainStay(page);
-
-    await callStay(page);
-    await drainStay(page, 30000);
-
-    const result = await page.evaluate(() => ({
-      secretLetter: RPG.State.inventory.secretLetter,
-      mode: RPG.State.mode,
-      log: document.getElementById('logContainer')?.textContent || '',
-    }));
-    expect(result.secretLetter).toBe(0);
-    expect(result.mode).toBe('base');
-    expect(result.log).toContain('【ピクニックデート】');
   });
 
   test('clicking the date button plays the full scene without touching real exploration state', async ({ page }) => {

@@ -1011,14 +1011,6 @@ const explorationSystem = {
                 visualDirector.clearInnScene();
             }
 
-            if (
-                typeof innSystem !== "undefined" &&
-                innSystem.shouldAutoPlayPicnicDateAfterStay()
-            ) {
-                innSystem.playPicnicDateScene();
-                return;
-            }
-
             // UIロック解除
             const allButtons = document.querySelectorAll('button');
             allButtons.forEach(btn => {

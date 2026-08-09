@@ -1429,7 +1429,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
       amberName: '🔸？琥珀',
       amberDescription: 'まだ鑑定されていない琥珀。琥珀商なら正体が分かる。',
       letterName: '㊙️秘密のお手紙',
-      letterDescription: '誰かに宛てて書かれた手紙。',
+      letterDescription: '『カインさんが森で活躍している姿を、いつも素敵だなと思っています。\n今度、よかったら一緒に森でピクニックしませんか？』',
       inventoryText: '🔸？琥珀 (×3)㊙️秘密のお手紙 (×1)',
       amberHasUseButton: false,
       letterHasUseButton: true,
@@ -1454,7 +1454,7 @@ test.describe('討伐ノート (bounty notebook)', () => {
     expect(result.secretLetter).toBe(1);
     expect(result.secretLetterRead).toBe(true);
     expect(result.log).toContain('カインは秘密のお手紙を読んだ。');
-    expect(result.log).toContain('誰かに宛てて書かれた手紙。');
+    expect(result.log).toContain('『カインさんが森で活躍している姿を、いつも素敵だなと思っています。\n今度、よかったら一緒に森でピクニックしませんか？』');
   });
 
   test('old special unknown amber saves migrate into the unified confirmed stack', async ({ page }) => {

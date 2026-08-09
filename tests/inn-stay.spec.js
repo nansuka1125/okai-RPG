@@ -727,7 +727,7 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
     expect(state).toEqual({ text: '討伐ノート', disabled: true, display: 'flex' });
   });
 
-  test('clicking the date button plays the full scene without touching real exploration state', async ({ page }) => {
+  test('clicking the date button plays the full scene and finishes at the inn front', async ({ page }) => {
     await setStayState(page, { flags: { herbGardenHandholdAttempted: true } });
     await page.evaluate(() => { RPG.State.inventory.secretLetter = 1; });
     await callStay(page);
@@ -755,6 +755,7 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
       secretLetter: RPG.State.inventory.secretLetter,
       mode: RPG.State.mode,
       sceneOverride: visualDirector.sceneOverride,
+      location: RPG.State.location,
       isInDungeon: RPG.State.isInDungeon,
       explorationArea: RPG.State.explorationArea,
       currentDistance: RPG.State.currentDistance,
@@ -765,10 +766,11 @@ test.describe('inn stay: picnic date button (secretLetter)', () => {
       secretLetter: 0,
       mode: 'base',
       sceneOverride: null,
+      location: '宿屋前',
       isInDungeon: false,
       explorationArea: null,
       currentDistance: 0,
-      isAtInn: true,
+      isAtInn: false,
       picnicDateStaySincePassed: false,
     });
 

@@ -369,6 +369,7 @@ innSystem = {
             {
                 text: null,
                 action: () => {
+                    this.moveToInnFrontForMorning();
                     visualDirector.clearScene();
                     RPG.State.mode = "base";
                     uiControl.updateUI();

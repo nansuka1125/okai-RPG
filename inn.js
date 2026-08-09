@@ -3193,6 +3193,7 @@ innSystem = {
                     this.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
                     RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                     RPG.State.isPoisoned = false;
+                    RPG.State.poisonDamageRemaining = 0;
                     uiControl.updateUI();
                 }
             });
@@ -3233,6 +3234,7 @@ innSystem = {
                 // 宿屋についてからHPを10%にする
                 RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                 RPG.State.isPoisoned = false;
+                RPG.State.poisonDamageRemaining = 0;
                 uiControl.updateUI(); // ゲージを動かす
             }
         });
@@ -3329,9 +3331,11 @@ innSystem = {
             action: () => {
                 // Reuse the established defeat-return path and keep controls locked until
                 // the dialogue queue finishes, matching ordinary defeat recovery.
+                this.showInnScene("room");
                 this.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
                 RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                 RPG.State.isPoisoned = false;
+                RPG.State.poisonDamageRemaining = 0;
                 if (typeof visualDirector !== "undefined") {
                     visualDirector.clearScene();
                 }

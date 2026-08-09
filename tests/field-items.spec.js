@@ -523,6 +523,61 @@ test.describe('field utility items', () => {
     expect(result).toEqual({ location: '？？？', activeScene: 'none', hasForestClass: false });
   });
 
+  test('the Lv88 bad end keeps ordinary exploration controls disabled', async ({ page }) => {
+    await page.evaluate(() => {
+      RPG.State.debug.isSkipping = true;
+      RPG.State.flags.hasIntroFinished = true;
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        currentDistance: 5,
+        location: '琥珀の森',
+        currentHP: 140,
+        maxHP: 140,
+        isBattling: true,
+        currentEnemy: { id: 'glowing_cat_rabbit', hp: 9999 },
+        battleState: {},
+      });
+      battleSystem.showGlowingCatRabbitLv88BadEnd();
+      explorationSystem.playDialogueLoop();
+    });
+
+    for (let i = 0; i < 100; i++) {
+      const mode = await page.evaluate(() => {
+        if (RPG.State.mode === 'event') uiControl.handlePlayerInput();
+        return RPG.State.mode;
+      });
+      if (mode === 'choice') break;
+      await page.waitForTimeout(10);
+    }
+
+    const result = await page.evaluate(() => ({
+      mode: RPG.State.mode,
+      location: RPG.State.location,
+      activeScene: visualDirector.getActiveScene(),
+      exploreDisplay: document.getElementById('exploreUI')?.style.display,
+      actionDisplay: document.getElementById('action-buttons')?.style.display,
+      actions: [...document.querySelectorAll('#action-buttons button')].map(button => ({
+        text: button.textContent,
+        disabled: button.disabled,
+      })),
+    }));
+    await page.evaluate(() => {
+      RPG.State.debug.isSkipping = false;
+    });
+
+    expect(result).toMatchObject({
+      mode: 'choice',
+      location: '？？？',
+      activeScene: 'none',
+      exploreDisplay: 'none',
+      actionDisplay: 'flex',
+    });
+    expect(result.actions).toEqual([{ text: 'タイトルへ戻る', disabled: false }]);
+  });
+
   test('using the grateful talisman from inventory prepares it once and consumes one charge', async ({ page }) => {
     const result = await page.evaluate(() => {
       const logContainer = document.getElementById('logContainer');

@@ -2358,6 +2358,8 @@ test.describe('Chapter 1 amber system', () => {
           battleState: { playerTookDamage: true },
           equippedRareAmberId: 'vampireAmber',
           deathCount: ov.deathCount ?? 0,
+          isPoisoned: ov.isPoisoned ?? false,
+          poisonDamageRemaining: ov.poisonDamageRemaining ?? 0,
           exp: 0,
         });
         RPG.State.inventory.glowingBrooch = 1;
@@ -2476,7 +2478,7 @@ test.describe('Chapter 1 amber system', () => {
     });
 
     test('the accident fully resolves back to the inn with HP restored', async ({ page }) => {
-      await setupAccidentState(page, { chainCount: 2 });
+      await setupAccidentState(page, { chainCount: 2, isPoisoned: true, poisonDamageRemaining: 20 });
       await page.evaluate(() => {
         battleSystem.executeStandardVictory('test_dummy');
       });
@@ -2487,11 +2489,13 @@ test.describe('Chapter 1 amber system', () => {
         location: RPG.State.location,
         currentHP: RPG.State.currentHP,
         maxHP: RPG.State.maxHP,
+        poisonDamageRemaining: RPG.State.poisonDamageRemaining,
       }));
       expect(result.mode).toBe('base');
       expect(result.isAtInn).toBe(true);
       expect(result.location).toBe('宿屋《琥珀亭》');
       expect(result.currentHP).toBe(Math.floor(result.maxHP * 0.1));
+      expect(result.poisonDamageRemaining).toBe(0);
     });
 
     test('the accident stops auto-triggering after the first matamatabi activation gate is done', async ({ page }) => {

@@ -6,6 +6,8 @@ async function openGame(page) {
   await page.waitForFunction(() => (
     typeof RPG !== 'undefined' &&
     typeof battleSystem !== 'undefined' &&
+    typeof Cinematics !== 'undefined' &&
+    typeof visualDirector !== 'undefined' &&
     RPG.Assets?.BATTLE_AI?.giant_larva
   ));
 }
@@ -185,6 +187,64 @@ test.describe('giant larva balance', () => {
       maxHP: 160,
       attack: 22,
       bossMaxHP: 264,
+    });
+  });
+
+  test('giant larva defeat returns to the inn front and resets the vampire amber chain', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const originalTimeout = window.setTimeout;
+      window.setTimeout = callback => {
+        callback();
+        return 0;
+      };
+
+      try {
+        Object.assign(RPG.State, {
+          mode: 'battle',
+          isAtInn: false,
+          isInDungeon: true,
+          explorationArea: 'forest',
+          location: '森の深層',
+          currentDistance: 10,
+          currentHP: 0,
+          maxHP: 140,
+          isPoisoned: true,
+          poisonDamageRemaining: 20,
+          isBattling: true,
+          currentEnemy: { id: 'giant_larva', name: '泥這う大幼蟲' },
+          battleState: {},
+        });
+        RPG.State.flags.vampireAmberChainBattleCount = 5;
+        Cinematics.playGiantLarvaDefeat();
+
+        return {
+          mode: RPG.State.mode,
+          location: RPG.State.location,
+          isAtInn: RPG.State.isAtInn,
+          isInDungeon: RPG.State.isInDungeon,
+          explorationArea: RPG.State.explorationArea,
+          currentDistance: RPG.State.currentDistance,
+          isPoisoned: RPG.State.isPoisoned,
+          poisonDamageRemaining: RPG.State.poisonDamageRemaining,
+          chainCount: RPG.State.flags.vampireAmberChainBattleCount,
+          activeScene: visualDirector.getActiveScene(),
+        };
+      } finally {
+        window.setTimeout = originalTimeout;
+      }
+    });
+
+    expect(result).toMatchObject({
+      mode: 'base',
+      location: '宿屋前',
+      isAtInn: false,
+      isInDungeon: false,
+      explorationArea: null,
+      currentDistance: 0,
+      isPoisoned: false,
+      poisonDamageRemaining: 0,
+      chainCount: 0,
+      activeScene: 'inn-front',
     });
   });
 

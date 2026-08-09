@@ -175,6 +175,7 @@ const Cinematics = {
             RPG.State.isAtInn = false;
             RPG.State.currentDistance = 0; // Inn Front
             RPG.State.location = "宿屋前";
+            uiControl.resetVampireAmberChain();
             RPG.State.battleState = null;
 
             uiControl.updateUI();

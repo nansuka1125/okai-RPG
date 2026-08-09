@@ -1010,6 +1010,7 @@ test.describe('Chapter 1 completion route', () => {
         currentHP: 0,
         maxHP: 140,
         isPoisoned: true,
+        poisonDamageRemaining: 40,
         dialogueQueue: [],
       });
       visualDirector.clearScene();
@@ -1045,6 +1046,23 @@ test.describe('Chapter 1 completion route', () => {
     expect(clearedIndex).toBeGreaterThanOrEqual(0);
     expect(unknownLocationIndex).toBeGreaterThan(clearedIndex);
 
+    await drainDialogueUntilLogContains(page, 'カインは宿屋のベッドで目を覚ました。');
+
+    const wakeup = await page.evaluate(() => ({
+      activeScene: visualDirector.getActiveScene(),
+      isAtInn: RPG.State.isAtInn,
+      isInDungeon: RPG.State.isInDungeon,
+      mode: RPG.State.mode,
+      poisonDamageRemaining: RPG.State.poisonDamageRemaining,
+    }));
+    expect(wakeup).toEqual({
+      activeScene: 'inn-room',
+      isAtInn: true,
+      isInDungeon: false,
+      mode: 'event',
+      poisonDamageRemaining: 0,
+    });
+
     await drainDialogue(page, 10000);
 
     const result = await page.evaluate(() => ({
@@ -1075,6 +1093,42 @@ test.describe('Chapter 1 completion route', () => {
     expect(result.log).toContain('【BAD END 〜琥珀の森焼失〜】');
   });
 
+  test('a standard defeat clears poison residue on the ordinary inn return', async ({ page }) => {
+    await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        mode: 'base',
+        isAtInn: false,
+        isInDungeon: true,
+        explorationArea: 'forest',
+        location: '森の深層',
+        currentDistance: 8,
+        currentHP: 0,
+        maxHP: 140,
+        isPoisoned: true,
+        poisonDamageRemaining: 40,
+        deathCount: 0,
+        dialogueQueue: [],
+      });
+      RPG.State.flags.badEndSeen = false;
+      innSystem.showDefeatSequence('rat');
+    });
+
+    await drainDialogue(page, 10000);
+
+    const result = await page.evaluate(() => ({
+      isAtInn: RPG.State.isAtInn,
+      mode: RPG.State.mode,
+      isPoisoned: RPG.State.isPoisoned,
+      poisonDamageRemaining: RPG.State.poisonDamageRemaining,
+    }));
+    expect(result).toEqual({
+      isAtInn: true,
+      mode: 'base',
+      isPoisoned: false,
+      poisonDamageRemaining: 0,
+    });
+  });
+
   test('the 4th defeat plays BAD END once, ends with the bedside wake-up lines, and marks badEndSeen', async ({ page }) => {
     await page.evaluate(() => {
       Object.assign(RPG.State, {
@@ -1102,6 +1156,7 @@ test.describe('Chapter 1 completion route', () => {
       currentHP: RPG.State.currentHP,
       maxHP: RPG.State.maxHP,
       isPoisoned: RPG.State.isPoisoned,
+      poisonDamageRemaining: RPG.State.poisonDamageRemaining,
       mode: RPG.State.mode,
       log: document.getElementById('logContainer')?.textContent || '',
     }));
@@ -1111,6 +1166,7 @@ test.describe('Chapter 1 completion route', () => {
       currentHP: 14,
       maxHP: 140,
       isPoisoned: false,
+      poisonDamageRemaining: 0,
       mode: 'base',
     });
     expect(result.log).toContain('【BAD END 〜琥珀の森焼失〜】');
@@ -1130,6 +1186,7 @@ test.describe('Chapter 1 completion route', () => {
         currentHP: 0,
         maxHP: 140,
         isPoisoned: true,
+        poisonDamageRemaining: 40,
         deathCount: 5,
         dialogueQueue: [],
       });
@@ -1145,6 +1202,7 @@ test.describe('Chapter 1 completion route', () => {
       currentHP: RPG.State.currentHP,
       maxHP: RPG.State.maxHP,
       isPoisoned: RPG.State.isPoisoned,
+      poisonDamageRemaining: RPG.State.poisonDamageRemaining,
       isAtInn: RPG.State.isAtInn,
       mode: RPG.State.mode,
       log: document.getElementById('logContainer')?.textContent || '',
@@ -1155,6 +1213,7 @@ test.describe('Chapter 1 completion route', () => {
       currentHP: 14,
       maxHP: 140,
       isPoisoned: false,
+      poisonDamageRemaining: 0,
       isAtInn: true,
       mode: 'base',
     });

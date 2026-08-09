@@ -343,6 +343,7 @@ const battleSystem = {
                     innSystem.enterInn(false, { preserveEventMode: true, skipEntryEvents: true });
                     RPG.State.currentHP = Math.floor(RPG.State.maxHP * 0.1);
                     RPG.State.isPoisoned = false;
+                    RPG.State.poisonDamageRemaining = 0;
                     uiControl.updateUI();
                 }
             },
@@ -1976,6 +1977,7 @@ const battleSystem = {
             {
                 text: null,
                 action: () => {
+                    RPG.State.mode = "choice";
                     const container = document.getElementById("action-buttons");
                     if (!container) return;
                     container.innerHTML = "";
@@ -3138,6 +3140,7 @@ const battleSystem = {
         RPG.State.isBattling = false;
         RPG.State.currentEnemy = null;
         RPG.State.battleState = null;
+        uiControl.resetVampireAmberChain();
         RPG.State.lastBlowBy = null;
         RPG.State.battleTurn = 0;
         RPG.State.hasOwenIntervened = false;

@@ -338,7 +338,13 @@ innSystem = {
         RPG.State.flags.picnicDateStaySincePassed = false;
 
         RPG.State.dialogueQueue = [
-            { text: null, action: () => visualDirector.setScene("forest") },
+            {
+                text: null,
+                action: () => {
+                    visualDirector.setScene("forest");
+                    uiControl.updateUI();
+                }
+            },
             { text: "【ピクニックデート】", type: "marker", color: "#f1e6c8", autoAdvance: true, delay: 600 },
             ...this.buildPicnicDateSceneQueue(RPG.Assets.GAME_TEXT.events.picnicDateForest),
             {
@@ -354,6 +360,7 @@ innSystem = {
                 delay: 1200,
                 action: () => {
                     visualDirector.setScene("inn-front");
+                    uiControl.updateUI();
                     const logContainer = document.getElementById("logContainer");
                     if (logContainer) logContainer.classList.remove("night-mode");
                 }

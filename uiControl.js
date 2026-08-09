@@ -175,9 +175,16 @@ const uiControl = {
         )
             ? visualDirector.getInnScene()
             : null;
-        const currentLocationText = innScene === "storage"
+        const sceneOverrideLocation = typeof visualDirector !== "undefined" &&
+            visualDirector.sceneOverride === "forest"
+            ? "琥珀の森"
+            : (typeof visualDirector !== "undefined" &&
+                visualDirector.sceneOverride === "inn-front"
+                ? "宿屋前"
+                : null);
+        const currentLocationText = sceneOverrideLocation || (innScene === "storage"
             ? "物置"
-            : (RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name);
+            : (RPG.State.location && RPG.State.location !== "" ? RPG.State.location : loc.name));
         const isHighway = currentLocationText === "かつての街道";
         const isHerbGarden = RPG.State.explorationArea === "herbGarden";
         const shouldShowLocationBar = RPG.State.isInDungeon === true && RPG.State.isAtInn !== true;

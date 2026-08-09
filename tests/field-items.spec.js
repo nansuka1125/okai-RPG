@@ -499,6 +499,30 @@ test.describe('field utility items', () => {
     });
   });
 
+  test('the Lv88 bad end clears the forest backdrop before revealing ？？？', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      Object.assign(RPG.State, {
+        isInDungeon: true,
+        isAtInn: false,
+        explorationArea: 'forest',
+        currentDistance: 5,
+        location: '琥珀の森',
+        currentHP: 140,
+        maxHP: 140,
+        isBattling: true,
+        currentEnemy: { id: 'glowing_cat_rabbit', hp: 9999 },
+        battleState: {},
+      });
+      battleSystem.showGlowingCatRabbitLv88BadEnd();
+      return {
+        location: RPG.State.location,
+        activeScene: typeof visualDirector !== 'undefined' ? visualDirector.getActiveScene() : null,
+        hasForestClass: document.body.className.split(' ').some(c => c.startsWith('scene-forest')),
+      };
+    });
+    expect(result).toEqual({ location: '？？？', activeScene: 'none', hasForestClass: false });
+  });
+
   test('using the grateful talisman from inventory prepares it once and consumes one charge', async ({ page }) => {
     const result = await page.evaluate(() => {
       const logContainer = document.getElementById('logContainer');

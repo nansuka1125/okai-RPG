@@ -1944,6 +1944,10 @@ const battleSystem = {
         RPG.State.battleState = null;
         RPG.State.mode = "event";
         RPG.State.location = "？？？";
+        if (typeof visualDirector !== "undefined") {
+            // Remove the forest backdrop before revealing the mysterious location label.
+            visualDirector.setScene("none");
+        }
 
         const lines = (RPG.Assets.GAME_TEXT.events.glowingRabbitLv88BadEnd || []).slice(2);
         const fadeDuration = RPG.State.debug.isSkipping ? 50 : 2400;
